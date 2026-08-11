@@ -6,75 +6,16 @@ Android-TV-/Fire-TV-Client und **Desktop-Webapp** – **1.6.5**.
 
 | | Link |
 |---|---|
-| **APK (kurz)** | https://clck.ru/3VBmze |
-| **Update (kurz)** | https://clck.ru/3VBmzf |
-| Gofile | https://gofile.io/d/R31xLo |
+| **APK (kurz)** | https://clck.ru/3VBn7n |
+| **Update (kurz)** | https://clck.ru/3VBn7w |
+| Gofile | https://gofile.io/d/veTMe7 |
 
-Siehe [](INSTALL.md).
+Siehe [`INSTALL.md`](INSTALL.md).
 
 ## Build
 
-> Task :app:buildKotlinToolingMetadata UP-TO-DATE
-> Task :app:checkKotlinGradlePluginConfigurationErrors
-> Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:dataBindingMergeDependencyArtifactsRelease UP-TO-DATE
-> Task :app:generateReleaseResValues UP-TO-DATE
-> Task :app:generateReleaseResources UP-TO-DATE
-> Task :app:mergeReleaseResources UP-TO-DATE
-> Task :app:packageReleaseResources UP-TO-DATE
-> Task :app:parseReleaseLocalResources UP-TO-DATE
-> Task :app:dataBindingGenBaseClassesRelease UP-TO-DATE
-> Task :app:generateReleaseBuildConfig UP-TO-DATE
-> Task :app:checkReleaseAarMetadata UP-TO-DATE
-> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
-> Task :app:createReleaseCompatibleScreenManifests UP-TO-DATE
-> Task :app:extractDeepLinksRelease UP-TO-DATE
-> Task :app:processReleaseMainManifest UP-TO-DATE
-> Task :app:processReleaseManifest UP-TO-DATE
-> Task :app:processReleaseManifestForPackage UP-TO-DATE
-> Task :app:processReleaseResources UP-TO-DATE
-> Task :app:kspReleaseKotlin UP-TO-DATE
-> Task :app:compileReleaseKotlin UP-TO-DATE
-> Task :app:javaPreCompileRelease UP-TO-DATE
-> Task :app:compileReleaseJavaWithJavac UP-TO-DATE
-> Task :app:extractProguardFiles UP-TO-DATE
-> Task :app:generateReleaseLintVitalReportModel UP-TO-DATE
-> Task :app:lintVitalAnalyzeRelease UP-TO-DATE
-> Task :app:lintVitalReportRelease UP-TO-DATE
-> Task :app:lintVitalRelease
-> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
-> Task :app:dexBuilderRelease UP-TO-DATE
-> Task :app:desugarReleaseFileDependencies UP-TO-DATE
-> Task :app:mergeReleaseStartupProfile UP-TO-DATE
-> Task :app:mergeExtDexRelease UP-TO-DATE
-> Task :app:mergeDexRelease UP-TO-DATE
-> Task :app:mergeReleaseArtProfile UP-TO-DATE
-> Task :app:mergeReleaseGlobalSynthetics UP-TO-DATE
-> Task :app:compileReleaseArtProfile UP-TO-DATE
-> Task :app:mergeReleaseShaders UP-TO-DATE
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:mergeReleaseAssets UP-TO-DATE
-> Task :app:compressReleaseAssets UP-TO-DATE
-> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
-> Task :app:processReleaseJavaRes UP-TO-DATE
-> Task :app:mergeReleaseJavaResource UP-TO-DATE
-> Task :app:optimizeReleaseResources UP-TO-DATE
-> Task :app:collectReleaseDependencies UP-TO-DATE
-> Task :app:sdkReleaseDependencyData UP-TO-DATE
-> Task :app:writeReleaseAppMetadata UP-TO-DATE
-> Task :app:writeReleaseSigningConfigVersions UP-TO-DATE
-> Task :app:packageRelease UP-TO-DATE
-> Task :app:createReleaseApkListingFileRedirect UP-TO-DATE
-> Task :app:assembleRelease
-
-BUILD SUCCESSFUL in 979ms
-50 actionable tasks: 2 executed, 48 up-to-date
+```bash
+./gradlew :app:assembleRelease
+```
 
 Defaults: serienstream.cx + filmpalast.to
