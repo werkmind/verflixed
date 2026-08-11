@@ -149,7 +149,7 @@ class HomeActivity : AppCompatActivity() {
         binding.profileNameLabel.setOnFocusChangeListener { v, hasFocus ->
             v.alpha = if (hasFocus) 1f else 0.85f
         }
-        // Explicit Fire TV focus chain: avatar → tabs → profile → content
+        // Explicit Fire TV focus chain: avatar → tabs → kind → profile → update → refresh → settings
         binding.profileAvatar.nextFocusRightId = R.id.tabLibrary
         binding.tabLibrary.nextFocusLeftId = R.id.profileAvatar
         binding.tabLibrary.nextFocusRightId = R.id.tabBrowse
@@ -162,14 +162,20 @@ class HomeActivity : AppCompatActivity() {
         binding.btnKindMovies.nextFocusLeftId = R.id.btnKindSeries
         binding.btnKindMovies.nextFocusRightId = R.id.btnProfile
         binding.btnProfile.nextFocusLeftId = R.id.btnKindMovies
-        binding.btnProfile.nextFocusRightId = R.id.btnSettings
-        binding.btnSettings.nextFocusLeftId = R.id.btnProfile
+        binding.btnProfile.nextFocusRightId = R.id.btnUpdate
+        binding.btnUpdate.nextFocusLeftId = R.id.btnProfile
+        binding.btnUpdate.nextFocusRightId = R.id.btnRefresh
+        binding.btnRefresh.nextFocusLeftId = R.id.btnUpdate
+        binding.btnRefresh.nextFocusRightId = R.id.btnSettings
+        binding.btnSettings.nextFocusLeftId = R.id.btnRefresh
         binding.tabLibrary.nextFocusDownId = R.id.btnHeroPlay
         binding.tabBrowse.nextFocusDownId = R.id.btnHeroPlay
         binding.tabSearch.nextFocusDownId = R.id.btnHeroPlay
         binding.btnKindSeries.nextFocusDownId = R.id.btnHeroPlay
         binding.btnKindMovies.nextFocusDownId = R.id.btnHeroPlay
         binding.btnProfile.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnUpdate.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnRefresh.nextFocusDownId = R.id.btnHeroPlay
         binding.btnSettings.nextFocusDownId = R.id.btnHeroPlay
         binding.btnHeroPlay.nextFocusUpId = R.id.tabBrowse
         binding.btnHeroInfo.nextFocusUpId = R.id.tabBrowse
@@ -179,6 +185,32 @@ class HomeActivity : AppCompatActivity() {
         binding.btnHeroInfo.nextFocusDownId = R.id.rows
         binding.profileAvatar.nextFocusDownId = R.id.btnHeroPlay
         binding.rows.nextFocusUpId = R.id.btnHeroPlay
+
+        // HSV must not steal DPAD focus from nav buttons
+        binding.navScroll.isFocusable = false
+        binding.navScroll.isFocusableInTouchMode = false
+        binding.navScroll.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        listOf(
+            binding.btnUpdate, binding.btnRefresh, binding.btnSettings, binding.btnProfile,
+        ).forEach { btn ->
+            btn.isClickable = true
+            btn.isFocusable = true
+            btn.isFocusableInTouchMode = true
+            btn.setOnKeyListener { v, keyCode, event ->
+                if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                    android.view.KeyEvent.KEYCODE_ENTER,
+                    android.view.KeyEvent.KEYCODE_BUTTON_A,
+                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                    -> {
+                        v.performClick()
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
 
         binding.filterChips.layoutManager =
             LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)

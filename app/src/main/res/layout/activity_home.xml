@@ -11,6 +11,9 @@
         android:id="@+id/navScroll"
         android:layout_width="0dp"
         android:layout_height="52dp"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
         android:scrollbars="none"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -123,7 +126,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:layout_marginEnd="6dp"
+                android:focusable="true"
                 android:minHeight="36dp"
+                android:nextFocusRight="@id/btnUpdate"
                 android:text="@string/profile_switcher"
                 android:textSize="12sp" />
 
@@ -133,7 +138,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:layout_marginEnd="6dp"
+                android:focusable="true"
                 android:minHeight="36dp"
+                android:nextFocusLeft="@id/btnProfile"
+                android:nextFocusRight="@id/btnRefresh"
                 android:text="@string/check_update"
                 android:textSize="12sp" />
 
@@ -143,7 +151,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:layout_marginEnd="6dp"
+                android:focusable="true"
                 android:minHeight="36dp"
+                android:nextFocusLeft="@id/btnUpdate"
+                android:nextFocusRight="@id/btnSettings"
                 android:text="@string/settings_refresh"
                 android:textSize="12sp" />
 
@@ -152,7 +163,9 @@
                 style="@style/SvButton.Ghost"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:focusable="true"
                 android:minHeight="36dp"
+                android:nextFocusLeft="@id/btnRefresh"
                 android:text="@string/home_settings"
                 android:textSize="12sp" />
         </LinearLayout>
