@@ -46,6 +46,7 @@ class CatalogRepository(
     private val artResolver: SeriesArtResolver,
     private val voeExtractor: VoeExtractor = VoeExtractor(http),
     private val vidaraExtractor: VidaraExtractor = VidaraExtractor(http),
+    private val firestreamExtractor: FirestreamExtractor = FirestreamExtractor(http),
 ) {
     private val mutex = Mutex()
     @Volatile private var memoryCatalog: Catalog? = null
@@ -661,10 +662,15 @@ class CatalogRepository(
             return@withContext it
         }
 
-        // Movie page: parse hosters → VOE first, then Vidara.
+        // Movie page: parse hosters → VOE / Vidara / Firestream → direct media only.
+        // Never return embed/page URLs (no WebView / captcha scam).
         val pageHint = episode.streamPageUrl
         if (!pageHint.isNullOrBlank() && StreamKind.isMovieWatchPage(pageHint)) {
             resolveMovieStream(episode, pageHint)?.let { return@withContext it }
+            throw VfException.of(
+                VfCodes.STREAM_RESOLVE,
+                "Film-Stream konnte nicht aufgelöst werden (kein direkter HLS/MP4). Kein Web-Player."
+            )
         }
 
         // 2) Cached VOE → claim m3u8 now (xstream-style); cached blobs → try cookie resolve.
@@ -749,6 +755,10 @@ class CatalogRepository(
         // Movie page fallback (if not caught earlier)
         if (StreamKind.isMovieWatchPage(page)) {
             resolveMovieStream(episode, page)?.let { return@withContext it }
+            throw VfException.of(
+                VfCodes.STREAM_RESOLVE,
+                "Film-Stream konnte nicht aufgelöst werden (kein direkter HLS/MP4). Kein Web-Player."
+            )
         }
 
         claimHlsDeep(page, episode)?.let { return@withContext it }
@@ -789,7 +799,7 @@ class CatalogRepository(
     }
 
     /**
-     * Filmpalast movie page: hosters ordered VOE → Vidara → others.
+     * Filmpalast movie page: hosters → direct HLS/mp4 only. Never returns embed/WebView URLs.
      */
     private suspend fun resolveMovieStream(episode: Episode, pageUrl: String): String? {
         val body = runCatching { getText(pageUrl) }.getOrNull().orEmpty()
@@ -807,7 +817,6 @@ class CatalogRepository(
                 StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) ||
                     hoster.name.contains("voe", true) -> {
                     claimVoeHls(url, episode)?.let { return it }
-                    // Geo-blocked / failed VOE → try next hoster (Vidara)
                 }
                 vidaraExtractor.isVidaraUrl(url) ||
                     hoster.name.contains("vidara", true) ||
@@ -820,15 +829,19 @@ class CatalogRepository(
                         return hls
                     }
                 }
+                firestreamExtractor.isFirestreamUrl(url) ||
+                    hoster.name.contains("firestream", true) -> {
+                    val direct = runCatching {
+                        firestreamExtractor.extractDirect(url, referer = pageUrl)
+                    }.getOrNull()
+                    if (!direct.isNullOrBlank()) {
+                        cacheStream(episode, direct)
+                        return direct
+                    }
+                }
             }
         }
-
-        // Last resort: return best hoster URL for WebView bootstrap
-        val best = hosters.firstOrNull()?.url
-        if (!best.isNullOrBlank()) {
-            cacheStream(episode, best)
-            return best
-        }
+        // Never fall back to hoster embed / iframe / captcha pages.
         return null
     }
 

@@ -7,6 +7,7 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.streamvault.tv.data.calendar.CalendarClient
 import com.streamvault.tv.data.catalog.CatalogParser
 import com.streamvault.tv.data.catalog.CatalogRepository
+import com.streamvault.tv.data.catalog.FirestreamExtractor
 import com.streamvault.tv.data.catalog.SeriesArtResolver
 import com.streamvault.tv.data.catalog.VidaraExtractor
 import com.streamvault.tv.data.catalog.VoeExtractor
@@ -16,7 +17,11 @@ import com.streamvault.tv.data.prefs.UserPrefs
 import com.streamvault.tv.data.profile.ProfileRepository
 import com.streamvault.tv.data.tmdb.TmdbClient
 import com.streamvault.tv.data.update.UpdateChecker
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class AppContainer(context: Context) {
@@ -33,6 +38,13 @@ class AppContainer(context: Context) {
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .cookieJar(object : CookieJar {
+            private val store = ConcurrentHashMap<String, List<Cookie>>()
+            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                if (cookies.isNotEmpty()) store[url.host] = cookies
+            }
+            override fun loadForRequest(url: HttpUrl): List<Cookie> = store[url.host].orEmpty()
+        })
         .build()
 
     val db: AppDatabase = Room.databaseBuilder(
@@ -50,6 +62,7 @@ class AppContainer(context: Context) {
     val artResolver = SeriesArtResolver(http, parser)
     val voeExtractor = VoeExtractor(http)
     val vidaraExtractor = VidaraExtractor(http)
+    val firestreamExtractor = FirestreamExtractor(http)
 
     val catalog = CatalogRepository(
         http = http,
@@ -65,5 +78,6 @@ class AppContainer(context: Context) {
         artResolver = artResolver,
         voeExtractor = voeExtractor,
         vidaraExtractor = vidaraExtractor,
+        firestreamExtractor = firestreamExtractor,
     )
 }

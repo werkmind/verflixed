@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/sv_bg"
-    android:clipChildren="true">
+    android:clipChildren="false">
 
     <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible -->
     <HorizontalScrollView
@@ -288,8 +288,8 @@
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="true"
-        android:clipToPadding="true"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:paddingTop="2dp"
         android:paddingBottom="20dp"

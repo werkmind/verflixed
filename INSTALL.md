@@ -1,15 +1,17 @@
 # Verflixed – Installation auf Fire TV Stick
 
-## Downloads (1.6.2)
+## Downloads (1.6.3)
 
 | Datei | Link |
 |---|---|
-| **APK Fire TV (kurz)** | https://clck.ru/3VBgGx |
-| **Update (kurz)** | https://clck.ru/3VBgFW |
-| APK Gofile | https://gofile.io/d/sdNpZo |
-| APK Direkt (72h) | https://litter.catbox.moe/qa00q1.apk |
+| **APK Fire TV (kurz)** | https://clck.ru/3VBiUd |
+| **Update (kurz)** | https://clck.ru/3VBiPU |
+| APK Gofile | https://gofile.io/d/R2PXAw |
+| APK Direkt (72h) | https://litter.catbox.moe/tjxvr3.apk |
 
-Lokal: `dist/Verflixed-FireTV.apk` (versionCode **18** / **1.6.2**)
+Lokal: `dist/Verflixed-FireTV.apk` (versionCode **19** / **1.6.3**)
+
+> Hinweis: `clck.ru` + litter sind unveränderlich. Ab 1.6.2 → 1.6.3 bitte **einmal neu installieren** (alter Update-Link `3VBgFW` zeigt weiter auf 1.6.2). Danach nutzt die App `3VBiPU` als Update-Manifest.
 
 ---
 
@@ -19,13 +21,18 @@ Lokal: `dist/Verflixed-FireTV.apk` (versionCode **18** / **1.6.2**)
 2. Unbekannte Quellen für Downloader erlauben  
 3. URL eingeben:
    ```text
-   https://clck.ru/3VBgGx
+   https://clck.ru/3VBiUd
    ```
 4. Installieren → **Verflixed** starten
 
 ### Menü-Taste (3 Balken)
 
 Auf Poster/Episode: **als gesehen**, **Favorit**, **ungesehen**, **Metadaten neu laden**
+
+### Player – Zurück
+
+1. Zurück → Custom Controls ausblenden (falls sichtbar)  
+2. Nochmal Zurück (innerhalb 2s) → Stream beenden  
 
 ### Defaults
 
@@ -34,17 +41,15 @@ Auf Poster/Episode: **als gesehen**, **Favorit**, **ungesehen**, **Metadaten neu
 
 ---
 
-## Neu in 1.6.2
+## Neu in 1.6.3
 
-- Echte Episodentitel (nicht mehr 1/2/3)
-- VOE: mehrere Play-Blobs + beliebige Proxy-Hosts (`/e/…`), `/redirect/`-Follow
-- Favoriten-Cache hängt nicht mehr bei 90+ Episoden (nur letzte Staffel deep-claim)
-- VF-999 „Job cancelled“ unterdrückt
-- Meine Bibliothek: Weiterschauen oben + eine große Library (kein doppeltes Favoriten-Row)
-- Serienkalender-Shelf + Browse **Neu** (Homepage-Hero zuerst)
-- Layout Overflow / dichteres UI
-- Menü-Taste Kontextaktionen
+- **Filmpalast / Firestream**: nativer Resolve (`/e/` → `/api/.../resolve`) – **kein** WebView, kein Captcha-SCAM, kein iframe
+- Filme scheitern mit VF-302 statt Web-Player-Fallback
+- Poster/Episode: OK / Enter startet (nicht nur Fokus)
+- Doppel-Zurück beendet den Stream (erst Controls)
+- Redundantes „Film“-Label entfernt
+- Portrait-Poster, CenterCrop, Buttons ohne weißen Material-Tint, weniger Overflow
 
-### 1.6.1
+### 1.6.2
 
-- Filme-URL Fix, VF-201 Search, Netflix-Keyboard, Antifilter/Sounds weg
+- Echte Episodentitel, VOE multi-proxy, Library/Kalender/Neu, Menü-Taste

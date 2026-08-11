@@ -9,6 +9,8 @@ object StreamKind {
             url.contains("/hls/", ignoreCase = true) && url.contains("playlist", ignoreCase = true)
 
     fun isMp4(url: String): Boolean {
+        val lower = url.lowercase()
+        if (lower.contains(".mp4")) return true
         val path = runCatching { Uri.parse(url).path.orEmpty() }.getOrDefault(url)
         return path.contains(".mp4", ignoreCase = true)
     }
@@ -24,6 +26,21 @@ object StreamKind {
         val lower = url.lowercase()
         if (lower.contains("master.txt") && lower.contains("voe")) return true
         if (lower.contains("/hls/") && (lower.contains("index") || lower.contains("master"))) return true
+        // Signed CDN progressive / HLS (Firestream, S3, CloudFront…)
+        if (
+            (lower.contains("x-amz-") || lower.contains("signature=") || lower.contains("x-goog-")) &&
+            (lower.contains(".mp4") || lower.contains(".m3u8") || lower.contains("/video.") ||
+                lower.contains("firestream") || lower.contains("cloudfront") || lower.contains("amazonaws"))
+        ) {
+            return true
+        }
+        if (lower.contains("firestream") && (lower.contains("video") || lower.contains("media"))) {
+            if (lower.contains(".mp4") || lower.contains(".m3u8") || lower.contains("x-amz") || lower.contains("signature")) {
+                return true
+            }
+        }
+        // Signed cloud URLs ending with video.mp4 / video.m3u8 before query
+        if (Regex("""/video\.(mp4|m3u8)(?:\?|$)""", RegexOption.IGNORE_CASE).containsMatchIn(url)) return true
         return false
     }
 

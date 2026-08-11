@@ -170,9 +170,9 @@ object FilmParser {
         val n = "$name $url".lowercase()
         var s = 0
         if (Regex("""\bvoe\b""").containsMatchIn(n) || n.contains("voe.sx")) s += 100
+        if (n.contains("firestream")) s += 90
         if (n.contains("vidara") || n.contains("vidnest")) s += 70
         if (n.contains("vidsonic")) s += 40
-        if (n.contains("firestream")) s += 30
         if (n.contains("playmate")) s += 20
         if (Regex("""\bhd\b""").containsMatchIn(n)) s += 5
         return s

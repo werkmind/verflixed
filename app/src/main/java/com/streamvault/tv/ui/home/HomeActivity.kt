@@ -590,10 +590,6 @@ class HomeActivity : AppCompatActivity() {
                 if (isNotEmpty()) append("  •  ")
                 append("${series.seasons.size} Staffeln")
             }
-            if (series.isMovie) {
-                if (isNotEmpty()) append("  •  ")
-                append("Film")
-            }
             if (isEmpty()) append(if (mode == HomeMode.LIBRARY) "Meine Bibliothek" else "Browse")
         }
         binding.heroOverview.text = series.overview
@@ -766,28 +762,45 @@ private class PosterAdapter(
     override fun onBindViewHolder(holder: PosterVH, position: Int) {
         val item = items[position]
         holder.bind(item, browseModeProvider())
-        holder.itemView.setOnClickListener { onClick(items[holder.bindingAdapterPosition.coerceAtLeast(0)]) }
+        holder.itemView.isClickable = true
+        holder.itemView.isFocusable = true
+        holder.itemView.isFocusableInTouchMode = true
+        val open = View.OnClickListener {
+            val pos = holder.bindingAdapterPosition
+            if (pos != RecyclerView.NO_POSITION) onClick(items[pos])
+        }
+        holder.itemView.setOnClickListener(open)
+        holder.itemView.setOnKeyListener { v, keyCode, event ->
+            if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                android.view.KeyEvent.KEYCODE_ENTER,
+                android.view.KeyEvent.KEYCODE_BUTTON_A,
+                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                -> {
+                    v.performClick()
+                    true
+                }
+                else -> false
+            }
+        }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            val scale = if (hasFocus) 1.06f else 1f
+            val scale = if (hasFocus) 1.05f else 1f
             v.animate().scaleX(scale).scaleY(scale).setDuration(160).start()
             v.elevation = if (hasFocus) 10f else 0f
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     (holder.itemView.parent as? RecyclerView)?.smoothScrollToPosition(pos)
-                    // Scroll vertical parent row into view
                     val row = (holder.itemView.parent as? View)?.parent as? View
                     val rowsRv = row?.parent as? RecyclerView
                     val rowHolder = row?.let { rowsRv?.getChildViewHolder(it) }
                     rowHolder?.bindingAdapterPosition?.takeIf { it >= 0 }?.let { rowsRv?.smoothScrollToPosition(it) }
-                    UiSound.click(v.context, prefsProvider())
                     onFocused(items[pos])
                     resolveArt(items[pos]) { resolved -> updateItem(resolved) }
                 }
             }
         }
-        // Smart lazy: resolve missing covers primarily on focus (visible intent).
-        // Bind only kicks resolve if URL still empty — SeriesArtResolver caps concurrency.
         if (item.posterUrl.isNullOrBlank() && item.backdropUrl.isNullOrBlank() && browseModeProvider()) {
             resolveArt(item) { resolved -> updateItem(resolved) }
         }
@@ -799,7 +812,8 @@ private class PosterAdapter(
 
         fun bind(series: Series, browseMode: Boolean) {
             title.text = series.title
-            PosterLoader.loadSeries(poster, series.backdropUrl ?: series.posterUrl, browseMode = browseMode)
+            // Prefer portrait poster art — backdrop (16:9) causes letterbox/whitespace in 2:3 cards
+            PosterLoader.loadSeries(poster, series.posterUrl ?: series.backdropUrl, browseMode = browseMode)
         }
     }
 }

@@ -18,6 +18,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
@@ -59,6 +60,8 @@ class PlayerActivity : AppCompatActivity() {
     private var exoRetryUsed = false
     private var allowEmbeddedFallback = false
     private var resumeMs: Long = 0L
+    private var lastBackExitAt = 0L
+    private var lastBackHandledAt = 0L
     private val handler = Handler(Looper.getMainLooper())
 
     private val progressTick = object : Runnable {
@@ -71,6 +74,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private val resolveTimeout = Runnable {
         if (!handedOffToExo && !allowEmbeddedFallback) {
+            if (isMoviePlayback()) {
+                showPlayerError("[VF-302] Film-Stream timeout – kein Web-Player.")
+                return@Runnable
+            }
             val page = playbackPageUrl()
             if (!page.isNullOrBlank()) {
                 binding.resolveStatus.visibility = View.VISIBLE
@@ -83,11 +90,25 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun isMoviePlayback(): Boolean =
+        series?.isMovie == true ||
+            episode?.streamPageUrl?.let { StreamKind.isMovieWatchPage(it) } == true ||
+            episode?.id?.endsWith("-movie") == true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.decorView.setBackgroundColor(Color.BLACK)
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    handlePlaybackBack()
+                }
+            }
+        )
 
         val seriesId = intent.getStringExtra(EXTRA_SERIES_ID) ?: run { finish(); return }
         val episodeId = intent.getStringExtra(EXTRA_EPISODE_ID) ?: run { finish(); return }
@@ -102,16 +123,15 @@ class PlayerActivity : AppCompatActivity() {
             if (hls != null) {
                 handOffToExoPlayer(hls, force = true)
             } else {
-                /* auto-resolve */
-                val page = playbackPageUrl()
-                if (!page.isNullOrBlank()) {
-                    allowEmbeddedFallback = false
-                    handedOffToExo = false
-                    startWebResolver(page, keepVisible = true)
-                }
+                lifecycleScope.launch { reResolveNative() }
             }
         }
         binding.btnUseWebPlayer.setOnClickListener {
+            if (isMoviePlayback()) {
+                Toast.makeText(this, "Kein Web-Player für Filme", Toast.LENGTH_SHORT).show()
+                lifecycleScope.launch { reResolveNative() }
+                return@setOnClickListener
+            }
             allowEmbeddedFallback = true
             handedOffToExo = false
             val page = playbackPageUrl()
@@ -325,7 +345,11 @@ class PlayerActivity : AppCompatActivity() {
             if (!hls.isNullOrBlank()) {
                 handOffToExoPlayer(hls, force = false)
             } else {
-                // Fallback: load VOE embed itself (usually no captcha) and intercept HLS.
+                // Series only: VOE embed WebView claim. Movies never use WebView.
+                if (isMoviePlayback()) {
+                    showPlayerError("[VF-302] Film-Hoster ohne direkten Stream – kein Web-Player.")
+                    return@launch
+                }
                 voeClaimInFlight = null
                 if (!usingWebPlayer || binding.webPlayer.url?.let { StreamKind.isEpisodeWatchPage(it) } == true) {
                     handler.post {
@@ -362,12 +386,33 @@ class PlayerActivity : AppCompatActivity() {
         exoRetryUsed = false
         voeClaimInFlight = null
         resolvingProbeUrl = url
-        lastMediaUrl = url.takeIf { StreamKind.isDirectMediaUrl(it) }
+        lastMediaUrl = url.takeIf { StreamKind.isDirectMediaUrl(it) || looksLikeSignedMedia(url) }
+        // Movies: ExoPlayer only — never WebView / iframe / captcha hoster pages.
+        if (isMoviePlayback()) {
+            when {
+                StreamKind.isDirectMediaUrl(url) || looksLikeSignedMedia(url) ->
+                    startExoPlayer(url, resumeMs)
+                StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) -> {
+                    lifecycleScope.launch {
+                        val ep = episode
+                        val hls = if (ep != null) {
+                            runCatching {
+                                (application as VerflixedApp).container.catalog.claimVoeToHls(url, ep)
+                            }.getOrNull()
+                        } else null
+                        if (!hls.isNullOrBlank()) startExoPlayer(hls, resumeMs)
+                        else showPlayerError("[VF-302] Film-Hoster ohne direkten Stream – kein Web-Player.")
+                    }
+                }
+                else -> showPlayerError("[VF-302] Kein direkter Film-Stream. Kein Web-Player.")
+            }
+            handler.post(progressTick)
+            return
+        }
         when {
             StreamKind.isDirectMediaUrl(url) && !StreamKind.isPlayBlobUrl(url) ->
                 startExoPlayer(url, resumeMs)
             StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) -> {
-                // Prefer native m3u8 claim; VOE page only as fallback (rarely has captcha).
                 lifecycleScope.launch {
                     val ep = episode
                     val hls = if (ep != null) {
@@ -387,7 +432,75 @@ class PlayerActivity : AppCompatActivity() {
         handler.post(progressTick)
     }
 
+    private fun looksLikeSignedMedia(url: String): Boolean {
+        val lower = url.lowercase()
+        return lower.startsWith("http") && (
+            lower.contains(".mp4") ||
+                lower.contains(".m3u8") ||
+                lower.contains("x-amz-") ||
+                lower.contains("signature=")
+            )
+    }
+
+    private fun consumeBackForControls(): Boolean {
+        if (binding.nextEpisodeBanner.visibility == View.VISIBLE) {
+            binding.nextEpisodeBanner.visibility = View.GONE
+            return true
+        }
+        if (binding.modeBar.visibility == View.VISIBLE) {
+            showModeBar(false)
+            return true
+        }
+        if (binding.playerView.visibility == View.VISIBLE &&
+            binding.playerView.isControllerFullyVisible
+        ) {
+            binding.playerView.hideController()
+            return true
+        }
+        if (usingWebPlayer && binding.webPlayer.canGoBack()) {
+            binding.webPlayer.goBack()
+            return true
+        }
+        return false
+    }
+
+    /** Back: dismiss controls first; require a second Back within 2s to leave the stream. */
+    private fun handlePlaybackBack() {
+        // Deduplicate OnBackPressedCallback + onKeyDown on some Fire OS builds
+        val now = System.currentTimeMillis()
+        if (now - lastBackHandledAt < 60L) return
+        lastBackHandledAt = now
+        if (consumeBackForControls()) return
+        if (now - lastBackExitAt < 2_000L) {
+            finish()
+            return
+        }
+        lastBackExitAt = now
+        Toast.makeText(this, "Nochmal Zurück zum Beenden", Toast.LENGTH_SHORT).show()
+        if (binding.playerView.visibility == View.VISIBLE) {
+            binding.playerView.showController()
+        }
+    }
+
+    private suspend fun reResolveNative() {
+        val ep = episode ?: return
+        binding.playerLoading.visibility = View.VISIBLE
+        allowEmbeddedFallback = false
+        handedOffToExo = false
+        val url = runCatching {
+            (application as VerflixedApp).container.catalog.resolveStream(ep)
+        }.getOrElse {
+            showPlayerError(it.toVfMessage())
+            return
+        }
+        startPlayback(normalizePlaybackUrl(url, ep), resumeMs)
+    }
+
     private fun startWebResolver(url: String, keepVisible: Boolean) {
+        if (isMoviePlayback()) {
+            showPlayerError("[VF-302] Kein Web-Player für Filme – nur direkter Stream.")
+            return
+        }
         val target = normalizePlaybackUrl(url, episode)
         usingWebPlayer = true
         player?.release()
@@ -563,6 +676,10 @@ class PlayerActivity : AppCompatActivity() {
                     return
                 }
                 // Auto: Episode-Seite erneut resolven (wie Desktop Webapp), ohne Debug-Buttons.
+                if (isMoviePlayback()) {
+                    showPlayerError("[VF-304] Film-Wiedergabe fehlgeschlagen – kein Web-Player.")
+                    return
+                }
                 val page = playbackPageUrl()
                 if (!page.isNullOrBlank()) {
                     handedOffToExo = false
@@ -603,12 +720,15 @@ class PlayerActivity : AppCompatActivity() {
                         }.onSuccess { url ->
                             startPlayback(normalizePlaybackUrl(url, ep), 0L)
                         }.onFailure {
-                            if (!page.isNullOrBlank()) startWebResolver(page, keepVisible = true)
+                            if (isMoviePlayback()) showPlayerError(it.toVfMessage())
+                            else if (!page.isNullOrBlank()) startWebResolver(page, keepVisible = true)
                             else showPlayerError(it.toVfMessage())
                         }
                     }
-                } else if (!page.isNullOrBlank()) {
+                } else if (!isMoviePlayback() && !page.isNullOrBlank()) {
                     startWebResolver(page, keepVisible = true)
+                } else {
+                    showPlayerError("Kein Stream verfügbar")
                 }
             }
         }
@@ -764,6 +884,10 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            handlePlaybackBack()
+            return true
+        }
         val p = player
         when (keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,

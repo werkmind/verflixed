@@ -38,10 +38,11 @@
 
     <ImageView
         android:id="@+id/poster"
-        android:layout_width="200dp"
-        android:layout_height="112dp"
+        android:layout_width="112dp"
+        android:layout_height="160dp"
         android:layout_marginStart="40dp"
-        android:layout_marginTop="40dp"
+        android:layout_marginTop="36dp"
+        android:adjustViewBounds="false"
         android:background="@drawable/bg_poster_focus"
         android:contentDescription="@null"
         android:elevation="8dp"

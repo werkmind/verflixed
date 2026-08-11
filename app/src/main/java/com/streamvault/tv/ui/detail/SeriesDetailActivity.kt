@@ -114,10 +114,7 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.title.text = s.title
         binding.meta.text = buildString {
             s.year?.let { append(it) }
-            if (s.isMovie) {
-                if (isNotEmpty()) append("  •  ")
-                append("Film")
-            } else if (s.seasons.isNotEmpty()) {
+            if (!s.isMovie && s.seasons.isNotEmpty()) {
                 if (isNotEmpty()) append("  •  ")
                 append("${s.seasons.size} Staffeln")
                 val eps = s.flatEpisodes().size
@@ -132,7 +129,7 @@ class SeriesDetailActivity : AppCompatActivity() {
             }
         }
         binding.overview.text = s.overview ?: "Keine Beschreibung verfügbar."
-        PosterLoader.loadSeries(binding.poster, s.backdropUrl ?: s.posterUrl, browseMode = false, rounded = 12)
+        PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false, rounded = 12)
         PosterLoader.loadHero(binding.backdrop, s.backdropUrl ?: s.posterUrl, browseMode = false)
         binding.btnFavorite.text = if (favorite) {
             getString(R.string.detail_favorite_remove)
@@ -248,7 +245,7 @@ class SeriesDetailActivity : AppCompatActivity() {
         val season = s.seasons.find { it.number == selectedSeason }
         val poster = season?.posterUrl ?: s.posterUrl
         val backdrop = season?.backdropUrl ?: season?.posterUrl ?: s.backdropUrl ?: s.posterUrl
-        PosterLoader.loadSeries(binding.poster, backdrop ?: poster, browseMode = false, rounded = 12)
+        PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false, rounded = 12)
         PosterLoader.loadHero(binding.backdrop, backdrop ?: poster, browseMode = false)
     }
 
@@ -452,7 +449,8 @@ private class EpisodeAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val ep = items[position]
         holder.bound = ep
-        holder.number.text = if (ep.id.endsWith("-movie")) "Film" else "E${ep.number}"
+        holder.number.text = if (ep.id.endsWith("-movie")) "" else "E${ep.number}"
+        holder.number.visibility = if (ep.id.endsWith("-movie")) View.GONE else View.VISIBLE
         holder.title.text = ep.title
         val p = progress[ep.id]
         holder.meta.text = when {
@@ -467,23 +465,35 @@ private class EpisodeAdapter(
         }
         holder.badge.text = when {
             p?.completed == true -> "✓ Gesehen"
-            else -> "○ Markieren"
+            ep.id.endsWith("-movie") -> "○ Ungesehen"
+            else -> "○ Ungesehen"
         }
-        holder.badge.isFocusable = true
+        holder.badge.isFocusable = false
+        holder.badge.isClickable = false
         holder.itemView.isFocusable = true
-        holder.itemView.nextFocusRightId = R.id.watchedBadge
-        holder.badge.nextFocusLeftId = holder.itemView.id
-        holder.badge.setOnClickListener { onToggleWatched(ep) }
-        holder.badge.setOnLongClickListener {
-            onToggleWatched(ep)
-            true
-        }
+        holder.itemView.isClickable = true
+        holder.itemView.isFocusableInTouchMode = true
+        holder.badge.setOnClickListener(null)
         holder.itemView.setOnLongClickListener {
             onToggleWatched(ep)
             true
         }
         PosterLoader.loadEpisodeStill(holder.still, ep.stillUrl, seriesArtProvider())
         holder.itemView.setOnClickListener { onClick(ep) }
+        holder.itemView.setOnKeyListener { v, keyCode, event ->
+            if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                android.view.KeyEvent.KEYCODE_ENTER,
+                android.view.KeyEvent.KEYCODE_BUTTON_A,
+                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                -> {
+                    v.performClick()
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
