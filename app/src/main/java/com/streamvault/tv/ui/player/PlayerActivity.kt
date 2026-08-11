@@ -29,6 +29,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.catalog.StreamKind
 import com.streamvault.tv.data.catalog.StreamLanguage
@@ -67,13 +68,20 @@ class PlayerActivity : AppCompatActivity() {
     private var exoControllerVisible = false
     /** First Back while in WebView dismisses overlays once; next Back uses double-back-to-exit. */
     private var webChromeDismissed = false
+    private var nextPromptVisible = false
+    private var nextPromptDismissed = false
+    private var nextAutoAtMs = 0L
+    private var advancingToNext = false
     private val handler = Handler(Looper.getMainLooper())
 
     private val progressTick = object : Runnable {
         override fun run() {
             persistProgress(forceCompleted = false)
             maybeShowNext()
-            handler.postDelayed(this, 5_000L)
+            // 1s while playing so the last-60s next-episode overlay appears promptly;
+            // 400ms while the countdown is visible for a smooth timer.
+            val interval = if (nextPromptVisible) 400L else 1_000L
+            handler.postDelayed(this, interval)
         }
     }
 
@@ -129,8 +137,10 @@ class PlayerActivity : AppCompatActivity() {
         FocusFx.bindScale(binding.btnRetryHls, 1.06f)
         FocusFx.bindScale(binding.btnUseWebPlayer, 1.06f)
         FocusFx.bindScale(binding.btnPlayNext, 1.06f)
+        FocusFx.bindScale(binding.btnSkipNextPrompt, 1.06f)
 
         binding.btnPlayNext.setOnClickListener { playNext(auto = false) }
+        binding.btnSkipNextPrompt.setOnClickListener { dismissNextPrompt(keepPlaying = true) }
         binding.btnRetryHls.setOnClickListener {
             val hls = lastMediaUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }
             if (hls != null) {
@@ -998,42 +1008,99 @@ class PlayerActivity : AppCompatActivity() {
     private fun maybeShowNext() {
         val s = series ?: return
         val ep = episode ?: return
+        if (s.isMovie || ep.id.endsWith("-movie")) {
+            hideNextPrompt()
+            return
+        }
         val p = player ?: return
         val dur = p.duration
-        if (dur <= 0L) return
+        if (dur <= 0L || !p.isPlaying) return
         val left = dur - p.currentPosition
-        val next = (application as VerflixedApp).container.catalog.nextEpisode(s, ep) ?: return
-        if (left in 1..35_000L) {
+        val next = (application as VerflixedApp).container.catalog.nextEpisode(s, ep)
+        if (next == null) {
+            hideNextPrompt()
+            return
+        }
+        if (nextPromptDismissed) {
+            if (left > 60_000L) nextPromptDismissed = false
+            return
+        }
+        if (left in 1..60_000L) {
+            showNextPrompt(next, left)
+        } else if (left > 60_000L) {
+            hideNextPrompt()
+        }
+    }
+
+    private fun showNextPrompt(next: Episode, leftMs: Long) {
+        if (!nextPromptVisible) {
+            nextPromptVisible = true
+            nextAutoAtMs = System.currentTimeMillis() + 10_000L
             binding.nextEpisodeBanner.visibility = View.VISIBLE
-            binding.nextEpisodeText.text = "Nächste: S${next.seasonNumber}E${next.number} · ${next.title}"
-        } else if (left > 35_000L) {
-            binding.nextEpisodeBanner.visibility = View.GONE
+            binding.nextEpisodeText.text = getString(
+                R.string.player_next_title,
+                next.seasonNumber,
+                next.number,
+                next.title,
+            )
+            binding.btnPlayNext.post {
+                if (nextPromptVisible) binding.btnPlayNext.requestFocus()
+            }
+        }
+        val remainSec = ((nextAutoAtMs - System.currentTimeMillis()) / 1000L)
+            .coerceIn(0L, 10L)
+            .toInt()
+        binding.nextEpisodeCountdown.text = getString(R.string.player_next_countdown, remainSec)
+        if (remainSec <= 0 && !advancingToNext) {
+            playNext(auto = true)
+        }
+    }
+
+    private fun hideNextPrompt() {
+        nextPromptVisible = false
+        nextAutoAtMs = 0L
+        binding.nextEpisodeBanner.visibility = View.GONE
+    }
+
+    private fun dismissNextPrompt(keepPlaying: Boolean) {
+        nextPromptDismissed = true
+        hideNextPrompt()
+        if (keepPlaying) {
+            Toast.makeText(this, "Läuft bis zum Schluss", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun playNext(auto: Boolean) {
+        if (advancingToNext) return
         val s = series ?: return
         val ep = episode ?: return
         val next = (application as VerflixedApp).container.catalog.nextEpisode(s, ep) ?: run {
             if (!auto) Toast.makeText(this, "Keine nächste Episode", Toast.LENGTH_SHORT).show()
+            hideNextPrompt()
             return
         }
+        advancingToNext = true
         persistProgress(forceCompleted = true)
         episode = next
         handedOffToExo = false
         allowEmbeddedFallback = false
         exoRetryUsed = false
         lastMediaUrl = null
-        binding.nextEpisodeBanner.visibility = View.GONE
+        nextPromptDismissed = false
+        hideNextPrompt()
         binding.playerLoading.visibility = View.VISIBLE
         lifecycleScope.launch {
             val repo = (application as VerflixedApp).container.catalog
             runCatching { repo.resolveStream(next) }
                 .onSuccess { url ->
+                    advancingToNext = false
                     playReferer = next.streamPageUrl ?: playReferer
                     startPlayback(normalizePlaybackUrl(url, next), 0L)
                 }
-                .onFailure { showPlayerError(it.toVfMessage()) }
+                .onFailure {
+                    advancingToNext = false
+                    showPlayerError(it.toVfMessage())
+                }
         }
     }
 

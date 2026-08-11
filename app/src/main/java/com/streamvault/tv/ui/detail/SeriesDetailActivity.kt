@@ -68,14 +68,22 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.seasonTabs.adapter = seasonAdapter
         binding.episodeList.layoutManager = LinearLayoutManager(this)
         binding.episodeList.adapter = episodeAdapter
-        listOf(binding.btnPlay, binding.btnFavorite, binding.btnSeasonWatched, binding.btnLanguage).forEach {
+        listOf(
+            binding.btnPlay,
+            binding.btnFavorite,
+            binding.btnSeasonWatched,
+            binding.btnLanguage,
+            binding.btnMore,
+        ).forEach {
             FocusFx.bindScale(it, 1.04f)
         }
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
         binding.btnSeasonWatched.setOnClickListener { toggleSeasonWatched() }
+        binding.btnMore.setOnClickListener { showContextMenu() }
         binding.btnLanguage.visibility = View.GONE
         binding.btnLanguage.setOnClickListener { toggleStreamLanguage() }
+        wireActionFocusChain()
         binding.btnPlay.setOnClickListener {
             val s = series ?: return@setOnClickListener
             val target = (application as VerflixedApp).container.catalog
@@ -209,6 +217,7 @@ class SeriesDetailActivity : AppCompatActivity() {
             } ?: languagePages.keys.first()
             paintLanguageButton()
             binding.btnLanguage.visibility = View.VISIBLE
+            wireActionFocusChain()
         }
         lifecycleScope.launch {
             val pages = runCatching {
@@ -226,6 +235,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                 }
                 paintLanguageButton()
                 binding.btnLanguage.visibility = View.VISIBLE
+                wireActionFocusChain()
                 // Update meta chip
                 series = s.copy(
                     availableLanguages = pages.keys.toList(),
@@ -237,8 +247,17 @@ class SeriesDetailActivity : AppCompatActivity() {
             } else {
                 languagePages = pages
                 binding.btnLanguage.visibility = View.GONE
+                wireActionFocusChain()
             }
         }
+    }
+
+    private fun wireActionFocusChain() {
+        val langVisible = binding.btnLanguage.visibility == View.VISIBLE
+        binding.btnSeasonWatched.nextFocusRightId =
+            if (langVisible) R.id.btnLanguage else R.id.btnMore
+        binding.btnMore.nextFocusLeftId =
+            if (langVisible) R.id.btnLanguage else R.id.btnSeasonWatched
     }
 
     private fun paintLanguageButton() {
@@ -379,8 +398,8 @@ class SeriesDetailActivity : AppCompatActivity() {
         }
     }
 
-    private fun startBackgroundStreamWarmup(s: Series) {
-        if (warmingStreams && warmupSeriesId == s.id) return
+    private fun startBackgroundStreamWarmup(s: Series, forceRefresh: Boolean = false) {
+        if (warmingStreams && warmupSeriesId == s.id && !forceRefresh) return
         if (s.flatEpisodes().isEmpty()) return
         warmingStreams = true
         warmupSeriesId = s.id
@@ -390,7 +409,10 @@ class SeriesDetailActivity : AppCompatActivity() {
         app.appScope.launch {
             var lastCached = -1
             runCatching {
-                repo.collectAllEpisodePlayerLinks(s.id) { progress ->
+                repo.collectAllEpisodePlayerLinks(
+                    seriesId = s.id,
+                    clearExisting = forceRefresh,
+                ) { progress ->
                     runOnUiThread {
                         if (isFinishing || isDestroyed) return@runOnUiThread
                         if (series?.id != s.id) return@runOnUiThread
@@ -446,7 +468,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                 }
                 Toast.makeText(
                     this@SeriesDetailActivity,
-                    if (nowFav) "Favorit gespeichert – Links werden im Hintergrund vorbereitet"
+                    if (nowFav) "Favorit gespeichert – HLS/MP4-Links werden im Hintergrund geladen"
                     else "Favorit entfernt",
                     Toast.LENGTH_SHORT
                 ).show()
@@ -496,9 +518,65 @@ class SeriesDetailActivity : AppCompatActivity() {
                     load(s.id, s.detailPath, s.title, s.mediaKind)
                 }
             }
+            options += "Stream-Link Episode neu laden"
+            actions += {
+                lifecycleScope.launch {
+                    Toast.makeText(this@SeriesDetailActivity, "Lade Stream…", Toast.LENGTH_SHORT).show()
+                    runCatching { repo.refreshEpisodeStream(focusedEp.id, s.id) }
+                        .onSuccess { ok ->
+                            Toast.makeText(
+                                this@SeriesDetailActivity,
+                                if (ok) "Episode-Stream aktualisiert" else "Kein Direkt-Stream gefunden",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            refreshReadyDots(s.id)
+                        }
+                        .onFailure {
+                            Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                        }
+                }
+            }
         }
         options += "Staffel als gesehen"
         actions += { toggleSeasonWatched() }
+        options += "Stream-Links Staffel neu laden"
+        actions += {
+            renderCacheStatus(0, s.flatEpisodes().count { it.seasonNumber == selectedSeason }, "caching")
+            warmingStreams = false
+            Toast.makeText(this@SeriesDetailActivity, "Staffel-Streams werden geladen…", Toast.LENGTH_SHORT).show()
+            val app = application as VerflixedApp
+            app.appScope.launch {
+                runCatching {
+                    repo.collectAllEpisodePlayerLinks(
+                        seriesId = s.id,
+                        seasonNumber = selectedSeason,
+                        clearExisting = true,
+                    ) { progress ->
+                        runOnUiThread {
+                            if (isFinishing || isDestroyed) return@runOnUiThread
+                            if (series?.id != s.id) return@runOnUiThread
+                            renderCacheStatus(progress.cached, progress.total, progress.status)
+                        }
+                    }
+                }.onSuccess {
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        refreshReadyDots(s.id)
+                        Toast.makeText(this@SeriesDetailActivity, "Staffel-Streams fertig", Toast.LENGTH_SHORT).show()
+                    }
+                }.onFailure {
+                    runOnUiThread {
+                        Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+        options += "Stream-Links Serie neu laden (HLS/MP4)"
+        actions += {
+            warmingStreams = false
+            startBackgroundStreamWarmup(s, forceRefresh = true)
+            Toast.makeText(this@SeriesDetailActivity, "Alle Streams werden neu geladen…", Toast.LENGTH_SHORT).show()
+        }
         options += "Metadaten neu laden"
         actions += {
             lifecycleScope.launch {

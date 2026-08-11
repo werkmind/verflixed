@@ -46,6 +46,7 @@ class HomeActivity : AppCompatActivity() {
     private var searchJob: Job? = null
     private var loadJob: Job? = null
     private var searchQuery = ""
+    private var lastAppBackAt = 0L
     private lateinit var searchPanel: View
     private lateinit var searchQueryLabel: TextView
     private lateinit var searchKeyboard: RecyclerView
@@ -128,6 +129,30 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    // Double-back to leave the app (same UX as player).
+                    val now = System.currentTimeMillis()
+                    if (mode == HomeMode.SEARCH) {
+                        setMode(lastContentMode)
+                        return
+                    }
+                    if (now - lastAppBackAt < 2_000L) {
+                        finish()
+                        return
+                    }
+                    lastAppBackAt = now
+                    Toast.makeText(
+                        this@HomeActivity,
+                        getString(R.string.back_again_exit),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        )
 
         searchPanel = findViewById(R.id.searchPanel)
             ?: error("searchPanel missing from activity_home")

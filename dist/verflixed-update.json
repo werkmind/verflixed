@@ -1,7 +1,8 @@
 {
-  "versionCode": 25,
-  "versionName": "1.6.9",
+  "versionCode": 31,
+  "versionName": "1.7.5",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "changelog": "1.6.9: Back in allen Playern; DE/EN nur Detail wenn multi-lang; Film-Sprachseiten + sprachsicherer Cache; Updates via GitHub Releases"
+  "sha256": "b86a8fe8af9373644b20c5e825df6b4c600c5f5375aa2841e94c072ac97de193",
+  "changelog": "1.7.5: Doppel-Zurück zum Beenden; Favoriten bulk-cachen HLS/MP4; Kontextmenü Stream neu laden; Nächste-Folge Overlay (60s/10s)"
 }

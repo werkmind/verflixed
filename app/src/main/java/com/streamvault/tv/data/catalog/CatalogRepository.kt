@@ -1386,47 +1386,52 @@ class CatalogRepository(
     }
 
     /**
-     * Light favorite cache: store episode page URLs for all episodes, deep-claim HLS
-     * only for the latest season (avoids hanging on 90+ episode shows like Rick & Morty).
+     * Favorite / bulk cache: resolve episodes all the way to direct HLS/MP4 and persist them.
+     * Optional [seasonNumber] / [episodeId] limit the work; [clearExisting] drops old cache first.
      */
     suspend fun collectAllEpisodePlayerLinks(
         seriesId: String,
-        onProgress: (FavoriteCacheProgress) -> Unit = {}
+        seasonNumber: Int? = null,
+        episodeId: String? = null,
+        clearExisting: Boolean = false,
+        onProgress: (FavoriteCacheProgress) -> Unit = {},
     ): FavoriteCacheProgress = withContext(Dispatchers.IO) {
         val series = getSeries(seriesId, enrich = true)
-        val episodes = series.flatEpisodes()
-        val total = episodes.size
+        val all = series.flatEpisodes()
+        val targets = when {
+            !episodeId.isNullOrBlank() -> all.filter { it.id == episodeId }
+            seasonNumber != null -> all.filter { it.seasonNumber == seasonNumber }
+            else -> all
+        }
+        val total = targets.size.coerceAtLeast(1)
         var cached = 0
-        updateFavoriteMeta(series = series, cached = 0, total = total, status = "caching")
+        if (clearExisting) {
+            when {
+                !episodeId.isNullOrBlank() -> db.streams().delete(pid(), episodeId)
+                seasonNumber != null -> targets.forEach { db.streams().delete(pid(), it.id) }
+                else -> db.streams().deleteSeries(pid(), seriesId)
+            }
+        }
+        updateFavoriteMeta(series = series, cached = 0, total = all.size, status = "caching")
         onProgress(FavoriteCacheProgress(seriesId, 0, total, "caching"))
 
-        val latestSeason = series.seasons.maxByOrNull { it.number }?.number
-        val deepTargets = episodes
-            .filter { it.seasonNumber == latestSeason }
-            .take(8)
-            .map { it.id }
-            .toSet()
+        val resolvedById = LinkedHashMap<String, Episode>()
+        all.forEach { resolvedById[it.id] = it }
 
-        val resolvedEpisodes = episodes.map { ep ->
+        for (ep in targets) {
+            if (ep.upcoming) continue
             val label = "S${ep.seasonNumber}E${ep.number}"
             onProgress(FavoriteCacheProgress(seriesId, cached, total, "caching", label))
-            // Always keep watch-page URL so Player can claim on demand.
-            val page = ep.streamPageUrl
-            if (!page.isNullOrBlank()) {
-                runCatching { cacheStream(ep, page) }
-            }
-            val url = if (ep.id in deepTargets) {
-                runCatching { resolveStream(ep) }.getOrNull()
-            } else {
-                page ?: ep.streamUrl
-            }
-            if (url != null) {
+            val url = runCatching { resolveStream(ep) }.getOrNull()
+            if (!url.isNullOrBlank() && StreamKind.isDirectMediaUrl(url)) {
                 cached++
-                ep.copy(streamUrl = url)
-            } else ep
+                resolvedById[ep.id] = ep.copy(streamUrl = url)
+            } else if (!url.isNullOrBlank()) {
+                resolvedById[ep.id] = ep.copy(streamUrl = url)
+            }
         }
 
-        val bySeason = resolvedEpisodes.groupBy { it.seasonNumber }
+        val bySeason = resolvedById.values.groupBy { it.seasonNumber }
         val hydrated = series.copy(
             seasons = series.seasons.sortedBy { it.number }.map { season ->
                 season.copy(
@@ -1434,15 +1439,40 @@ class CatalogRepository(
                 )
             }
         )
+        val directCount = if (episodeId == null && seasonNumber == null) {
+            all.count { ep ->
+                val u = resolvedById[ep.id]?.streamUrl
+                !u.isNullOrBlank() && StreamKind.isDirectMediaUrl(u)
+            }
+        } else cached
         val status = when {
-            total == 0 -> "ready"
-            cached >= total -> "ready"
-            cached > 0 -> "partial"
+            all.isEmpty() -> "ready"
+            directCount >= all.size -> "ready"
+            directCount > 0 || cached > 0 -> "partial"
             else -> "partial"
         }
-        updateFavoriteMeta(hydrated, cached, total, status)
+        updateFavoriteMeta(hydrated, directCount.coerceAtLeast(cached), all.size, status)
         FavoriteCacheProgress(seriesId, cached, total, status).also(onProgress)
     }
+
+    suspend fun refreshEpisodeStream(episodeId: String, seriesId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            collectAllEpisodePlayerLinks(
+                seriesId = seriesId,
+                episodeId = episodeId,
+                clearExisting = true,
+            ).cached > 0
+        }
+
+    suspend fun refreshSeasonStreams(seriesId: String, seasonNumber: Int): FavoriteCacheProgress =
+        collectAllEpisodePlayerLinks(
+            seriesId = seriesId,
+            seasonNumber = seasonNumber,
+            clearExisting = true,
+        )
+
+    suspend fun refreshSeriesStreams(seriesId: String): FavoriteCacheProgress =
+        collectAllEpisodePlayerLinks(seriesId = seriesId, clearExisting = true)
 
     suspend fun prefetchSeriesStreams(series: Series) {
         collectAllEpisodePlayerLinks(series.id)

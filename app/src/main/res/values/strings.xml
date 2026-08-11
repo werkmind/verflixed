@@ -31,9 +31,15 @@
     <string name="detail_episodes">Episoden</string>
     <string name="detail_mark_season_watched">Staffel gesehen</string>
     <string name="detail_mark_season_unwatched">Staffel zurücksetzen</string>
+    <string name="detail_more_menu">⋯</string>
+    <string name="detail_more_menu_cd">Mehr Optionen / Streams neu laden</string>
     <string name="watched">Gesehen</string>
     <string name="unwatched">Ungesehen</string>
-    <string name="player_next">Nächste Episode</string>
+    <string name="player_next">Nächste Folge</string>
+    <string name="player_skip_credits">Überspringen</string>
+    <string name="player_next_countdown">Automatisch in %1$ds</string>
+    <string name="player_next_title">Als Nächstes: S%1$dE%2$d · %3$s</string>
+    <string name="back_again_exit">Nochmal Zurück zum Beenden</string>
     <string name="loading">Laden…</string>
     <string name="error_generic">Etwas ist schiefgelaufen.</string>
     <string name="settings_title">Einstellungen</string>

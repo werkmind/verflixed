@@ -152,7 +152,7 @@
                 android:layout_marginStart="10dp"
                 android:minHeight="38dp"
                 android:nextFocusLeft="@id/btnFavorite"
-                android:nextFocusRight="@id/btnLanguage"
+                android:nextFocusRight="@id/btnMore"
                 android:text="@string/detail_mark_season_watched" />
 
             <Button
@@ -164,8 +164,21 @@
                 android:minHeight="38dp"
                 android:minWidth="72dp"
                 android:nextFocusLeft="@id/btnSeasonWatched"
+                android:nextFocusRight="@id/btnMore"
                 android:text="DE"
                 android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnMore"
+                style="@style/SvButton.Ghost"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginStart="10dp"
+                android:minHeight="38dp"
+                android:minWidth="48dp"
+                android:nextFocusLeft="@id/btnSeasonWatched"
+                android:text="@string/detail_more_menu"
+                android:contentDescription="@string/detail_more_menu_cd" />
         </LinearLayout>
     </HorizontalScrollView>
 
