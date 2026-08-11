@@ -198,6 +198,29 @@ class CatalogParser(private val moshi: Moshi) {
         return if (preferred.isNotEmpty()) preferred + ranked.filterNot { it in preferred } else ranked
     }
 
+    /**
+     * Languages present on an episode/watch page (SerienStream hoster buttons).
+     * Empty if none labeled.
+     */
+    fun extractAvailableLanguages(body: String, pageUrl: String): List<String> {
+        val langs = linkedSetOf<String>()
+        extractPlayBlobCandidates(body, pageUrl, preferredLang = StreamLanguage.DE).forEach { c ->
+            if (c.language.isNotBlank()) {
+                langs += StreamLanguage.normalize(c.language)
+            }
+        }
+        // Also scan headings
+        val doc = Jsoup.parse(body, pageUrl)
+        doc.select("h3, h4, h5, .language, .lang-title").forEach { h ->
+            val t = h.text()
+            when {
+                t.contains("deutsch", true) || t.contains("german", true) -> langs += StreamLanguage.DE
+                t.contains("englisch", true) || t.contains("english", true) -> langs += StreamLanguage.EN
+            }
+        }
+        return langs.toList()
+    }
+
     /** AniWorld-style `/redirect/{id}` hoster links. */
     fun extractRedirectUrls(body: String, pageUrl: String): List<String> {
         val doc = Jsoup.parse(body, pageUrl)

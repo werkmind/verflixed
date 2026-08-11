@@ -489,7 +489,7 @@ class CatalogRepository(
         val fromFav = db.favorites().all(pid()).firstOrNull { it.seriesId == seriesId }?.let {
             seriesAdapter.fromJson(it.cachedJson)
         }
-        val light = catalog?.series?.find { it.id == seriesId }
+        val lightRaw = catalog?.series?.find { it.id == seriesId }
             ?: fromFav
             ?: fromCache
             ?: detailPathHint?.takeIf { it.isNotBlank() }?.let { path ->
@@ -501,6 +501,18 @@ class CatalogRepository(
                 )
             }
             ?: throw VfException.of(VfCodes.SERIES_NOT_FOUND, "Serie nicht gefunden: $seriesId")
+
+        // Language switch / alternate Filmpalast page must override cached detailPath.
+        val light = if (!detailPathHint.isNullOrBlank() && detailPathHint != lightRaw.detailPath) {
+            lightRaw.copy(
+                detailPath = detailPathHint,
+                mediaKind = if (mediaKindHint == "movie" || lightRaw.isMovie) "movie" else lightRaw.mediaKind,
+                // Force re-fetch: drop stale seasons/episodes from other language page
+                seasons = emptyList(),
+            )
+        } else {
+            lightRaw
+        }
 
         rememberSeriesHit(light)
 
@@ -720,13 +732,11 @@ class CatalogRepository(
 
     suspend fun resolveStream(episode: Episode): String = withContext(Dispatchers.IO) {
         val pref = preferredLang()
-        // 1) Prefer already-known direct media (HLS/mp4) — never downgrade to HTML pages.
-        episode.streamUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }?.let {
-            cacheStream(episode, it, pref)
-            return@withContext it
-        }
+        // 1) Cached direct media for this profile language only.
         db.streams().get(pid(), episode.id)?.takeIf {
-            StreamKind.isDirectMediaUrl(it.streamUrl) && cacheLangMatches(it.kind, pref)
+            StreamKind.isDirectMediaUrl(it.streamUrl) &&
+                it.streamUrl.isNotBlank() &&
+                cacheLangMatches(it.kind, pref)
         }?.let {
             return@withContext it.streamUrl
         }
@@ -740,6 +750,16 @@ class CatalogRepository(
                 VfCodes.STREAM_RESOLVE,
                 "Film-Stream konnte nicht aufgelöst werden (kein direkter HLS/MP4). Kein Web-Player."
             )
+        }
+
+        // Bare episode.streamUrl (series only) — never for movies; never skip lang preference.
+        episode.streamUrl?.takeIf {
+            StreamKind.isDirectMediaUrl(it) &&
+                !StreamKind.isMovieWatchPage(episode.streamPageUrl.orEmpty()) &&
+                !episode.id.endsWith("-movie")
+        }?.let {
+            cacheStream(episode, it, pref)
+            return@withContext it
         }
 
         // 2) Cached VOE → claim m3u8 now (xstream-style); cached blobs → try cookie resolve.
@@ -873,28 +893,47 @@ class CatalogRepository(
      * Tries every hoster in score order; VOE encoding/geo failures fall through to Firestream etc.
      */
     private suspend fun resolveMovieStream(episode: Episode, pageUrl: String): String? {
-        val body = runCatching { getText(pageUrl) }.getOrNull().orEmpty()
-        if (body.isBlank()) return null
         val pref = preferredLang()
-        val pageLang = FilmParser.detectPageLanguage(body)
-        val hosters = FilmParser.parseHosters(body, pageUrl, preferredLang = pref)
+        var effectiveUrl = pageUrl
+        var body = runCatching { getText(effectiveUrl) }.getOrNull().orEmpty()
+        if (body.isBlank()) return null
+        val pageTitle = FilmParser.cleanTitle(
+            org.jsoup.Jsoup.parse(body, effectiveUrl)
+                .selectFirst("article.detail h2, h2.bgDark, h2")?.text().orEmpty()
+        )
+        var pageLang = FilmParser.detectPageLanguage(body, pageTitle, effectiveUrl)
+
+        // Filmpalast: DE and EN are separate pages — switch page when preference differs.
+        if (pageLang != pref) {
+            val alt = findMovieLanguagePage(effectiveUrl, body, pageTitle, pref)
+            if (!alt.isNullOrBlank() && alt != effectiveUrl) {
+                val altBody = runCatching { getText(alt) }.getOrNull().orEmpty()
+                if (altBody.isNotBlank() && FilmParser.parseHosters(altBody, alt).isNotEmpty()) {
+                    effectiveUrl = alt
+                    body = altBody
+                    pageLang = FilmParser.detectPageLanguage(
+                        altBody,
+                        FilmParser.cleanTitle(
+                            org.jsoup.Jsoup.parse(altBody, alt)
+                                .selectFirst("article.detail h2, h2.bgDark, h2")?.text().orEmpty()
+                        ),
+                        alt,
+                    )
+                }
+            }
+        }
+
+        val hosters = FilmParser.parseHosters(body, effectiveUrl, preferredLang = pref)
         if (hosters.isEmpty()) return null
 
-        // Prefer hosters matching preferred language; fall back to the rest.
-        val ordered = hosters.filter {
-            it.language.isBlank() || StreamLanguage.matchesPreferred(it.language, pref)
-        }.ifEmpty { hosters } + hosters.filterNot {
-            it.language.isBlank() || StreamLanguage.matchesPreferred(it.language, pref)
-        }.distinctBy { it.url }
-
-        for (hoster in ordered) {
+        for (hoster in hosters) {
             val url = hoster.url
             val got = runCatching {
                 when {
                     StreamKind.isDirectMediaUrl(url) -> url
                     firestreamExtractor.isFirestreamUrl(url) ||
                         hoster.name.contains("firestream", true) -> {
-                        firestreamExtractor.extractDirect(url, referer = pageUrl)
+                        firestreamExtractor.extractDirect(url, referer = effectiveUrl)
                     }
                     StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) ||
                         hoster.name.contains("voe", true) -> {
@@ -903,7 +942,7 @@ class CatalogRepository(
                     vidaraExtractor.isVidaraUrl(url) ||
                         hoster.name.contains("vidara", true) ||
                         hoster.name.contains("vidnest", true) -> {
-                        vidaraExtractor.extractHls(url, referer = pageUrl)
+                        vidaraExtractor.extractHls(url, referer = effectiveUrl)
                             ?.takeIf { StreamKind.isDirectMediaUrl(it) }
                     }
                     else -> null
@@ -916,7 +955,6 @@ class CatalogRepository(
                         got.contains("firestream", true) && got.contains("http", true)
                     )
             ) {
-                // Never hand embed/player pages to the movie player.
                 if (StreamKind.isVoePlayerUrl(got) || StreamKind.isVoeEmbedPath(got)) continue
                 if (got.contains("/e/", true) && !StreamKind.isDirectMediaUrl(got) &&
                     !got.contains(".mp4", true) && !got.contains("md5=", true)
@@ -926,8 +964,102 @@ class CatalogRepository(
                 return got
             }
         }
-        // Never fall back to hoster embed / iframe / captcha pages.
         return null
+    }
+
+    /**
+     * Find Filmpalast page URL for [wantedLang] given the current movie page.
+     * Uses sibling slug heuristics + title search.
+     */
+    private suspend fun findMovieLanguagePage(
+        pageUrl: String,
+        html: String,
+        title: String,
+        wantedLang: String,
+    ): String? {
+        val want = StreamLanguage.normalize(wantedLang)
+        val current = FilmParser.detectPageLanguage(html, title, pageUrl)
+        if (current == want) return pageUrl
+
+        // 1) Sibling slug heuristics
+        for (cand in FilmParser.siblingLanguageUrls(pageUrl, current)) {
+            val body = runCatching { getText(cand) }.getOrNull().orEmpty()
+            if (body.isBlank()) continue
+            val lang = FilmParser.detectPageLanguage(
+                body,
+                FilmParser.cleanTitle(
+                    org.jsoup.Jsoup.parse(body, cand)
+                        .selectFirst("article.detail h2, h2.bgDark, h2")?.text().orEmpty()
+                ),
+                cand,
+            )
+            if (lang == want && FilmParser.parseHosters(body, cand).isNotEmpty()) return cand
+        }
+
+        // 2) Site search by cleaned title
+        val base = activeBase().ifBlank {
+            runCatching { java.net.URI(pageUrl).let { "${it.scheme}://${it.host}" } }.getOrDefault("")
+        }
+        if (base.isBlank()) return null
+        val query = StreamLanguage.cleanTitleForSearch(title).ifBlank { title }
+        val hits = runCatching {
+            SiteSearch.search(http, base, query, USER_AGENT, mediaKind = "movie")
+        }.getOrDefault(emptyList())
+        for (hit in hits) {
+            val hitUrl = hit.detailPath ?: continue
+            val hitLang = FilmParser.languageFromMovieHit(hit.title, hitUrl)
+            if (hitLang != want) continue
+            // Prefer close title match
+            val a = StreamLanguage.cleanTitleForSearch(hit.title).lowercase()
+            val b = query.lowercase()
+            if (a.contains(b.take(8)) || b.contains(a.take(8)) || a == b) {
+                val body = runCatching { getText(hitUrl) }.getOrNull().orEmpty()
+                if (body.isNotBlank() && FilmParser.parseHosters(body, hitUrl).isNotEmpty()) {
+                    return hitUrl
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Discover available audio languages for a title (movies: sibling pages; series: episode hosters).
+     * Returns map lang → page URL (series: episode page URL reused for all langs).
+     */
+    suspend fun discoverTitleLanguages(series: Series): Map<String, String> = withContext(Dispatchers.IO) {
+        if (series.isMovie) {
+            val page = series.detailPath ?: series.flatEpisodes().firstOrNull()?.streamPageUrl
+                ?: return@withContext emptyMap()
+            val body = runCatching { getText(page) }.getOrNull().orEmpty()
+            if (body.isBlank()) return@withContext emptyMap()
+            val title = series.title
+            val current = FilmParser.detectPageLanguage(body, title, page)
+            val out = linkedMapOf(current to page)
+            for (want in listOf(StreamLanguage.DE, StreamLanguage.EN)) {
+                if (want in out) continue
+                findMovieLanguagePage(page, body, title, want)?.let { out[want] = it }
+            }
+            return@withContext out
+        }
+        // Series: probe first episode page of first season for labeled hosters
+        val ep = series.flatEpisodes().firstOrNull { !it.streamPageUrl.isNullOrBlank() }
+            ?: series.flatEpisodes().firstOrNull()
+            ?: return@withContext emptyMap()
+        val page = ep.streamPageUrl ?: series.detailPath ?: return@withContext emptyMap()
+        // If page is series root, try first episode path later via resolve — still probe page
+        val body = runCatching { getText(page) }.getOrNull().orEmpty()
+        if (body.isBlank()) return@withContext emptyMap()
+        val langs = parser.extractAvailableLanguages(body, page)
+        if (langs.isEmpty()) {
+            // Fall back: many episode roots list both DE/EN headings without blobs yet
+            val hasDe = body.contains("Deutsch", true)
+            val hasEn = body.contains("Englisch", true) || body.contains("English", true)
+            return@withContext buildMap {
+                if (hasDe) put(StreamLanguage.DE, page)
+                if (hasEn) put(StreamLanguage.EN, page)
+            }
+        }
+        langs.associateWith { page }
     }
 
     /** Public helper for PlayerActivity: VOE embed URL → direct HLS playlist. */

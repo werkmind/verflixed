@@ -1,21 +1,11 @@
 # Verflixed (Fire TV + Desktop Webapp)
 
-Android-TV-/Fire-TV-Client und **Desktop-Webapp** – **1.6.7**.
-
-## Downloads
+**1.6.8**
 
 | | Link |
 |---|---|
-| **APK (kurz)** | https://clck.ru/3VBrJb |
-| **Update (kurz)** | https://clck.ru/3VBrJc |
-| Gofile | https://gofile.io/d/bXsIOT |
+| **APK (kurz)** | https://clck.ru/3VBs9e |
+| **Update (kurz)** | https://clck.ru/3VBs9k |
+| Gofile | https://gofile.io/d/GmwCZx |
 
 Siehe [`INSTALL.md`](INSTALL.md).
-
-## Build
-
-```bash
-./gradlew :app:assembleRelease
-```
-
-Defaults: serienstream.cx + filmpalast.to

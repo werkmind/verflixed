@@ -1,7 +1,7 @@
-versionName=1.6.7
-versionCode=23
-apk=https://litter.catbox.moe/vtqpha.apk
-install_short=https://clck.ru/3VBrJb
-update_manifest=https://litter.catbox.moe/2zwfue.json
-update_short=https://clck.ru/3VBrJc
-gofile=https://gofile.io/d/bXsIOT
+versionName=1.6.8
+versionCode=24
+apk=https://litter.catbox.moe/7gmgdb.apk
+install_short=https://clck.ru/3VBs9e
+update_manifest=https://litter.catbox.moe/4al70q.json
+update_short=https://clck.ru/3VBs9k
+gofile=https://gofile.io/d/GmwCZx

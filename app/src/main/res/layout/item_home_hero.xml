@@ -3,8 +3,8 @@
     android:id="@+id/heroContainer"
     android:layout_width="match_parent"
     android:layout_height="168dp"
-    android:clipChildren="true"
-    android:clipToPadding="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:focusable="false"
     android:paddingBottom="4dp">
 
@@ -74,7 +74,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:clipChildren="true"
+            android:clipChildren="false"
             android:orientation="horizontal">
 
             <Button

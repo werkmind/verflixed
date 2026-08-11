@@ -41,19 +41,30 @@ object StreamLanguage {
 
     fun toggle(code: String?): String = if (normalize(code) == DE) EN else DE
 
-    /** Detect movie/page language from Filmpalast release titles etc. */
+    /** Detect movie/page language from Filmpalast release titles, slug, ENGLISH badges, etc. */
     fun detectFromText(vararg texts: String?): String? {
         val blob = texts.filterNotNull().joinToString(" ").lowercase()
         if (blob.isBlank()) return null
-        val hasDe = blob.contains("german") || blob.contains("deutsch") ||
-            Regex("""\bger\b""").containsMatchIn(blob) ||
-            blob.contains("german.dubbed") || blob.contains(".ger.")
-        val hasEn = blob.contains("english") || blob.contains("englisch") ||
+        val hasEn = blob.contains("*english*") ||
+            blob.contains(" english") ||
+            blob.contains("english*") ||
+            blob.contains("englisch") ||
+            blob.contains("-english") ||
+            blob.contains("/english") ||
+            Regex("""\benglish\b""").containsMatchIn(blob) ||
             Regex("""\beng\b""").containsMatchIn(blob) ||
             blob.contains(".eng.")
+        val hasDe = blob.contains("german") || blob.contains("deutsch") ||
+            Regex("""\bger\b""").containsMatchIn(blob) ||
+            blob.contains("german.dubbed") || blob.contains(".ger.") ||
+            blob.contains("german.dl")
         return when {
-            hasDe && !hasEn -> DE
             hasEn && !hasDe -> EN
+            hasDe && !hasEn -> DE
+            hasEn && hasDe -> {
+                // Slug/title ENGLISH wins over incidental GERMAN in description
+                if (blob.contains("*english*") || blob.contains("-english")) EN else DE
+            }
             hasDe -> DE
             hasEn -> EN
             else -> null
@@ -66,4 +77,13 @@ object StreamLanguage {
         if (cand.isBlank()) return false
         return normalize(cand) == pref
     }
+
+    /** Strip language markers from a movie title for sibling search. */
+    fun cleanTitleForSearch(title: String): String =
+        title.replace(Regex("""\*+\s*ENGLISH\s*\*+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\*+\s*GERMAN\s*\*+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\bENGLISH\b""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\bGERMAN\b""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
 }

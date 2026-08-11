@@ -116,11 +116,8 @@ class PlayerActivity : AppCompatActivity() {
 
         FocusFx.bindScale(binding.btnRetryHls, 1.06f)
         FocusFx.bindScale(binding.btnUseWebPlayer, 1.06f)
-        FocusFx.bindScale(binding.btnLangToggle, 1.06f)
         FocusFx.bindScale(binding.btnPlayNext, 1.06f)
 
-        paintLangToggle()
-        binding.btnLangToggle.setOnClickListener { togglePlaybackLanguage() }
         binding.btnPlayNext.setOnClickListener { playNext(auto = false) }
         binding.btnRetryHls.setOnClickListener {
             val hls = lastMediaUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }
@@ -151,7 +148,9 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerLoading.visibility = View.VISIBLE
         binding.playerError.visibility = View.GONE
         binding.playerErrorPanel.visibility = View.GONE
-        showModeBar(true)
+        showModeBar(false)
+        // Language switching is detail/settings only — never in the player.
+        binding.btnLangToggle.visibility = View.GONE
 
         lifecycleScope.launch {
             val repo = (application as VerflixedApp).container.catalog
@@ -452,17 +451,25 @@ class PlayerActivity : AppCompatActivity() {
             binding.nextEpisodeBanner.visibility = View.GONE
             return true
         }
-        if (binding.modeBar.visibility == View.VISIBLE) {
+        // Debug mode bar (HLS/Web) — only counts when its action buttons are actually shown.
+        if (binding.modeBar.visibility == View.VISIBLE &&
+            (binding.btnRetryHls.visibility == View.VISIBLE || binding.btnUseWebPlayer.visibility == View.VISIBLE)
+        ) {
             showModeBar(false)
             return true
         }
+        // ExoPlayer custom controls (all native streams)
         if (binding.playerView.visibility == View.VISIBLE &&
             binding.playerView.isControllerFullyVisible
         ) {
             binding.playerView.hideController()
             return true
         }
-        if (usingWebPlayer && binding.webPlayer.canGoBack()) {
+        // WebView history only while actively using web player (series fallback)
+        if (usingWebPlayer &&
+            binding.webPlayer.visibility == View.VISIBLE &&
+            binding.webPlayer.canGoBack()
+        ) {
             binding.webPlayer.goBack()
             return true
         }
@@ -482,9 +489,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         lastBackExitAt = now
         Toast.makeText(this, "Nochmal Zurück zum Beenden", Toast.LENGTH_SHORT).show()
-        if (binding.playerView.visibility == View.VISIBLE) {
-            binding.playerView.showController()
-        }
+        // Do not force-show Exo controls — that fights "hide first" on the next Back.
     }
 
     private suspend fun reResolveNative() {
@@ -760,44 +765,19 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showModeBar(visible: Boolean) {
-        // Debug-/Manual-Leiste standardmäßig aus; Sprach-Umschalter bleibt sichtbar.
-        binding.modeBar.visibility = View.VISIBLE
-        binding.btnLangToggle.visibility = View.VISIBLE
-        binding.btnRetryHls.visibility = View.GONE
-        binding.btnUseWebPlayer.visibility = View.GONE
-        paintLangToggle()
+        // Language toggle is never shown in the player. Debug HLS/Web buttons only when requested.
+        binding.btnLangToggle.visibility = View.GONE
+        binding.btnRetryHls.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.btnUseWebPlayer.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.modeBar.visibility =
+            if (visible && (binding.btnRetryHls.visibility == View.VISIBLE ||
+                    binding.btnUseWebPlayer.visibility == View.VISIBLE)
+            ) View.VISIBLE else View.GONE
     }
 
     private fun currentPreferredLang(): String {
         val prefs = (application as VerflixedApp).container.prefs
         return StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
-    }
-
-    private fun paintLangToggle() {
-        val code = currentPreferredLang()
-        binding.btnLangToggle.text = StreamLanguage.shortLabel(code)
-        binding.btnLangToggle.contentDescription = "Ton: ${StreamLanguage.label(code)}"
-    }
-
-    private fun togglePlaybackLanguage() {
-        val app = application as VerflixedApp
-        val next = StreamLanguage.toggle(currentPreferredLang())
-        lifecycleScope.launch {
-            app.container.catalog.setPreferredStreamLanguage(next)
-            episode?.id?.let { app.container.catalog.clearCachedStream(it) }
-            paintLangToggle()
-            Toast.makeText(
-                this@PlayerActivity,
-                "Ton: ${StreamLanguage.label(next)} – lade neu…",
-                Toast.LENGTH_SHORT
-            ).show()
-            binding.playerLoading.visibility = View.VISIBLE
-            hideError()
-            handedOffToExo = false
-            allowEmbeddedFallback = false
-            lastMediaUrl = null
-            reResolveNative()
-        }
     }
 
     private fun playerBootstrapJs(): String {

@@ -4,16 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/sv_bg"
-    android:clipChildren="true"
-    android:clipToPadding="true">
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
     <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible. -->
     <HorizontalScrollView
         android:id="@+id/navScroll"
         android:layout_width="0dp"
         android:layout_height="50dp"
-        android:clipChildren="true"
-        android:clipToPadding="true"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:focusable="false"
         android:focusableInTouchMode="false"
@@ -246,11 +246,11 @@
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="true"
-        android:clipToPadding="true"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
-        android:paddingTop="4dp"
-        android:paddingBottom="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

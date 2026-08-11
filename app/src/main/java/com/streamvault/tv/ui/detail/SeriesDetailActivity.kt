@@ -37,6 +37,9 @@ class SeriesDetailActivity : AppCompatActivity() {
     private var series: Series? = null
     private var selectedSeason = 1
     private var progressMap: Map<String, WatchProgressEntity> = emptyMap()
+    /** lang → page URL; button only visible when size >= 2 */
+    private var languagePages: Map<String, String> = emptyMap()
+    private var activePageLang: String = StreamLanguage.DE
 
     private val seasonAdapter = SeasonAdapter { season ->
         selectedSeason = season
@@ -65,7 +68,7 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
         binding.btnSeasonWatched.setOnClickListener { toggleSeasonWatched() }
-        paintLanguageButton()
+        binding.btnLanguage.visibility = View.GONE
         binding.btnLanguage.setOnClickListener { toggleStreamLanguage() }
         binding.btnPlay.setOnClickListener {
             val s = series ?: return@setOnClickListener
@@ -181,33 +184,93 @@ class SeriesDetailActivity : AppCompatActivity() {
             renderEpisodes()
             updateSeasonWatchedButton()
         }
+        refreshAvailableLanguages(s)
         binding.btnPlay.requestFocus()
     }
 
+    private fun refreshAvailableLanguages(s: Series) {
+        binding.btnLanguage.visibility = View.GONE
+        languagePages = s.languagePages.filterValues { it.isNotBlank() }
+        if (languagePages.size >= 2) {
+            activePageLang = languagePages.keys.firstOrNull {
+                it == StreamLanguage.normalize(
+                    (application as VerflixedApp).container.prefs.streamLanguage(
+                        (application as VerflixedApp).container.prefs.activeProfileId
+                    )
+                )
+            } ?: languagePages.keys.first()
+            paintLanguageButton()
+            binding.btnLanguage.visibility = View.VISIBLE
+        }
+        lifecycleScope.launch {
+            val pages = runCatching {
+                (application as VerflixedApp).container.catalog.discoverTitleLanguages(s)
+            }.getOrDefault(emptyMap())
+            if (pages.size >= 2) {
+                languagePages = pages
+                val prefs = (application as VerflixedApp).container.prefs
+                val pref = StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
+                activePageLang = when {
+                    pref in pages -> pref
+                    s.detailPath != null -> pages.entries.firstOrNull { it.value == s.detailPath }?.key
+                        ?: pages.keys.first()
+                    else -> pages.keys.first()
+                }
+                paintLanguageButton()
+                binding.btnLanguage.visibility = View.VISIBLE
+                // Update meta chip
+                series = s.copy(
+                    availableLanguages = pages.keys.toList(),
+                    languagePages = pages,
+                    genres = (listOf(StreamLanguage.label(activePageLang)) + s.genres.filterNot {
+                        it.equals("Deutsch", true) || it.equals("Englisch", true)
+                    }).distinct(),
+                )
+            } else {
+                languagePages = pages
+                binding.btnLanguage.visibility = View.GONE
+            }
+        }
+    }
+
     private fun paintLanguageButton() {
-        val prefs = (application as VerflixedApp).container.prefs
-        val code = StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
-        binding.btnLanguage.text = StreamLanguage.shortLabel(code)
-        binding.btnLanguage.contentDescription = "Ton: ${StreamLanguage.label(code)}"
+        binding.btnLanguage.text = StreamLanguage.shortLabel(activePageLang)
+        binding.btnLanguage.contentDescription = "Ton: ${StreamLanguage.label(activePageLang)}"
     }
 
     private fun toggleStreamLanguage() {
+        if (languagePages.size < 2) {
+            binding.btnLanguage.visibility = View.GONE
+            return
+        }
         val app = application as VerflixedApp
-        val prefs = app.container.prefs
-        val next = StreamLanguage.toggle(prefs.streamLanguage(prefs.activeProfileId))
+        val next = languagePages.keys.firstOrNull { it != activePageLang }
+            ?: StreamLanguage.toggle(activePageLang)
+        val nextPage = languagePages[next]
         lifecycleScope.launch {
             app.container.catalog.setPreferredStreamLanguage(next)
-            // Drop cached streams for current title so next play uses new language.
             series?.flatEpisodes()?.forEach { ep ->
                 runCatching { app.container.catalog.clearCachedStream(ep.id) }
             }
+            activePageLang = next
             paintLanguageButton()
-            series?.let { bindSeries(it, binding.btnFavorite.text.contains("entfernen", true)) }
-            Toast.makeText(
-                this@SeriesDetailActivity,
-                "Ton: ${StreamLanguage.label(next)} (Profil)",
-                Toast.LENGTH_SHORT
-            ).show()
+            val s = series
+            if (s?.isMovie == true && !nextPage.isNullOrBlank()) {
+                Toast.makeText(
+                    this@SeriesDetailActivity,
+                    "Ton: ${StreamLanguage.label(next)} – lade Version…",
+                    Toast.LENGTH_SHORT
+                ).show()
+                // Reload movie from the other Filmpalast page
+                load(s.id, nextPage, s.title, "movie")
+            } else {
+                Toast.makeText(
+                    this@SeriesDetailActivity,
+                    "Ton: ${StreamLanguage.label(next)}",
+                    Toast.LENGTH_SHORT
+                ).show()
+                s?.let { bindSeries(it, binding.btnFavorite.text.contains("entfernen", true)) }
+            }
         }
     }
 

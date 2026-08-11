@@ -17,6 +17,10 @@ data class Series(
     val seasons: List<Season> = emptyList(),
     /** "series" (default) or "movie" — movies use one synthetic season/episode. */
     val mediaKind: String = "series",
+    /** Audio languages available for this title, e.g. ["de","en"]. Empty = unknown. */
+    val availableLanguages: List<String> = emptyList(),
+    /** Map language code → detail/stream page URL (movies: separate Filmpalast pages). */
+    val languagePages: Map<String, String> = emptyMap(),
 ) {
     val isMovie: Boolean get() = mediaKind == "movie"
 

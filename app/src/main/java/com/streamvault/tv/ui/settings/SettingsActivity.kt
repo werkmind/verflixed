@@ -92,7 +92,7 @@ class SettingsActivity : AppCompatActivity() {
         fun paintLanguage() {
             val code = prefs.streamLanguage(prefs.activeProfileId)
             binding.btnToggleLanguage.text =
-                "Sprache: ${com.streamvault.tv.data.catalog.StreamLanguage.label(code)}"
+                "Standard-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(code)}"
         }
         paintLanguage()
         binding.btnToggleLanguage.setOnClickListener {

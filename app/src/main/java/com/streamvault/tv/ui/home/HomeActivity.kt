@@ -830,8 +830,8 @@ private class RowsAdapter(
             list.layoutManager = LinearLayoutManager(itemView.context, RecyclerView.HORIZONTAL, false)
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = true
-            list.clipToPadding = true
+            list.clipChildren = false
+            list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
         }

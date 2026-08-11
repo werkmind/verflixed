@@ -32,8 +32,8 @@ object FilmParser {
     fun isEpisodeLike(title: String?, url: String?): Boolean =
         EP_RE.containsMatchIn(title.orEmpty()) || EP_RE.containsMatchIn(url.orEmpty())
 
-    /** Detect audio language from Filmpalast detail HTML / release title. */
-    fun detectPageLanguage(html: String, title: String = ""): String {
+    /** Detect audio language from Filmpalast detail HTML / release title / URL. */
+    fun detectPageLanguage(html: String, title: String = "", pageUrl: String = ""): String {
         val release = Regex(
             """id=["']release_text["'][^>]*>(.*?)</""",
             setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
@@ -42,9 +42,54 @@ object FilmParser {
             """itemprop=["']inLanguage["'][^>]*content=["']([^"']+)["']""",
             RegexOption.IGNORE_CASE
         ).find(html)?.groupValues?.get(1)
-        return StreamLanguage.detectFromText(release, title, fromMeta, html.take(4000))
-            ?: StreamLanguage.DE
+        val genreEn = html.contains("/search/genre/Englisch", ignoreCase = true) &&
+            (title.contains("ENGLISH", true) || pageUrl.contains("-english", true))
+        return StreamLanguage.detectFromText(
+            pageUrl,
+            title,
+            release,
+            fromMeta,
+            if (genreEn) "english" else null,
+            html.take(6000),
+        ) ?: StreamLanguage.DE
     }
+
+    /**
+     * Suggest sibling Filmpalast URLs for the other language (DE↔EN).
+     * Filmpalast keeps German and English as separate /stream/{slug} pages.
+     */
+    fun siblingLanguageUrls(pageUrl: String, currentLang: String): List<String> {
+        val uri = runCatching { URI(pageUrl) }.getOrNull() ?: return emptyList()
+        val path = uri.path.orEmpty()
+        val m = Regex("""^(.*?/stream/)([^/?#]+)/?$""", RegexOption.IGNORE_CASE).find(path)
+            ?: return emptyList()
+        val prefix = m.groupValues[1]
+        val slug = m.groupValues[2]
+        val candidates = linkedSetOf<String>()
+        val lang = StreamLanguage.normalize(currentLang)
+        if (lang == StreamLanguage.EN) {
+            val stripped = slug
+                .replace(Regex("""-english$""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""-eng$""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""-ovo$""", RegexOption.IGNORE_CASE), "")
+            if (stripped.isNotBlank() && stripped != slug) {
+                candidates += uri.resolve("$prefix$stripped").toString().trimEnd('/')
+            }
+            // minions-monsters-english → minions-monster (common Filmpalast plural quirk)
+            val singular = stripped.replace(Regex("""s$"""), "")
+            if (singular.isNotBlank() && singular != stripped) {
+                candidates += uri.resolve("$prefix$singular").toString().trimEnd('/')
+            }
+        } else {
+            candidates += uri.resolve("$prefix$slug-english").toString().trimEnd('/')
+            candidates += uri.resolve("$prefix${slug}s-english").toString().trimEnd('/')
+            candidates += uri.resolve("$prefix$slug-eng").toString().trimEnd('/')
+        }
+        return candidates.filter { it != pageUrl.trimEnd('/') }
+    }
+
+    fun languageFromMovieHit(title: String, url: String): String =
+        detectPageLanguage("", title, url)
 
     fun parseMovieList(
         html: String,
@@ -118,7 +163,7 @@ object FilmParser {
                 .find(html)?.value?.let { poster = abs(pageUrl, it) }
         }
 
-        val pageLang = detectPageLanguage(html, title)
+        val pageLang = detectPageLanguage(html, title, pageUrl)
         val genres = doc.select("#detail-content-list a[href*=/search/genre/]")
             .map { cleanTitle(it.text()) }
             .filter { it.isNotBlank() }
@@ -141,6 +186,8 @@ object FilmParser {
             detailPath = pageUrl,
             mediaKind = "movie",
             genres = genres,
+            availableLanguages = listOf(pageLang),
+            languagePages = mapOf(pageLang to pageUrl),
             seasons = listOf(
                 Season(
                     number = 1,
@@ -195,7 +242,8 @@ object FilmParser {
         val doc = Jsoup.parse(html, pageUrl)
         val pageLang = detectPageLanguage(
             html,
-            doc.selectFirst("article.detail h2, h2.bgDark, h2")?.text().orEmpty()
+            doc.selectFirst("article.detail h2, h2.bgDark, h2")?.text().orEmpty(),
+            pageUrl,
         )
         val hosters = mutableListOf<Hoster>()
         doc.select("ul.currentStreamLinks").forEach { ul ->
