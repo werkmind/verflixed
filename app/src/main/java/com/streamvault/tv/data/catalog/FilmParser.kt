@@ -38,19 +38,17 @@ object FilmParser {
             """id=["']release_text["'][^>]*>(.*?)</""",
             setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
         ).find(html)?.groupValues?.get(1).orEmpty()
+            .replace(Regex("<[^>]+>"), " ")
         val fromMeta = Regex(
             """itemprop=["']inLanguage["'][^>]*content=["']([^"']+)["']""",
             RegexOption.IGNORE_CASE
         ).find(html)?.groupValues?.get(1)
-        val genreEn = html.contains("/search/genre/Englisch", ignoreCase = true) &&
-            (title.contains("ENGLISH", true) || pageUrl.contains("-english", true))
+        // Prefer URL/title/release only — full HTML often contains genre "Englisch" links and false-positives.
         return StreamLanguage.detectFromText(
             pageUrl,
             title,
             release,
             fromMeta,
-            if (genreEn) "english" else null,
-            html.take(6000),
         ) ?: StreamLanguage.DE
     }
 
@@ -58,7 +56,7 @@ object FilmParser {
      * Suggest sibling Filmpalast URLs for the other language (DE↔EN).
      * Filmpalast keeps German and English as separate /stream/{slug} pages.
      */
-    fun siblingLanguageUrls(pageUrl: String, currentLang: String): List<String> {
+    fun siblingLanguageUrls(pageUrl: String, currentLang: String, html: String = ""): List<String> {
         val uri = runCatching { URI(pageUrl) }.getOrNull() ?: return emptyList()
         val path = uri.path.orEmpty()
         val m = Regex("""^(.*?/stream/)([^/?#]+)/?$""", RegexOption.IGNORE_CASE).find(path)
@@ -67,6 +65,24 @@ object FilmParser {
         val slug = m.groupValues[2]
         val candidates = linkedSetOf<String>()
         val lang = StreamLanguage.normalize(currentLang)
+        val pageNorm = pageUrl.trimEnd('/')
+
+        // 1) Related /stream/ links already on the page (EN pages often link the DE sibling).
+        if (html.isNotBlank()) {
+            val wantEn = lang != StreamLanguage.EN
+            Regex(
+                """(?:href|src)=["']?(?://filmpalast\.to)?(/stream/[a-z0-9\-]+)""",
+                RegexOption.IGNORE_CASE,
+            ).findAll(html).forEach { hit ->
+                val rel = hit.groupValues[1].trimEnd('/')
+                val abs = abs(pageUrl, rel).trimEnd('/')
+                if (abs.isBlank() || abs == pageNorm) return@forEach
+                val looksEn = abs.contains("-english", true) || abs.contains("-eng", true)
+                if (wantEn == looksEn) candidates += abs
+            }
+        }
+
+        // 2) Slug heuristics (minions-monster ↔ minions-monsters-english, etc.)
         if (lang == StreamLanguage.EN) {
             val stripped = slug
                 .replace(Regex("""-english$""", RegexOption.IGNORE_CASE), "")
@@ -84,8 +100,12 @@ object FilmParser {
             candidates += uri.resolve("$prefix$slug-english").toString().trimEnd('/')
             candidates += uri.resolve("$prefix${slug}s-english").toString().trimEnd('/')
             candidates += uri.resolve("$prefix$slug-eng").toString().trimEnd('/')
+            // monster → monsters-english already covered; also try dropping trailing singular quirks
+            if (slug.endsWith("s")) {
+                candidates += uri.resolve("$prefix${slug.dropLast(1)}-english").toString().trimEnd('/')
+            }
         }
-        return candidates.filter { it != pageUrl.trimEnd('/') }
+        return candidates.filter { it != pageNorm }
     }
 
     fun languageFromMovieHit(title: String, url: String): String =

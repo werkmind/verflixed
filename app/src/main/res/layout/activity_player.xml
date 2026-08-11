@@ -83,7 +83,8 @@
                 android:minWidth="72dp"
                 android:text="DE"
                 android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <Button
                 android:id="@+id/btnRetryHls"

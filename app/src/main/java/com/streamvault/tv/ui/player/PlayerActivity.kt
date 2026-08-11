@@ -28,6 +28,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.catalog.StreamKind
 import com.streamvault.tv.data.catalog.StreamLanguage
@@ -63,6 +64,9 @@ class PlayerActivity : AppCompatActivity() {
     private var resumeMs: Long = 0L
     private var lastBackExitAt = 0L
     private var lastBackHandledAt = 0L
+    private var exoControllerVisible = false
+    /** First Back while in WebView dismisses overlays once; next Back uses double-back-to-exit. */
+    private var webChromeDismissed = false
     private val handler = Handler(Looper.getMainLooper())
 
     private val progressTick = object : Runnable {
@@ -113,6 +117,9 @@ class PlayerActivity : AppCompatActivity() {
 
         val seriesId = intent.getStringExtra(EXTRA_SERIES_ID) ?: run { finish(); return }
         val episodeId = intent.getStringExtra(EXTRA_EPISODE_ID) ?: run { finish(); return }
+        val detailPathHint = intent.getStringExtra(EXTRA_DETAIL_PATH)
+        val mediaKindHint = intent.getStringExtra(EXTRA_MEDIA_KIND)
+        val titleHint = intent.getStringExtra(EXTRA_TITLE)
 
         FocusFx.bindScale(binding.btnRetryHls, 1.06f)
         FocusFx.bindScale(binding.btnUseWebPlayer, 1.06f)
@@ -155,7 +162,13 @@ class PlayerActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val repo = (application as VerflixedApp).container.catalog
             runCatching {
-                val s = repo.getSeries(seriesId, enrich = false)
+                val s = repo.getSeries(
+                    seriesId,
+                    enrich = false,
+                    detailPathHint = detailPathHint,
+                    titleHint = titleHint,
+                    mediaKindHint = mediaKindHint,
+                )
                 val ep = s.flatEpisodes().find { it.id == episodeId }
                     ?: error("[VF-203] Episode nicht gefunden")
                 playReferer = ep.streamPageUrl
@@ -184,6 +197,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.setShowFastForwardButton(true)
         binding.playerView.setShowRewindButton(true)
         binding.playerView.setControllerHideOnTouch(true)
+        binding.playerView.setControllerVisibilityListener(
+            PlayerView.ControllerVisibilityListener { visibility ->
+                exoControllerVisible = visibility == View.VISIBLE
+            }
+        )
         // Mode-Bar nur als stiller Fallback – kein manuelles „VOE erneut / Web-Player“ im Normalfall.
         showModeBar(false)
     }
@@ -458,29 +476,59 @@ class PlayerActivity : AppCompatActivity() {
             showModeBar(false)
             return true
         }
-        // ExoPlayer custom controls (all native streams)
+        // ExoPlayer controls (all native streams) — track via listener; also probe Media3 API.
         if (binding.playerView.visibility == View.VISIBLE &&
-            binding.playerView.isControllerFullyVisible
+            (exoControllerVisible || binding.playerView.isControllerFullyVisible)
         ) {
             binding.playerView.hideController()
+            exoControllerVisible = false
             return true
         }
-        // WebView history only while actively using web player (series fallback)
-        if (usingWebPlayer &&
-            binding.webPlayer.visibility == View.VISIBLE &&
-            binding.webPlayer.canGoBack()
-        ) {
-            binding.webPlayer.goBack()
+        // Web player: never navigate history (breaks the stream). Dismiss overlays once.
+        if (usingWebPlayer && binding.webPlayer.visibility == View.VISIBLE && !webChromeDismissed) {
+            webChromeDismissed = true
+            tryHideWebPlayerChrome()
             return true
         }
         return false
     }
 
+    /** Best-effort: exit fullscreen / pause site chrome so first Back feels like “hide controls”. */
+    private fun tryHideWebPlayerChrome() {
+        runCatching {
+            binding.webPlayer.evaluateJavascript(
+                """
+                (function(){
+                  try {
+                    if (document.fullscreenElement && document.exitFullscreen) {
+                      document.exitFullscreen();
+                      return 'fs';
+                    }
+                    if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+                      document.webkitExitFullscreen();
+                      return 'fs';
+                    }
+                    var v = document.querySelector('video');
+                    if (v && !v.paused) { v.pause(); return 'pause'; }
+                    var hide = document.querySelectorAll('.vjs-control-bar,.jw-controls,.plyr__controls');
+                    var any = false;
+                    hide.forEach(function(n){
+                      if (n && n.style.display !== 'none') { n.style.display='none'; any=true; }
+                    });
+                    return any ? 'chrome' : '';
+                  } catch(e) { return ''; }
+                })();
+                """.trimIndent(),
+                null,
+            )
+        }
+    }
+
     /** Back: dismiss controls first; require a second Back within 2s to leave the stream. */
     private fun handlePlaybackBack() {
-        // Deduplicate OnBackPressedCallback + onKeyDown on some Fire OS builds
+        // Deduplicate OnBackPressedCallback + dispatchKeyEvent on Fire OS
         val now = System.currentTimeMillis()
-        if (now - lastBackHandledAt < 60L) return
+        if (now - lastBackHandledAt < 120L) return
         lastBackHandledAt = now
         if (consumeBackForControls()) return
         if (now - lastBackExitAt < 2_000L) {
@@ -489,7 +537,6 @@ class PlayerActivity : AppCompatActivity() {
         }
         lastBackExitAt = now
         Toast.makeText(this, "Nochmal Zurück zum Beenden", Toast.LENGTH_SHORT).show()
-        // Do not force-show Exo controls — that fights "hide first" on the next Back.
     }
 
     private suspend fun reResolveNative() {
@@ -513,6 +560,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         val target = normalizePlaybackUrl(url, episode)
         usingWebPlayer = true
+        webChromeDismissed = false
         player?.release()
         player = null
         binding.playerView.visibility = View.GONE
@@ -601,13 +649,14 @@ class PlayerActivity : AppCompatActivity() {
             runCatching {
                 val app = application as VerflixedApp
                 val profileId = app.container.profiles.activeId()
+                val lang = app.container.prefs.streamLanguage(profileId)
                 app.container.db.streams().upsert(
                     StreamCacheEntity(
                         profileId = profileId,
                         episodeId = ep.id,
                         seriesId = ep.seriesId,
                         streamUrl = mediaUrl,
-                        kind = StreamKind.streamKindLabel(mediaUrl),
+                        kind = "${StreamKind.streamKindLabel(mediaUrl)}|${StreamLanguage.normalize(lang)}",
                         updatedAt = System.currentTimeMillis(),
                     ),
                 )
@@ -617,6 +666,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun startExoPlayer(url: String, resumeMs: Long) {
         usingWebPlayer = false
+        webChromeDismissed = false
         handedOffToExo = true
         lastMediaUrl = url
         handler.removeCallbacks(resolveTimeout)
@@ -1008,11 +1058,17 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Intercept Back before WebView/PlayerView so hide-controls + double-back works everywhere.
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_DOWN) {
             handlePlaybackBack()
             return true
         }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // BACK is handled in dispatchKeyEvent
         val p = player
         when (keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
@@ -1032,7 +1088,7 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
             KeyEvent.KEYCODE_DPAD_RIGHT,
             -> {
-                if (p != null && binding.playerView.isControllerFullyVisible) {
+                if (p != null && (exoControllerVisible || binding.playerView.isControllerFullyVisible)) {
                     p.seekTo((p.currentPosition + 10_000L).coerceAtMost(p.duration.coerceAtLeast(0L)))
                     return true
                 }
@@ -1040,7 +1096,7 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_MEDIA_REWIND,
             KeyEvent.KEYCODE_DPAD_LEFT,
             -> {
-                if (p != null && binding.playerView.isControllerFullyVisible) {
+                if (p != null && (exoControllerVisible || binding.playerView.isControllerFullyVisible)) {
                     p.seekTo((p.currentPosition - 10_000L).coerceAtLeast(0L))
                     return true
                 }
@@ -1092,6 +1148,9 @@ class PlayerActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SERIES_ID = "series_id"
         const val EXTRA_EPISODE_ID = "episode_id"
+        const val EXTRA_DETAIL_PATH = "detail_path"
+        const val EXTRA_MEDIA_KIND = "media_kind"
+        const val EXTRA_TITLE = "title"
 
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 12; SHIELD Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

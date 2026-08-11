@@ -28,6 +28,8 @@
         android:descendantFocusability="afterDescendants"
         android:nestedScrollingEnabled="false"
         android:orientation="horizontal"
-        android:paddingTop="8dp"
-        android:paddingBottom="12dp" />
+        android:paddingStart="6dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="18dp" />
 </LinearLayout>

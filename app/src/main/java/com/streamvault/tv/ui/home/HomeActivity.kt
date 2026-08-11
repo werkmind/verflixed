@@ -232,7 +232,7 @@ class HomeActivity : AppCompatActivity() {
             binding.btnKindSeries, binding.btnKindMovies,
             binding.btnProfile, binding.btnSettings, binding.btnRefresh, binding.btnUpdate,
             binding.profileAvatar,
-        ).forEach { FocusFx.bindScale(it, 1.08f, prefs) }
+        ).forEach { FocusFx.bindScale(it, 1.04f, prefs) }
 
         binding.btnSettings.setOnClickListener {
             UiSound.click(this, prefs)
@@ -787,8 +787,8 @@ private class RowsAdapter(
         init {
             play.setOnClickListener { onPlay() }
             info.setOnClickListener { onInfo() }
-            FocusFx.bindScale(play, 1.06f)
-            FocusFx.bindScale(info, 1.06f)
+            FocusFx.bindScale(play, 1.04f)
+            FocusFx.bindScale(info, 1.04f)
         }
 
         fun bind(series: Series) {
@@ -905,9 +905,9 @@ private class PosterAdapter(
             }
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            val scale = if (hasFocus) 1.04f else 1f
+            val scale = if (hasFocus) 1.03f else 1f
             v.animate().scaleX(scale).scaleY(scale).setDuration(160).start()
-            v.elevation = if (hasFocus) 6f else 0f
+            v.elevation = if (hasFocus) 4f else 0f
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {

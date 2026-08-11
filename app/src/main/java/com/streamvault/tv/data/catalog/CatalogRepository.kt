@@ -85,7 +85,8 @@ class CatalogRepository(
     private fun cacheLangMatches(kind: String?, preferred: String): Boolean {
         val k = kind.orEmpty()
         val sep = k.lastIndexOf('|')
-        if (sep < 0) return true // legacy cache without language tag — allow once
+        // Legacy rows without |lang must not win — they often keep the wrong audio after DE/EN switch.
+        if (sep < 0) return false
         return StreamLanguage.normalize(k.substring(sep + 1)) == StreamLanguage.normalize(preferred)
     }
 
@@ -489,21 +490,35 @@ class CatalogRepository(
         val fromFav = db.favorites().all(pid()).firstOrNull { it.seriesId == seriesId }?.let {
             seriesAdapter.fromJson(it.cachedJson)
         }
-        val lightRaw = catalog?.series?.find { it.id == seriesId }
-            ?: fromFav
+        // Prefer in-memory / favorite detail over catalog index so DE/EN page switches stick
+        // (catalog rows always point at the original browse URL, usually German).
+        val lightRaw = detailPathHint?.takeIf { it.isNotBlank() }?.let { path ->
+            val base = fromCache ?: fromFav ?: catalog?.series?.find { it.id == seriesId }
+            base?.copy(
+                detailPath = path,
+                mediaKind = when {
+                    mediaKindHint == "movie" -> "movie"
+                    mediaKindHint == "series" -> "series"
+                    else -> base.mediaKind
+                },
+                seasons = emptyList(),
+                title = titleHint?.takeIf { it.isNotBlank() }
+                    ?: base.title.ifBlank { seriesId },
+            ) ?: Series(
+                id = seriesId,
+                title = titleHint?.ifBlank { seriesId } ?: seriesId,
+                detailPath = path,
+                mediaKind = if (mediaKindHint == "movie") "movie" else "series",
+            )
+        } ?: fromCache?.takeIf { !it.detailPath.isNullOrBlank() }
+            ?: fromFav?.takeIf { !it.detailPath.isNullOrBlank() }
+            ?: catalog?.series?.find { it.id == seriesId }
             ?: fromCache
-            ?: detailPathHint?.takeIf { it.isNotBlank() }?.let { path ->
-                Series(
-                    id = seriesId,
-                    title = titleHint?.ifBlank { seriesId } ?: seriesId,
-                    detailPath = path,
-                    mediaKind = if (mediaKindHint == "movie") "movie" else "series",
-                )
-            }
+            ?: fromFav
             ?: throw VfException.of(VfCodes.SERIES_NOT_FOUND, "Serie nicht gefunden: $seriesId")
 
         // Language switch / alternate Filmpalast page must override cached detailPath.
-        val light = if (!detailPathHint.isNullOrBlank() && detailPathHint != lightRaw.detailPath) {
+        var light = if (!detailPathHint.isNullOrBlank() && detailPathHint != lightRaw.detailPath) {
             lightRaw.copy(
                 detailPath = detailPathHint,
                 mediaKind = if (mediaKindHint == "movie" || lightRaw.isMovie) "movie" else lightRaw.mediaKind,
@@ -512,6 +527,16 @@ class CatalogRepository(
             )
         } else {
             lightRaw
+        }
+
+        // Movies: if we already know language pages, open the preferred audio page.
+        if ((light.isMovie || mediaKindHint == "movie") && detailPathHint.isNullOrBlank()) {
+            val pref = preferredLang()
+            val pages = light.languagePages.filterValues { it.isNotBlank() }
+            val prefPage = pages[pref]
+            if (!prefPage.isNullOrBlank() && prefPage != light.detailPath) {
+                light = light.copy(detailPath = prefPage, seasons = emptyList())
+            }
         }
 
         rememberSeriesHit(light)
@@ -547,10 +572,32 @@ class CatalogRepository(
     }
 
     private suspend fun loadMovieDetail(light: Series): Series {
-        val detail = light.detailPath
+        var detail = light.detailPath
             ?: throw VfException.of(VfCodes.SEASONS_LOAD, "Keine Detail-URL für Film")
-        val body = getText(detail)
-        val parsed = FilmParser.parseMovieDetail(body, detail, light.id)
+        var body = getText(detail)
+        var parsed = FilmParser.parseMovieDetail(body, detail, light.id)
+        val pref = preferredLang()
+        val pageLang = FilmParser.detectPageLanguage(body, parsed.title, detail)
+        // Auto-switch to preferred Filmpalast language page when available.
+        if (pageLang != pref) {
+            findMovieLanguagePage(detail, body, parsed.title, pref)?.let { alt ->
+                if (alt != detail) {
+                    val altBody = runCatching { getText(alt) }.getOrNull().orEmpty()
+                    if (altBody.isNotBlank() && FilmParser.parseHosters(altBody, alt).isNotEmpty()) {
+                        detail = alt
+                        body = altBody
+                        parsed = FilmParser.parseMovieDetail(altBody, alt, light.id)
+                    }
+                }
+            }
+        }
+        val langs = runCatching {
+            discoverTitleLanguages(
+                parsed.copy(id = light.id, detailPath = detail, mediaKind = "movie")
+            )
+        }.getOrDefault(
+            parsed.languagePages.ifEmpty { mapOf(pageLang to detail) }
+        )
         return parsed.copy(
             id = light.id,
             title = parsed.title.ifBlank { light.title },
@@ -559,6 +606,15 @@ class CatalogRepository(
             overview = pickOverview(parsed.overview, light.overview),
             detailPath = detail,
             mediaKind = "movie",
+            availableLanguages = langs.keys.toList(),
+            languagePages = langs,
+            seasons = parsed.seasons.map { season ->
+                season.copy(
+                    episodes = season.episodes.map { ep ->
+                        ep.copy(streamPageUrl = detail, seriesId = light.id, id = "${light.id}-movie")
+                    }
+                )
+            },
         )
     }
 
@@ -716,6 +772,7 @@ class CatalogRepository(
     }
 
     private suspend fun applyStreamCache(series: Series): Series {
+        val pref = preferredLang()
         val cached = db.streams().forSeries(pid(), series.id).associateBy { it.episodeId }
         if (cached.isEmpty()) return series
         return series.copy(
@@ -723,6 +780,7 @@ class CatalogRepository(
                 season.copy(
                     episodes = season.episodes.map { ep ->
                         val hit = cached[ep.id] ?: return@map ep
+                        if (!cacheLangMatches(hit.kind, pref)) return@map ep.copy(streamUrl = null)
                         ep.copy(streamUrl = hit.streamUrl)
                     }
                 )
@@ -758,6 +816,7 @@ class CatalogRepository(
                 !StreamKind.isMovieWatchPage(episode.streamPageUrl.orEmpty()) &&
                 !episode.id.endsWith("-movie")
         }?.let {
+            // Re-tag cache under current language preference.
             cacheStream(episode, it, pref)
             return@withContext it
         }
@@ -981,8 +1040,8 @@ class CatalogRepository(
         val current = FilmParser.detectPageLanguage(html, title, pageUrl)
         if (current == want) return pageUrl
 
-        // 1) Sibling slug heuristics
-        for (cand in FilmParser.siblingLanguageUrls(pageUrl, current)) {
+        // 1) Sibling slug heuristics + related links embedded in the current page
+        for (cand in FilmParser.siblingLanguageUrls(pageUrl, current, html)) {
             val body = runCatching { getText(cand) }.getOrNull().orEmpty()
             if (body.isBlank()) continue
             val lang = FilmParser.detectPageLanguage(
@@ -996,23 +1055,32 @@ class CatalogRepository(
             if (lang == want && FilmParser.parseHosters(body, cand).isNotEmpty()) return cand
         }
 
-        // 2) Site search by cleaned title
+        // 2) Site search by cleaned title (and shorter fallbacks)
         val base = activeBase().ifBlank {
             runCatching { java.net.URI(pageUrl).let { "${it.scheme}://${it.host}" } }.getOrDefault("")
         }
         if (base.isBlank()) return null
-        val query = StreamLanguage.cleanTitleForSearch(title).ifBlank { title }
-        val hits = runCatching {
-            SiteSearch.search(http, base, query, USER_AGENT, mediaKind = "movie")
-        }.getOrDefault(emptyList())
-        for (hit in hits) {
-            val hitUrl = hit.detailPath ?: continue
-            val hitLang = FilmParser.languageFromMovieHit(hit.title, hitUrl)
-            if (hitLang != want) continue
-            // Prefer close title match
-            val a = StreamLanguage.cleanTitleForSearch(hit.title).lowercase()
-            val b = query.lowercase()
-            if (a.contains(b.take(8)) || b.contains(a.take(8)) || a == b) {
+        val cleaned = StreamLanguage.cleanTitleForSearch(title).ifBlank { title }
+        val queries = linkedSetOf(
+            cleaned,
+            cleaned.replace("&", " ").replace(Regex("""\s+"""), " ").trim(),
+            cleaned.split(Regex("""\s+""")).take(2).joinToString(" "),
+            cleaned.split(Regex("""\s+""")).firstOrNull().orEmpty(),
+        ).filter { it.length >= 2 }
+        for (query in queries) {
+            val hits = runCatching {
+                SiteSearch.search(http, base, query, USER_AGENT, mediaKind = "movie")
+            }.getOrDefault(emptyList())
+            for (hit in hits) {
+                val hitUrl = hit.detailPath ?: continue
+                val hitLang = FilmParser.languageFromMovieHit(hit.title, hitUrl)
+                if (hitLang != want) continue
+                // Prefer close title match
+                val a = StreamLanguage.cleanTitleForSearch(hit.title).lowercase()
+                val b = cleaned.lowercase()
+                val close = a.contains(b.take(8)) || b.contains(a.take(8)) || a == b ||
+                    a.split(Regex("""\s+""")).firstOrNull() == b.split(Regex("""\s+""")).firstOrNull()
+                if (!close) continue
                 val body = runCatching { getText(hitUrl) }.getOrNull().orEmpty()
                 if (body.isNotBlank() && FilmParser.parseHosters(body, hitUrl).isNotEmpty()) {
                     return hitUrl
@@ -1050,16 +1118,26 @@ class CatalogRepository(
         val body = runCatching { getText(page) }.getOrNull().orEmpty()
         if (body.isBlank()) return@withContext emptyMap()
         val langs = parser.extractAvailableLanguages(body, page)
-        if (langs.isEmpty()) {
-            // Fall back: many episode roots list both DE/EN headings without blobs yet
-            val hasDe = body.contains("Deutsch", true)
-            val hasEn = body.contains("Englisch", true) || body.contains("English", true)
-            return@withContext buildMap {
-                if (hasDe) put(StreamLanguage.DE, page)
-                if (hasEn) put(StreamLanguage.EN, page)
-            }
+        if (langs.size >= 2) {
+            return@withContext langs.associateWith { page }
         }
-        langs.associateWith { page }
+        if (langs.size == 1) {
+            // Only one labeled language on hosters — do not invent a second from nav text.
+            return@withContext langs.associateWith { page }
+        }
+        // Strict heading probe (avoid matching site-wide "Deutsch/Englisch" nav chrome)
+        val headingBlob = org.jsoup.Jsoup.parse(body, page)
+            .select("h3, h4, h5, .hosterSiteTitle, .language, [data-language-label]")
+            .joinToString(" ") { it.text() + " " + it.attr("data-language-label") }
+            .lowercase()
+        val hasDe = headingBlob.contains("deutsch") || headingBlob.contains("german") ||
+            Regex("""\bde\b""").containsMatchIn(headingBlob)
+        val hasEn = headingBlob.contains("englisch") || headingBlob.contains("english") ||
+            Regex("""\ben\b""").containsMatchIn(headingBlob)
+        return@withContext buildMap {
+            if (hasDe) put(StreamLanguage.DE, page)
+            if (hasEn) put(StreamLanguage.EN, page)
+        }
     }
 
     /** Public helper for PlayerActivity: VOE embed URL → direct HLS playlist. */

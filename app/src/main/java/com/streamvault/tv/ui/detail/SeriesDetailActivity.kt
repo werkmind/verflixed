@@ -63,7 +63,7 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.episodeList.layoutManager = LinearLayoutManager(this)
         binding.episodeList.adapter = episodeAdapter
         listOf(binding.btnPlay, binding.btnFavorite, binding.btnSeasonWatched, binding.btnLanguage).forEach {
-            FocusFx.bindScale(it, 1.08f)
+            FocusFx.bindScale(it, 1.04f)
         }
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
@@ -480,6 +480,9 @@ class SeriesDetailActivity : AppCompatActivity() {
             Intent(this, PlayerActivity::class.java)
                 .putExtra(PlayerActivity.EXTRA_SERIES_ID, s.id)
                 .putExtra(PlayerActivity.EXTRA_EPISODE_ID, episode.id)
+                .putExtra(PlayerActivity.EXTRA_DETAIL_PATH, episode.streamPageUrl ?: s.detailPath)
+                .putExtra(PlayerActivity.EXTRA_MEDIA_KIND, s.mediaKind)
+                .putExtra(PlayerActivity.EXTRA_TITLE, s.title)
         )
     }
 
