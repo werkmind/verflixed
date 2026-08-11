@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark rounded plate behind poster art so gaps/letterboxing never flash white. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/sv_poster_bg" />
+    <corners android:radius="10dp" />
+</shape>

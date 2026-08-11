@@ -12,25 +12,40 @@
         <item name="android:windowFullscreen">true</item>
         <item name="android:statusBarColor">@color/sv_bg_deep</item>
         <item name="android:navigationBarColor">@color/sv_bg_deep</item>
+        <!-- Kill the light AppCompat button chrome: no white fills, no white ripples -->
+        <item name="buttonStyle">@style/SvButton</item>
+        <item name="android:buttonStyle">@style/SvButton</item>
+        <item name="colorButtonNormal">@color/sv_surface</item>
+        <item name="android:colorButtonNormal">@color/sv_surface</item>
+        <item name="colorControlHighlight">@color/sv_accent_soft</item>
+        <item name="android:colorControlHighlight">@color/sv_accent_soft</item>
+        <item name="colorControlNormal">@color/sv_text_secondary</item>
+        <item name="colorControlActivated">@color/sv_accent</item>
     </style>
 
     <style name="SvButton" parent="Widget.AppCompat.Button.Borderless">
         <item name="android:background">@drawable/bg_button</item>
         <item name="backgroundTint">@null</item>
         <item name="android:backgroundTint">@null</item>
-        <item name="android:backgroundTintMode">src_over</item>
+        <item name="android:foreground">@null</item>
         <item name="android:textColor">@color/sv_text_primary</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:paddingLeft">14dp</item>
-        <item name="android:paddingRight">14dp</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingLeft">16dp</item>
+        <item name="android:paddingRight">16dp</item>
         <item name="android:paddingTop">0dp</item>
         <item name="android:paddingBottom">0dp</item>
         <item name="android:minHeight">36dp</item>
         <item name="android:minWidth">0dp</item>
+        <!-- Zero insets: AppCompat's default 6dp vertical inset is what slices buttons -->
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
         <item name="android:elevation">0dp</item>
         <item name="android:stateListAnimator">@null</item>
         <item name="android:focusable">true</item>
@@ -39,10 +54,21 @@
 
     <style name="SvButton.Primary">
         <item name="android:background">@drawable/bg_button_primary</item>
+        <item name="android:textColor">@color/sv_primary_btn_text</item>
     </style>
 
     <style name="SvButton.Ghost">
         <item name="android:background">@drawable/bg_button_ghost</item>
+    </style>
+
+    <!-- Compact pill used by the home top nav -->
+    <style name="SvButton.Nav" parent="SvButton.Ghost">
+        <item name="android:background">@drawable/bg_button_nav</item>
+        <item name="android:textColor">@color/sv_nav_btn_text</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:paddingLeft">13dp</item>
+        <item name="android:paddingRight">13dp</item>
+        <item name="android:minHeight">34dp</item>
     </style>
 
     <style name="SvEditText" parent="Widget.AppCompat.EditText">
@@ -58,16 +84,17 @@
         <item name="android:textColor">@color/sv_text_primary</item>
         <item name="android:textSize">15sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">0.01</item>
+        <item name="android:letterSpacing">0.02</item>
     </style>
 
     <style name="SvHeroTitle">
         <item name="android:textColor">@color/sv_text_primary</item>
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:shadowColor">#99000000</item>
+        <item name="android:letterSpacing">-0.01</item>
+        <item name="android:shadowColor">#B3000000</item>
         <item name="android:shadowDx">0</item>
         <item name="android:shadowDy">2</item>
-        <item name="android:shadowRadius">6</item>
+        <item name="android:shadowRadius">8</item>
     </style>
 </resources>

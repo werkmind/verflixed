@@ -1,22 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Primary CTA (hero "Abspielen"). Focus is expressed as a brighter accent fill plus a
+  soft tinted ring — never the harsh pure-white system border. FocusFx adds the scale.
+-->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/sv_accent_pressed" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_accent_hover" />
-            <corners android:radius="6dp" />
-            <stroke android:width="2dp" android:color="@color/sv_text_primary" />
-        </shape>
-    </item>
-    <item android:state_pressed="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/sv_accent_hover" />
-            <corners android:radius="6dp" />
+            <corners android:radius="10dp" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/sv_focus_ring_soft" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_accent" />
-            <corners android:radius="6dp" />
+            <corners android:radius="10dp" />
         </shape>
     </item>
 </selector>

@@ -1,23 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="sv_bg">#FF0B1220</color>
-    <color name="sv_bg_deep">#FF070B14</color>
-    <color name="sv_surface">#FF151D2E</color>
-    <color name="sv_surface_elevated">#FF1C2740</color>
+    <color name="sv_bg">#FF080B12</color>
+    <color name="sv_bg_deep">#FF04060A</color>
+    <color name="sv_surface">#FF141A26</color>
+    <color name="sv_surface_elevated">#FF1D2536</color>
     <color name="sv_accent">#FF2F80FF</color>
     <color name="sv_accent_hover">#FF5AA8FF</color>
     <color name="sv_accent_soft">#402F80FF</color>
+    <color name="sv_accent_pressed">#FF1F63D6</color>
     <color name="sv_plex">#FFE5A00D</color>
     <color name="sv_text_primary">#FFFFFFFF</color>
     <color name="sv_text_secondary">#FFB8C4D9</color>
     <color name="sv_text_muted">#FF7E8BA3</color>
-    <color name="sv_focus">#FFFFFFFF</color>
+    <!-- Focus chrome: tinted, never pure white system borders -->
+    <color name="sv_focus">#FF5AA8FF</color>
+    <color name="sv_focus_ring">#CC7FB8FF</color>
+    <color name="sv_focus_ring_soft">#66A9CEFF</color>
+    <color name="sv_focus_fill">#332F80FF</color>
     <color name="sv_progress">#FF2F80FF</color>
     <color name="sv_watched">#FF46D369</color>
-    <color name="sv_card_stroke">#22FFFFFF</color>
-    <color name="sv_scrim">#CC0B1220</color>
-    <color name="sv_scrim_strong">#E60B1220</color>
-    <color name="sv_hero_scrim_start">#000B1220</color>
-    <color name="sv_hero_scrim_end">#FF0B1220</color>
-    <color name="sv_button_primary_text">#FF0B1220</color>
+    <color name="sv_card_stroke">#1AFFFFFF</color>
+    <color name="sv_card_fill">#12FFFFFF</color>
+    <color name="sv_poster_bg">#FF121722</color>
+    <color name="sv_scrim">#CC080B12</color>
+    <color name="sv_scrim_strong">#E6080B12</color>
+    <color name="sv_hero_scrim_start">#00080B12</color>
+    <color name="sv_hero_scrim_mid">#99080B12</color>
+    <color name="sv_hero_scrim_end">#FF080B12</color>
+    <color name="sv_button_primary_text">#FF06101F</color>
 </resources>
