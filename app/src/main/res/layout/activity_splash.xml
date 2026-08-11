@@ -13,19 +13,18 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <ImageView
+        <com.streamvault.tv.ui.splash.AnimatedVLogoView
             android:id="@+id/splashLogo"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_verflixed_mark" />
+            android:layout_width="148dp"
+            android:layout_height="148dp"
+            android:contentDescription="@string/app_name" />
 
         <TextView
             android:id="@+id/splashTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:letterSpacing="0.28"
+            android:layout_marginTop="20dp"
+            android:letterSpacing="0.32"
             android:text="@string/app_name"
             android:textAllCaps="true"
             android:textColor="#FFFFFFFF"

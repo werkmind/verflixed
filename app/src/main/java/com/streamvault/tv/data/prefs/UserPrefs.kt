@@ -143,6 +143,48 @@ class UserPrefs(context: Context) {
         }
     }
 
+    /** Navigation chrome: sidebar (default) or topbar — per profile. */
+    fun navLayout(profileId: String?): String {
+        val id = profileId?.trim().orEmpty()
+        if (id.isNotBlank()) {
+            val keyed = sp.getString("$KEY_NAV_LAYOUT_PREFIX$id", null)?.trim().orEmpty()
+            if (keyed.isNotBlank()) return normalizeNavLayout(keyed)
+        }
+        return normalizeNavLayout(sp.getString(KEY_NAV_LAYOUT, null))
+    }
+
+    fun setNavLayout(profileId: String?, layout: String) {
+        val normalized = normalizeNavLayout(layout)
+        sp.edit {
+            val id = profileId?.trim().orEmpty()
+            if (id.isNotBlank()) putString("$KEY_NAV_LAYOUT_PREFIX$id", normalized)
+            putString(KEY_NAV_LAYOUT, normalized)
+        }
+    }
+
+    val isSidebarNav: Boolean get() = navLayout(activeProfileId) == NAV_SIDEBAR
+
+    /** Library presentation: poster tiles (default) or denser cards — per profile. */
+    fun libraryView(profileId: String?): String {
+        val id = profileId?.trim().orEmpty()
+        if (id.isNotBlank()) {
+            val keyed = sp.getString("$KEY_LIB_VIEW_PREFIX$id", null)?.trim().orEmpty()
+            if (keyed.isNotBlank()) return normalizeLibraryView(keyed)
+        }
+        return normalizeLibraryView(sp.getString(KEY_LIB_VIEW, null))
+    }
+
+    fun setLibraryView(profileId: String?, view: String) {
+        val normalized = normalizeLibraryView(view)
+        sp.edit {
+            val id = profileId?.trim().orEmpty()
+            if (id.isNotBlank()) putString("$KEY_LIB_VIEW_PREFIX$id", normalized)
+            putString(KEY_LIB_VIEW, normalized)
+        }
+    }
+
+    val isLibraryCards: Boolean get() = libraryView(activeProfileId) == LIB_CARDS
+
     fun markSetupDone() {
         setupDone = true
     }
@@ -157,6 +199,10 @@ class UserPrefs(context: Context) {
         const val KIND_MOVIE = "movie"
         const val LANG_DE = "de"
         const val LANG_EN = "en"
+        const val NAV_SIDEBAR = "sidebar"
+        const val NAV_TOPBAR = "topbar"
+        const val LIB_TILES = "tiles"
+        const val LIB_CARDS = "cards"
 
         const val DEFAULT_SERIES_BASE = "https://serienstream.cx"
         const val DEFAULT_MOVIES_BASE = "https://filmpalast.to"
@@ -178,6 +224,10 @@ class UserPrefs(context: Context) {
         private const val KEY_SETUP_DONE = "setup_done"
         private const val KEY_STREAM_LANG = "stream_language"
         private const val KEY_STREAM_LANG_PREFIX = "stream_language_"
+        private const val KEY_NAV_LAYOUT = "nav_layout"
+        private const val KEY_NAV_LAYOUT_PREFIX = "nav_layout_"
+        private const val KEY_LIB_VIEW = "library_view"
+        private const val KEY_LIB_VIEW_PREFIX = "library_view_"
         const val BROWSE_PAGE_SIZE = 24
 
         fun normalizeUrl(raw: String): String {
@@ -187,6 +237,16 @@ class UserPrefs(context: Context) {
                 u = "https://$u"
             }
             return u.trimEnd('/')
+        }
+
+        fun normalizeNavLayout(raw: String?): String {
+            val l = raw?.trim()?.lowercase().orEmpty()
+            return if (l == NAV_TOPBAR || l == "top" || l == "bar") NAV_TOPBAR else NAV_SIDEBAR
+        }
+
+        fun normalizeLibraryView(raw: String?): String {
+            val l = raw?.trim()?.lowercase().orEmpty()
+            return if (l == LIB_CARDS || l == "card" || l == "list") LIB_CARDS else LIB_TILES
         }
     }
 }

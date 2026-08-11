@@ -88,7 +88,25 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:minWidth="220dp"
-        android:text="Sprache: Deutsch" />
+        android:text="Profil-Ton: Deutsch" />
+
+    <Button
+        android:id="@+id/btnToggleNav"
+        style="@style/SvButton.Ghost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:minWidth="220dp"
+        android:text="Layout: Sidebar" />
+
+    <Button
+        android:id="@+id/btnToggleLibraryView"
+        style="@style/SvButton.Ghost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:minWidth="220dp"
+        android:text="Bibliothek: Kacheln" />
 
     <Button
         android:id="@+id/btnToggleSounds"

@@ -3,10 +3,11 @@
     android:id="@+id/heroContainer"
     android:layout_width="match_parent"
     android:layout_height="168dp"
-    android:clipChildren="true"
-    android:clipToPadding="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:focusable="false"
-    android:paddingBottom="4dp">
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
 
     <ImageView
         android:id="@+id/heroBackdrop"

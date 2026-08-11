@@ -43,7 +43,11 @@
     <string name="settings_sounds">UI-Sounds</string>
     <string name="settings_sounds_on">UI-Sounds: An</string>
     <string name="settings_sounds_off">UI-Sounds: Aus</string>
-    <string name="library_empty">Noch keine Favoriten. Wechsle zu Browse und favorisiere Titel – dann erscheinen Kalender &amp; Metadaten-Cache.</string>
+    <string name="library_empty">Noch keine Favoriten. Wechsle zu Serien/Filme und favorisiere Titel – dann erscheinen Kalender &amp; Metadaten-Cache.</string>
+    <string name="settings_nav_sidebar">Layout: Sidebar</string>
+    <string name="settings_nav_topbar">Layout: Topbar</string>
+    <string name="settings_lib_tiles">Bibliothek: Kacheln</string>
+    <string name="settings_lib_cards">Bibliothek: Cards</string>
     <string name="search_empty">Keine Treffer. Filter/Anti-Patterns prüfen.</string>
     <string name="player_error_title">Player-Fehler</string>
     <string name="filters_title">Kategorien &amp; Anti-Patterns</string>

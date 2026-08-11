@@ -35,12 +35,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class HomeMode { LIBRARY, BROWSE, SEARCH }
+enum class HomeMode { LIBRARY, SERIES, MOVIES, SEARCH }
 
 class HomeActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHomeBinding
     private var heroSeries: Series? = null
     private var mode = HomeMode.LIBRARY
+    /** Last content tab — used so global search prioritizes the active section. */
+    private var lastContentMode = HomeMode.LIBRARY
     private var searchJob: Job? = null
     private var loadJob: Job? = null
     private var searchQuery = ""
@@ -65,7 +67,7 @@ class HomeActivity : AppCompatActivity() {
             heroSeries?.let { openSeries(it) }
         },
         prefsProvider = { prefs },
-        browseModeProvider = { mode == HomeMode.BROWSE || mode == HomeMode.SEARCH },
+        browseModeProvider = { mode == HomeMode.SERIES || mode == HomeMode.MOVIES || mode == HomeMode.SEARCH },
         resolveArt = { series, onResolved ->
             // Browse/Search: lazy site covers only — never enrich/TVMaze/Room
             if (mode == HomeMode.LIBRARY) return@RowsAdapter
@@ -165,47 +167,46 @@ class HomeActivity : AppCompatActivity() {
         binding.profileNameLabel.setOnFocusChangeListener { v, hasFocus ->
             v.alpha = if (hasFocus) 1f else 0.85f
         }
-        // Explicit Fire TV focus chain: avatar → tabs → kind → profile → update → refresh → settings
-        binding.profileAvatar.nextFocusRightId = R.id.tabLibrary
-        binding.tabLibrary.nextFocusLeftId = R.id.profileAvatar
-        binding.tabLibrary.nextFocusRightId = R.id.tabBrowse
-        binding.tabBrowse.nextFocusLeftId = R.id.tabLibrary
-        binding.tabBrowse.nextFocusRightId = R.id.tabSearch
-        binding.tabSearch.nextFocusLeftId = R.id.tabBrowse
-        binding.tabSearch.nextFocusRightId = R.id.btnKindSeries
-        binding.btnKindSeries.nextFocusLeftId = R.id.tabSearch
-        binding.btnKindSeries.nextFocusRightId = R.id.btnKindMovies
-        binding.btnKindMovies.nextFocusLeftId = R.id.btnKindSeries
-        binding.btnKindMovies.nextFocusRightId = R.id.btnProfile
-        binding.btnProfile.nextFocusLeftId = R.id.btnKindMovies
-        binding.btnProfile.nextFocusRightId = R.id.btnUpdate
-        binding.btnUpdate.nextFocusLeftId = R.id.btnProfile
-        binding.btnUpdate.nextFocusRightId = R.id.btnRefresh
-        binding.btnRefresh.nextFocusLeftId = R.id.btnUpdate
-        binding.btnRefresh.nextFocusRightId = R.id.btnSettings
-        binding.btnSettings.nextFocusLeftId = R.id.btnRefresh
-        binding.tabLibrary.nextFocusDownId = R.id.rows
-        binding.tabBrowse.nextFocusDownId = R.id.rows
-        binding.tabSearch.nextFocusDownId = R.id.rows
-        binding.btnKindSeries.nextFocusDownId = R.id.rows
-        binding.btnKindMovies.nextFocusDownId = R.id.rows
-        binding.btnProfile.nextFocusDownId = R.id.rows
-        binding.btnUpdate.nextFocusDownId = R.id.rows
-        binding.btnRefresh.nextFocusDownId = R.id.rows
-        binding.btnSettings.nextFocusDownId = R.id.rows
-        binding.profileAvatar.nextFocusDownId = R.id.rows
-        binding.rows.nextFocusUpId = R.id.tabBrowse
 
-        // HSV must not steal DPAD focus from nav buttons
+        // Side-nav focus → content
+        listOf(
+            binding.navLibrary, binding.navSeries, binding.navMovies,
+            binding.navSearch, binding.navUpdate, binding.navSettings,
+            binding.profileAvatar,
+        ).forEach { it.nextFocusRightId = R.id.rows }
+        binding.rows.nextFocusUpId = R.id.navLibrary
+        binding.rows.nextFocusLeftId = R.id.navLibrary
+
+        // Scroll-up fix: from top row / hero, DPAD_UP returns to sidebar/topbar
+        binding.rows.setOnKeyListener { _, keyCode, event ->
+            if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            if (keyCode != android.view.KeyEvent.KEYCODE_DPAD_UP) return@setOnKeyListener false
+            val lm = binding.rows.layoutManager as? LinearLayoutManager ?: return@setOnKeyListener false
+            if (lm.findFirstCompletelyVisibleItemPosition() <= 0) {
+                binding.rows.stopScroll()
+                binding.rows.scrollToPosition(0)
+                focusActiveNav()
+                true
+            } else {
+                binding.rows.smoothScrollBy(0, -binding.rows.height / 3)
+                true
+            }
+        }
+
         binding.navScroll.isFocusable = false
         binding.navScroll.isFocusableInTouchMode = false
         binding.navScroll.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+
         listOf(
             binding.btnUpdate, binding.btnRefresh, binding.btnSettings, binding.btnProfile,
+            binding.navLibrary, binding.navSeries, binding.navMovies, binding.navSearch,
+            binding.navUpdate, binding.navSettings, binding.profileAvatar,
+            binding.tabLibrary, binding.tabBrowse, binding.tabSearch, binding.btnKindMovies,
         ).forEach { btn ->
             btn.isClickable = true
             btn.isFocusable = true
             btn.isFocusableInTouchMode = true
+            FocusFx.bindScale(btn, 1.04f, prefs)
             btn.setOnKeyListener { v, keyCode, event ->
                 if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
                 when (keyCode) {
@@ -227,14 +228,11 @@ class HomeActivity : AppCompatActivity() {
         binding.filterChips.adapter = chipAdapter
         binding.filterChips.visibility = View.GONE
 
-        listOf(
-            binding.tabLibrary, binding.tabBrowse, binding.tabSearch,
-            binding.btnKindSeries, binding.btnKindMovies,
-            binding.btnProfile, binding.btnSettings, binding.btnRefresh, binding.btnUpdate,
-            binding.profileAvatar,
-        ).forEach { FocusFx.bindScale(it, 1.04f, prefs) }
-
         binding.btnSettings.setOnClickListener {
+            UiSound.click(this, prefs)
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        binding.navSettings.setOnClickListener {
             UiSound.click(this, prefs)
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -244,7 +242,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRefresh.setOnClickListener {
             UiSound.click(this, prefs)
             lifecycleScope.launch {
-                if (mode == HomeMode.BROWSE) {
+                if (mode == HomeMode.SERIES || mode == HomeMode.MOVIES) {
                     (application as VerflixedApp).container.catalog.resetBrowsePage()
                 }
                 load(force = true)
@@ -253,34 +251,84 @@ class HomeActivity : AppCompatActivity() {
         binding.btnLoadMore.setOnClickListener {
             UiSound.click(this, prefs)
             lifecycleScope.launch {
-                binding.progress.visibility = View.VISIBLE
+                showSkeleton(true)
                 runCatching { (application as VerflixedApp).container.catalog.loadMoreBrowse() }
                     .onSuccess {
-                        binding.progress.visibility = View.GONE
+                        showSkeleton(false)
                         rowsAdapter.submit(it, heroSeries)
                         updateLoadMore()
                     }
                     .onFailure {
-                        binding.progress.visibility = View.GONE
+                        showSkeleton(false)
                         Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
                     }
             }
         }
         binding.btnUpdate.setOnClickListener { checkUpdate() }
+        binding.navUpdate.setOnClickListener { checkUpdate() }
 
         binding.tabLibrary.setOnClickListener { setMode(HomeMode.LIBRARY) }
-        binding.tabBrowse.setOnClickListener { setMode(HomeMode.BROWSE) }
+        binding.tabBrowse.setOnClickListener { setMode(HomeMode.SERIES) }
         binding.tabSearch.setOnClickListener { setMode(HomeMode.SEARCH) }
-        binding.btnKindSeries.setOnClickListener { setMediaKind(UserPrefs.KIND_SERIES) }
-        binding.btnKindMovies.setOnClickListener { setMediaKind(UserPrefs.KIND_MOVIE) }
+        binding.btnKindSeries.setOnClickListener { setMode(HomeMode.SERIES) }
+        binding.btnKindMovies.setOnClickListener { setMode(HomeMode.MOVIES) }
+        binding.navLibrary.setOnClickListener { setMode(HomeMode.LIBRARY) }
+        binding.navSeries.setOnClickListener { setMode(HomeMode.SERIES) }
+        binding.navMovies.setOnClickListener { setMode(HomeMode.MOVIES) }
+        binding.navSearch.setOnClickListener { setMode(HomeMode.SEARCH) }
 
-        // Legacy EditText stays gone — custom keyboard only (no system IME)
         binding.searchInput.visibility = View.GONE
 
-        styleKindButtons()
-        updateSearchHint()
+        applyNavChrome()
         setMode(HomeMode.LIBRARY)
         refreshActiveProfile()
+    }
+
+    private fun applyNavChrome() {
+        val sidebar = prefs.isSidebarNav
+        binding.sideNav.visibility = if (sidebar) View.VISIBLE else View.GONE
+        binding.navScroll.visibility = if (sidebar) View.GONE else View.VISIBLE
+        val rowsParams = binding.rows.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+        if (sidebar) {
+            rowsParams.startToEnd = R.id.sideNav
+            rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            rowsParams.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            rowsParams.topToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        } else {
+            rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            rowsParams.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            rowsParams.topToBottom = R.id.navScroll
+            rowsParams.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        }
+        binding.rows.layoutParams = rowsParams
+        // Mirror for search + skeleton + empty
+        listOf(binding.skeletonHost, binding.emptyText, binding.progress).forEach { v ->
+            val p = v.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            p.startToEnd = if (sidebar) R.id.sideNav else androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            p.startToStart = if (sidebar) androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            else androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            p.topToTop = if (sidebar) androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            else androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            p.topToBottom = if (sidebar) androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            else R.id.navScroll
+            v.layoutParams = p
+        }
+    }
+
+    private fun focusActiveNav() {
+        val target = when (mode) {
+            HomeMode.LIBRARY -> if (prefs.isSidebarNav) binding.navLibrary else binding.tabLibrary
+            HomeMode.SERIES -> if (prefs.isSidebarNav) binding.navSeries else binding.tabBrowse
+            HomeMode.MOVIES -> if (prefs.isSidebarNav) binding.navMovies else binding.btnKindMovies
+            HomeMode.SEARCH -> if (prefs.isSidebarNav) binding.navSearch else binding.tabSearch
+        }
+        target.requestFocus()
+    }
+
+    private fun showSkeleton(show: Boolean) {
+        binding.skeletonHost.visibility = if (show) View.VISIBLE else View.GONE
+        binding.progress.visibility = View.GONE
+        if (show) binding.rows.alpha = 0.35f else binding.rows.alpha = 1f
     }
 
     private fun onSearchKey(key: String) {
@@ -367,12 +415,14 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (::binding.isInitialized) {
+            applyNavChrome()
             refreshActiveProfile()
-            load(force = false)
+            if (mode != HomeMode.SEARCH) load(force = false)
         }
     }
 
     private fun setMode(newMode: HomeMode) {
+        if (newMode != HomeMode.SEARCH) lastContentMode = newMode
         mode = newMode
         styleTabs()
         UiSound.click(this, prefs)
@@ -389,20 +439,50 @@ class HomeActivity : AppCompatActivity() {
                 focusFirstSearchKey()
                 runSearch(searchQuery)
             }
-            HomeMode.LIBRARY, HomeMode.BROWSE -> {
+            HomeMode.LIBRARY -> {
                 searchPanel.visibility = View.GONE
                 binding.rows.visibility = View.VISIBLE
                 binding.heroContainer.visibility = View.GONE
                 binding.tabSearch.nextFocusDownId = R.id.rows
                 load(force = false)
             }
+            HomeMode.SERIES -> {
+                searchPanel.visibility = View.GONE
+                binding.rows.visibility = View.VISIBLE
+                binding.heroContainer.visibility = View.GONE
+                binding.tabSearch.nextFocusDownId = R.id.rows
+                if (prefs.mediaKind != UserPrefs.KIND_SERIES) {
+                    prefs.mediaKind = UserPrefs.KIND_SERIES
+                    prefs.browsePage = 0
+                }
+                updateSearchHint()
+                load(force = true)
+            }
+            HomeMode.MOVIES -> {
+                searchPanel.visibility = View.GONE
+                binding.rows.visibility = View.VISIBLE
+                binding.heroContainer.visibility = View.GONE
+                binding.tabSearch.nextFocusDownId = R.id.rows
+                if (prefs.mediaKind != UserPrefs.KIND_MOVIE) {
+                    prefs.mediaKind = UserPrefs.KIND_MOVIE
+                    prefs.browsePage = 0
+                }
+                updateSearchHint()
+                load(force = true)
+            }
         }
     }
 
     private fun styleTabs() {
         paintNavPill(binding.tabLibrary, mode == HomeMode.LIBRARY)
-        paintNavPill(binding.tabBrowse, mode == HomeMode.BROWSE)
+        paintNavPill(binding.tabBrowse, mode == HomeMode.SERIES)
+        paintNavPill(binding.btnKindMovies, mode == HomeMode.MOVIES)
         paintNavPill(binding.tabSearch, mode == HomeMode.SEARCH)
+        paintNavPill(binding.navLibrary, mode == HomeMode.LIBRARY)
+        paintNavPill(binding.navSeries, mode == HomeMode.SERIES)
+        paintNavPill(binding.navMovies, mode == HomeMode.MOVIES)
+        paintNavPill(binding.navSearch, mode == HomeMode.SEARCH)
+        styleKindButtons()
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -414,21 +494,27 @@ class HomeActivity : AppCompatActivity() {
     private fun load(force: Boolean) {
         if (mode == HomeMode.SEARCH) return
         val repo = (application as VerflixedApp).container.catalog
-        binding.progress.visibility = View.VISIBLE
+        showSkeleton(true)
         binding.emptyText.visibility = View.GONE
         loadJob?.cancel()
         loadJob = lifecycleScope.launch {
             runCatching {
                 when (mode) {
                     HomeMode.LIBRARY -> repo.getLibraryRows()
-                    HomeMode.BROWSE -> {
+                    HomeMode.SERIES -> {
+                        prefs.mediaKind = UserPrefs.KIND_SERIES
+                        if (force) repo.resetBrowsePage()
+                        repo.getBrowseRows(forceRefresh = force)
+                    }
+                    HomeMode.MOVIES -> {
+                        prefs.mediaKind = UserPrefs.KIND_MOVIE
                         if (force) repo.resetBrowsePage()
                         repo.getBrowseRows(forceRefresh = force)
                     }
                     HomeMode.SEARCH -> emptyList()
                 }
             }.onSuccess { rows ->
-                binding.progress.visibility = View.GONE
+                showSkeleton(false)
                 val featured = rows.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
                 if (featured != null) heroSeries = featured
                 rowsAdapter.submit(rows, featured)
@@ -436,17 +522,14 @@ class HomeActivity : AppCompatActivity() {
                 if (rows.all { it.items.isEmpty() }) {
                     binding.emptyText.text = when (mode) {
                         HomeMode.LIBRARY -> getString(R.string.library_empty)
-                        else -> if (prefs.isMovies) {
-                            "Keine Filme gefunden. [VF-102]"
-                        } else {
-                            "Keine Serien gefunden. [VF-102]"
-                        }
+                        HomeMode.MOVIES -> "Keine Filme gefunden. [VF-102]"
+                        else -> "Keine Serien gefunden. [VF-102]"
                     }
                     binding.emptyText.visibility = View.VISIBLE
                 }
                 updateLoadMore()
             }.onFailure {
-                binding.progress.visibility = View.GONE
+                showSkeleton(false)
                 val msg = it.toVfMessage()
                 if (msg.isBlank()) return@onFailure
                 binding.emptyText.text = msg
@@ -458,18 +541,24 @@ class HomeActivity : AppCompatActivity() {
 
     private fun updateLoadMore() {
         binding.btnLoadMore.visibility =
-            if (mode == HomeMode.BROWSE &&
+            if ((mode == HomeMode.SERIES || mode == HomeMode.MOVIES) &&
                 (application as VerflixedApp).container.catalog.canLoadMoreBrowse()
             ) View.VISIBLE else View.GONE
     }
 
     private fun runSearch(query: String) {
         val repo = (application as VerflixedApp).container.catalog
-        binding.progress.visibility = View.VISIBLE
+        showSkeleton(true)
+        // Active content tab wins search ranking (library → library-first).
+        val effectivePriority = when (lastContentMode) {
+            HomeMode.SERIES -> UserPrefs.KIND_SERIES
+            HomeMode.MOVIES -> UserPrefs.KIND_MOVIE
+            else -> null
+        }
         lifecycleScope.launch {
-            runCatching { repo.searchGrouped(query) }
+            runCatching { repo.searchGlobal(query, effectivePriority) }
                 .onSuccess { rows ->
-                    binding.progress.visibility = View.GONE
+                    showSkeleton(false)
                     if (rows.isEmpty() || rows.all { it.items.isEmpty() }) {
                         searchResultsAdapter.submit(emptyList(), null)
                         binding.emptyText.text = getString(R.string.search_empty)
@@ -482,7 +571,7 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 .onFailure {
-                    binding.progress.visibility = View.GONE
+                    showSkeleton(false)
                     val msg = it.toVfMessage()
                     if (msg.isNotBlank()) {
                         Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
@@ -526,6 +615,41 @@ class HomeActivity : AppCompatActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    /**
+     * Poster/hero children eat DPAD_UP before the rows RecyclerView key listener.
+     * When already at the top of the feed, route focus back to the nav chrome.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
+            mode != HomeMode.SEARCH &&
+            ::binding.isInitialized
+        ) {
+            val focused = currentFocus
+            val inSide = focused != null && isUnder(binding.sideNav, focused)
+            val inTop = focused != null && isUnder(binding.navBar, focused)
+            if (focused != null && !inSide && !inTop && isUnder(binding.rows, focused)) {
+                val lm = binding.rows.layoutManager as? LinearLayoutManager
+                val first = lm?.findFirstVisibleItemPosition() ?: -1
+                if (first <= 0) {
+                    binding.rows.stopScroll()
+                    focusActiveNav()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun isUnder(parent: View, child: View): Boolean {
+        var v: View? = child
+        while (v != null) {
+            if (v === parent) return true
+            v = v.parent as? View
+        }
+        return false
     }
 
     private fun showHomeContextMenu() {
@@ -838,7 +962,7 @@ private class RowsAdapter(
 
         fun bind(row: HomeRow) {
             title.text = row.title
-            posterAdapter.submit(row.items)
+            posterAdapter.submit(row.items, row.title)
         }
     }
 }
@@ -851,14 +975,16 @@ private class PosterAdapter(
     private val resolveArt: (Series, (Series) -> Unit) -> Unit
 ) : RecyclerView.Adapter<PosterAdapter.PosterVH>() {
     private val items = mutableListOf<Series>()
+    private var rowTitle: String = ""
 
     init {
         setHasStableIds(true)
     }
 
-    fun submit(data: List<Series>) {
+    fun submit(data: List<Series>, title: String = "") {
         items.clear()
         items.addAll(data)
+        rowTitle = title
         notifyDataSetChanged()
     }
 
@@ -872,8 +998,17 @@ private class PosterAdapter(
 
     override fun getItemId(position: Int): Long = items[position].id.hashCode().toLong()
 
+    private fun useCards(): Boolean {
+        if (browseModeProvider()) return false
+        // A–Z + library shelves honor the per-profile tiles/cards preference.
+        return prefsProvider().isLibraryCards
+    }
+
+    override fun getItemViewType(position: Int): Int = if (useCards()) 1 else 0
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PosterVH {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_poster, parent, false)
+        val layout = if (viewType == 1) R.layout.item_poster_card else R.layout.item_poster
+        val view = LayoutInflater.from(parent.context).inflate(layout, parent, false)
         return PosterVH(view)
     }
 

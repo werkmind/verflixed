@@ -71,6 +71,20 @@
         <item name="android:minHeight">34dp</item>
     </style>
 
+    <style name="SvSideNavBtn" parent="Widget.AppCompat.ImageButton">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:background">@drawable/bg_side_nav_btn</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:focusable">true</item>
+        <item name="android:focusableInTouchMode">true</item>
+        <item name="android:tint">@color/sv_text_secondary</item>
+        <item name="android:nextFocusRight">@id/rows</item>
+    </style>
+
     <style name="SvEditText" parent="Widget.AppCompat.EditText">
         <item name="android:background">@drawable/bg_input</item>
         <item name="android:textColor">@color/sv_text_primary</item>

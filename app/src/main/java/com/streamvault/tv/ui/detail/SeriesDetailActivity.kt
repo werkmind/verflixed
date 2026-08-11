@@ -51,6 +51,8 @@ class SeriesDetailActivity : AppCompatActivity() {
         onToggleWatched = { ep -> toggleEpisodeWatched(ep) },
         seriesArtProvider = { series?.backdropUrl ?: series?.posterUrl }
     )
+    private var readyEpisodeIds: Set<String> = emptySet()
+    private var warmingStreams = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,6 +115,8 @@ class SeriesDetailActivity : AppCompatActivity() {
                 progressMap = p
                 bindSeries(s, fav)
                 renderCacheStatus(cache?.cached ?: 0, cache?.total ?: s.flatEpisodes().size, cache?.status)
+                refreshReadyDots(s.id)
+                startBackgroundStreamWarmup(s)
             }.onFailure {
                 binding.progress.visibility = View.GONE
                 Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
@@ -347,8 +351,58 @@ class SeriesDetailActivity : AppCompatActivity() {
     private fun renderEpisodes() {
         val s = series ?: return
         val eps = s.seasons.find { it.number == selectedSeason }?.episodes.orEmpty()
-        episodeAdapter.submit(eps, progressMap)
+        episodeAdapter.submit(eps, progressMap, readyEpisodeIds)
         updateSeasonWatchedButton()
+    }
+
+    private fun refreshReadyDots(seriesId: String) {
+        val repo = (application as VerflixedApp).container.catalog
+        lifecycleScope.launch {
+            readyEpisodeIds = withContext(Dispatchers.IO) {
+                runCatching { repo.cachedEpisodeIds(seriesId) }.getOrDefault(emptySet())
+            }
+            // Episodes that already carry a resolved streamUrl also count as ready.
+            series?.flatEpisodes()?.forEach { ep ->
+                if (!ep.streamUrl.isNullOrBlank()) {
+                    readyEpisodeIds = readyEpisodeIds + ep.id
+                }
+            }
+            renderEpisodes()
+        }
+    }
+
+    private fun startBackgroundStreamWarmup(s: Series) {
+        if (warmingStreams) return
+        if (s.flatEpisodes().isEmpty()) return
+        warmingStreams = true
+        val repo = (application as VerflixedApp).container.catalog
+        val app = application as VerflixedApp
+        renderCacheStatus(readyEpisodeIds.size, s.flatEpisodes().size, "caching")
+        app.appScope.launch {
+            var lastCached = -1
+            runCatching {
+                repo.collectAllEpisodePlayerLinks(s.id) { progress ->
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        if (series?.id != s.id) return@runOnUiThread
+                        renderCacheStatus(progress.cached, progress.total, progress.status)
+                        if (progress.cached != lastCached) {
+                            lastCached = progress.cached
+                            refreshReadyDots(s.id)
+                        }
+                    }
+                }
+            }.onSuccess {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (series?.id != s.id) return@runOnUiThread
+                    warmingStreams = false
+                    refreshReadyDots(s.id)
+                }
+            }.onFailure {
+                warmingStreams = false
+            }
+        }
     }
 
     private fun applySeasonArt() {
@@ -363,21 +417,14 @@ class SeriesDetailActivity : AppCompatActivity() {
     private fun toggleFavorite() {
         val s = series ?: return
         val repo = (application as VerflixedApp).container.catalog
-        val app = application as VerflixedApp
         binding.btnFavorite.isEnabled = false
         lifecycleScope.launch {
             runCatching {
                 val nowFav = repo.toggleFavorite(s.id)
                 if (nowFav) {
                     renderCacheStatus(0, s.flatEpisodes().size, "caching")
-                    // Background — do not block Detail UI / cancel into VF-999
-                    app.appScope.launch {
-                        runCatching {
-                            repo.collectAllEpisodePlayerLinks(s.id) { progress ->
-                                // best-effort status if still on screen
-                            }
-                        }
-                    }
+                    warmingStreams = false
+                    startBackgroundStreamWarmup(s)
                 }
                 nowFav
             }.onSuccess { nowFav ->
@@ -537,12 +584,18 @@ private class EpisodeAdapter(
 ) : RecyclerView.Adapter<EpisodeAdapter.VH>() {
     private val items = mutableListOf<Episode>()
     private var progress: Map<String, WatchProgressEntity> = emptyMap()
+    private var readyIds: Set<String> = emptySet()
     private var focused: Episode? = null
 
-    fun submit(data: List<Episode>, progressMap: Map<String, WatchProgressEntity>) {
+    fun submit(
+        data: List<Episode>,
+        progressMap: Map<String, WatchProgressEntity>,
+        ready: Set<String> = emptySet(),
+    ) {
         items.clear()
         items.addAll(data)
         progress = progressMap
+        readyIds = ready
         notifyDataSetChanged()
     }
 
@@ -567,6 +620,7 @@ private class EpisodeAdapter(
         holder.number.visibility = if (ep.id.endsWith("-movie")) View.GONE else View.VISIBLE
         holder.title.text = ep.title
         val p = progress[ep.id]
+        val ready = ep.id in readyIds || !ep.streamUrl.isNullOrBlank()
         holder.meta.text = when {
             ep.upcoming || !ep.releaseLabel.isNullOrBlank() -> {
                 listOfNotNull(
@@ -576,7 +630,7 @@ private class EpisodeAdapter(
                 ).distinct().joinToString(" · ")
             }
             !ep.overview.isNullOrBlank() -> ep.overview
-            p == null && ep.streamUrl != null -> "Bereit • Ungesehen"
+            p == null && ready -> "Bereit • Ungesehen"
             p == null -> "Ungesehen"
             p.completed -> "Gesehen"
             else -> {
@@ -593,6 +647,16 @@ private class EpisodeAdapter(
         holder.badge.isFocusable = false
         holder.badge.isClickable = false
         holder.badge.setOnClickListener(null)
+        // Tiny ready indicator (green = cached, dim = pending, gone for upcoming)
+        if (ep.upcoming) {
+            holder.readyDot.visibility = View.GONE
+        } else {
+            holder.readyDot.visibility = View.VISIBLE
+            holder.readyDot.setBackgroundResource(
+                if (ready) R.drawable.bg_stream_dot_ready else R.drawable.bg_stream_dot
+            )
+            holder.readyDot.alpha = if (ready) 1f else 0.45f
+        }
         holder.itemView.setOnLongClickListener {
             if (!ep.upcoming) onToggleWatched(ep)
             true
@@ -637,5 +701,6 @@ private class EpisodeAdapter(
         val title: TextView = itemView.findViewById(R.id.episodeTitle)
         val meta: TextView = itemView.findViewById(R.id.episodeMeta)
         val badge: TextView = itemView.findViewById(R.id.watchedBadge)
+        val readyDot: View = itemView.findViewById(R.id.streamReadyDot)
     }
 }

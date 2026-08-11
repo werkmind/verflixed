@@ -1,23 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/homeRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/sv_bg"
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible. -->
+    <!-- ===== SIDEBAR (default) ===== -->
+    <LinearLayout
+        android:id="@+id/sideNav"
+        android:layout_width="72dp"
+        android:layout_height="0dp"
+        android:background="#EE0A0D14"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:elevation="10dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/profileAvatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_avatar_focus"
+            android:contentDescription="@string/profile_switcher"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusDown="@id/navLibrary"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_avatar_placeholder" />
+
+        <TextView
+            android:id="@+id/profileNameLabel"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:focusable="true"
+            android:gravity="center"
+            android:maxLines="1"
+            android:textColor="@color/sv_text_muted"
+            android:textSize="9sp"
+            android:visibility="gone" />
+
+        <View
+            android:layout_width="28dp"
+            android:layout_height="1dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="10dp"
+            android:background="@color/sv_card_stroke" />
+
+        <ImageButton
+            android:id="@+id/navLibrary"
+            style="@style/SvSideNavBtn"
+            android:contentDescription="@string/mode_library"
+            android:nextFocusUp="@id/profileAvatar"
+            android:nextFocusDown="@id/navSeries"
+            android:src="@drawable/ic_nav_library" />
+
+        <ImageButton
+            android:id="@+id/navSeries"
+            style="@style/SvSideNavBtn"
+            android:contentDescription="@string/kind_series"
+            android:nextFocusUp="@id/navLibrary"
+            android:nextFocusDown="@id/navMovies"
+            android:src="@drawable/ic_nav_series" />
+
+        <ImageButton
+            android:id="@+id/navMovies"
+            style="@style/SvSideNavBtn"
+            android:contentDescription="@string/kind_movies"
+            android:nextFocusUp="@id/navSeries"
+            android:nextFocusDown="@id/navSearch"
+            android:src="@drawable/ic_nav_movies" />
+
+        <ImageButton
+            android:id="@+id/navSearch"
+            style="@style/SvSideNavBtn"
+            android:contentDescription="@string/mode_search"
+            android:nextFocusUp="@id/navMovies"
+            android:nextFocusDown="@id/navUpdate"
+            android:src="@drawable/ic_nav_search" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/navUpdate"
+            style="@style/SvSideNavBtn"
+            android:contentDescription="@string/check_update"
+            android:nextFocusUp="@id/navSearch"
+            android:nextFocusDown="@id/navSettings"
+            android:src="@drawable/ic_nav_update" />
+
+        <ImageButton
+            android:id="@+id/navSettings"
+            style="@style/SvSideNavBtn"
+            android:contentDescription="@string/home_settings"
+            android:nextFocusUp="@id/navUpdate"
+            android:src="@drawable/ic_nav_settings" />
+    </LinearLayout>
+
+    <!-- ===== TOPBAR (optional per profile) ===== -->
     <HorizontalScrollView
         android:id="@+id/navScroll"
         android:layout_width="0dp"
-        android:layout_height="50dp"
+        android:layout_height="52dp"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:descendantFocusability="afterDescendants"
-        android:focusable="false"
-        android:focusableInTouchMode="false"
         android:scrollbars="none"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -27,50 +128,17 @@
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:clipChildren="false"
-            android:clipToPadding="false"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="36dp"
-            android:paddingEnd="28dp">
-
-            <ImageView
-                android:id="@+id/profileAvatar"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_marginEnd="10dp"
-                android:background="@drawable/bg_avatar_focus"
-                android:contentDescription="@string/profile_switcher"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_avatar_placeholder" />
-
-            <TextView
-                android:id="@+id/profileNameLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="14dp"
-                android:background="@drawable/bg_button_nav"
-                android:ellipsize="end"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:gravity="center"
-                android:letterSpacing="0.04"
-                android:maxWidth="120dp"
-                android:maxLines="1"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:textAllCaps="true"
-                android:textColor="@color/sv_text_muted"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+            android:paddingStart="28dp"
+            android:paddingEnd="24dp">
 
             <Button
                 android:id="@+id/tabLibrary"
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
                 android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
+                android:layout_marginEnd="6dp"
                 android:text="@string/mode_library" />
 
             <Button
@@ -78,8 +146,16 @@
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
                 android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
-                android:text="@string/mode_browse" />
+                android:layout_marginEnd="6dp"
+                android:text="@string/kind_series" />
+
+            <Button
+                android:id="@+id/btnKindMovies"
+                style="@style/SvButton.Nav"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginEnd="6dp"
+                android:text="@string/kind_movies" />
 
             <Button
                 android:id="@+id/tabSearch"
@@ -89,97 +165,65 @@
                 android:layout_marginEnd="14dp"
                 android:text="@string/mode_search" />
 
-            <View
-                android:layout_width="1dp"
-                android:layout_height="18dp"
-                android:layout_marginEnd="14dp"
-                android:background="@color/sv_card_stroke" />
-
-            <Button
-                android:id="@+id/btnKindSeries"
-                style="@style/SvButton.Nav"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
-                android:text="@string/kind_series" />
-
-            <Button
-                android:id="@+id/btnKindMovies"
-                style="@style/SvButton.Nav"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="14dp"
-                android:text="@string/kind_movies" />
-
-            <Button
-                android:id="@+id/btnLoadMore"
-                style="@style/SvButton.Nav"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
-                android:text="@string/browse_more"
-                android:visibility="gone" />
-
-            <Button
-                android:id="@+id/btnProfile"
-                style="@style/SvButton.Nav"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
-                android:focusable="true"
-                android:nextFocusRight="@id/btnUpdate"
-                android:text="@string/profile_switcher" />
-
             <Button
                 android:id="@+id/btnUpdate"
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
                 android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
-                android:focusable="true"
-                android:nextFocusLeft="@id/btnProfile"
-                android:nextFocusRight="@id/btnRefresh"
+                android:layout_marginEnd="6dp"
                 android:text="@string/check_update" />
-
-            <Button
-                android:id="@+id/btnRefresh"
-                style="@style/SvButton.Nav"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="4dp"
-                android:focusable="true"
-                android:nextFocusLeft="@id/btnUpdate"
-                android:nextFocusRight="@id/btnSettings"
-                android:text="@string/settings_refresh" />
 
             <Button
                 android:id="@+id/btnSettings"
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
                 android:layout_height="34dp"
-                android:focusable="true"
-                android:nextFocusLeft="@id/btnRefresh"
+                android:layout_marginEnd="6dp"
                 android:text="@string/home_settings" />
+
+            <Button
+                android:id="@+id/btnProfile"
+                style="@style/SvButton.Nav"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:text="@string/profile_switcher" />
+
+            <!-- Kept for ViewBinding / legacy focus IDs -->
+            <Button
+                android:id="@+id/btnKindSeries"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnRefresh"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnLoadMore"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- Legacy fixed hero kept for ViewBinding IDs but GONE — real hero scrolls as list header. -->
+    <!-- Legacy hero stubs (ViewBinding) -->
     <FrameLayout
         android:id="@+id/heroContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/navScroll">
+        app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
             android:id="@+id/heroBackdrop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:scaleType="centerCrop"
-            android:src="@drawable/poster_placeholder" />
+            android:scaleType="centerCrop" />
 
         <TextView
             android:id="@+id/heroTitle"
@@ -203,36 +247,22 @@
             android:id="@+id/btnHeroPlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:focusable="false"
             android:visibility="gone" />
 
         <Button
             android:id="@+id/btnHeroInfo"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:focusable="false"
             android:visibility="gone" />
     </FrameLayout>
 
     <EditText
         android:id="@+id/searchInput"
-        style="@style/SvEditText"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:focusable="false"
-        android:visibility="gone"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/navScroll" />
-
-    <include
-        layout="@layout/include_search_panel"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/navScroll" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/filterChips"
@@ -240,7 +270,18 @@
         android:layout_height="0dp"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/searchInput" />
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <include
+        android:id="@+id/searchPanelInclude"
+        layout="@layout/include_search_panel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/sideNav"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rows"
@@ -249,21 +290,102 @@
         android:clipChildren="false"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
-        android:paddingTop="8dp"
-        android:paddingBottom="24dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="28dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/navScroll" />
+        app:layout_constraintStart_toEndOf="@id/sideNav"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Skeleton shimmer row while loading -->
+    <LinearLayout
+        android:id="@+id/skeletonHost"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:paddingStart="36dp"
+        android:paddingTop="24dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/sideNav"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <View
+            android:layout_width="180dp"
+            android:layout_height="14dp"
+            android:background="@drawable/bg_skeleton" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_skeleton" />
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_skeleton" />
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_skeleton" />
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:background="@drawable/bg_skeleton" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="140dp"
+            android:layout_height="14dp"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/bg_skeleton" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_skeleton" />
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_skeleton" />
+
+            <View
+                android:layout_width="112dp"
+                android:layout_height="160dp"
+                android:background="@drawable/bg_skeleton" />
+        </LinearLayout>
+    </LinearLayout>
 
     <ProgressBar
         android:id="@+id/progress"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:indeterminateTint="@color/sv_accent"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toEndOf="@id/sideNav"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
@@ -277,6 +399,6 @@
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toEndOf="@id/sideNav"
         app:layout_constraintTop_toTopOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

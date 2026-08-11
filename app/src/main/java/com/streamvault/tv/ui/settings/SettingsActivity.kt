@@ -12,6 +12,7 @@ import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.databinding.ActivitySettingsBinding
 import com.streamvault.tv.ui.setup.SetupActivity
 import com.streamvault.tv.util.toVfMessage
+import com.streamvault.tv.data.prefs.UserPrefs
 import kotlinx.coroutines.launch
 
 class SettingsActivity : AppCompatActivity() {
@@ -29,7 +30,7 @@ class SettingsActivity : AppCompatActivity() {
                 "Serien-URL:\n${prefs.seriesBaseUrl.ifBlank { "—" }}\n\n" +
                 "Filme-URL:\n${prefs.moviesBaseUrl.ifBlank { "—" }}\n\n" +
                 "Aktiv: ${if (prefs.isMovies) "Filme" else "Serien"}\n\n" +
-                "Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))}"
+                "Profil-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))}"
         binding.inputUpdateUrl.setText(prefs.updateManifestUrl)
 
         binding.btnSaveUpdateUrl.setOnClickListener {
@@ -92,7 +93,7 @@ class SettingsActivity : AppCompatActivity() {
         fun paintLanguage() {
             val code = prefs.streamLanguage(prefs.activeProfileId)
             binding.btnToggleLanguage.text =
-                "Standard-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(code)}"
+                "Profil-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(code)}"
         }
         paintLanguage()
         binding.btnToggleLanguage.setOnClickListener {
@@ -107,7 +108,45 @@ class SettingsActivity : AppCompatActivity() {
             }
             Toast.makeText(
                 this,
-                "Standard-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(next)}",
+                "Profil-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(next)}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        fun paintNav() {
+            binding.btnToggleNav.text = if (prefs.isSidebarNav) {
+                "Layout: Sidebar"
+            } else {
+                "Layout: Topbar"
+            }
+        }
+        paintNav()
+        binding.btnToggleNav.setOnClickListener {
+            val next = if (prefs.isSidebarNav) UserPrefs.NAV_TOPBAR else UserPrefs.NAV_SIDEBAR
+            prefs.setNavLayout(prefs.activeProfileId, next)
+            paintNav()
+            Toast.makeText(
+                this,
+                if (next == UserPrefs.NAV_SIDEBAR) "Sidebar aktiv (Profil)" else "Topbar aktiv (Profil)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        fun paintLibraryView() {
+            binding.btnToggleLibraryView.text = if (prefs.isLibraryCards) {
+                "Bibliothek: Cards"
+            } else {
+                "Bibliothek: Kacheln"
+            }
+        }
+        paintLibraryView()
+        binding.btnToggleLibraryView.setOnClickListener {
+            val next = if (prefs.isLibraryCards) UserPrefs.LIB_TILES else UserPrefs.LIB_CARDS
+            prefs.setLibraryView(prefs.activeProfileId, next)
+            paintLibraryView()
+            Toast.makeText(
+                this,
+                if (next == UserPrefs.LIB_CARDS) "Cards-Ansicht (Profil)" else "Kachel-Ansicht (Profil)",
                 Toast.LENGTH_SHORT
             ).show()
         }

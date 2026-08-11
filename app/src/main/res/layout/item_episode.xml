@@ -80,4 +80,15 @@
         android:textColor="@color/sv_watched"
         android:textSize="12sp"
         android:textStyle="bold" />
+
+    <!-- Tiny stream-ready / caching indicator -->
+    <View
+        android:id="@+id/streamReadyDot"
+        android:layout_width="7dp"
+        android:layout_height="7dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_stream_dot"
+        android:focusable="false"
+        android:visibility="gone" />
 </LinearLayout>

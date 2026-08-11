@@ -258,19 +258,13 @@ class CatalogRepository(
 
     suspend fun getLibraryRows(): List<HomeRow> = withContext(Dispatchers.IO) {
         val catalog = runCatching { loadCatalog(false) }.getOrNull()
-        val kind = prefs.mediaKind
         val favEntities = db.favorites().all(pid())
-        val allFavorites = favEntities.mapNotNull { fav ->
+        val favorites = favEntities.mapNotNull { fav ->
             runCatching { seriesAdapter.fromJson(fav.cachedJson) }.getOrNull()
                 ?: catalog?.series?.find { it.id == fav.seriesId }?.copy(
                     title = fav.title,
                     posterUrl = fav.posterUrl
                 )
-        }
-        // Filter favorites by active mediaKind (mediaKind lives in cachedJson).
-        val favorites = allFavorites.filter { fav ->
-            val favKind = if (fav.mediaKind == "movie") "movie" else "series"
-            favKind == kind
         }
         val continueIdsOrdered = db.watch().all(pid())
             .filter { !it.completed && it.positionMs > 5_000 }
@@ -279,14 +273,13 @@ class CatalogRepository(
             .distinct()
         val continueWatching = continueIdsOrdered.mapNotNull { id ->
             favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id }
-        }.filter { s ->
-            val sk = if (s.mediaKind == "movie") "movie" else "series"
-            sk == kind
         }
         // One big library: all favorites (and continue items that aren't favs), no redundant Favoriten row
         val continueIdSet = continueWatching.map { it.id }.toSet()
-        val libraryPool = (favorites + continueWatching)
-            .distinctBy { it.id }
+        // Favorites only in library shelves — do NOT re-merge continue items (avoids duplicates).
+        val seriesFavs = favorites.filter { it.mediaKind != "movie" }
+            .sortedBy { it.title.lowercase() }
+        val movieFavs = favorites.filter { it.mediaKind == "movie" }
             .sortedBy { it.title.lowercase() }
 
         val recentlyWatched = db.watch().all(pid())
@@ -295,24 +288,26 @@ class CatalogRepository(
             .map { it.seriesId }
             .distinct()
             .mapNotNull { id -> favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id } }
-            .filter { s ->
-                val sk = if (s.mediaKind == "movie") "movie" else "series"
-                sk == kind
-            }
             .filterNot { it.id in continueIdSet }
             .take(12)
 
         val favIds = favorites.map { it.id.lowercase() }.toSet()
         val favTitles = favorites.map { it.title.lowercase() }.toSet()
-        val upcoming = if (kind == "series") {
-            runCatching { calendar.favoritesUpcoming(favIds, favTitles) }.getOrDefault(emptyList())
-        } else emptyList()
-        val recentNew = if (kind == "series") {
-            runCatching { calendar.favoritesRecent(favIds, favTitles) }.getOrDefault(emptyList())
-        } else emptyList()
-        val weekCalendar = if (kind == "series") {
-            runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
-        } else emptyList()
+        val shownIds = linkedSetOf<String>().apply {
+            addAll(continueIdSet)
+            addAll(seriesFavs.map { it.id })
+            addAll(movieFavs.map { it.id })
+        }
+        val upcoming = runCatching { calendar.favoritesUpcoming(favIds, favTitles) }.getOrDefault(emptyList())
+            .filterNot { it.seriesId in shownIds }
+        val recentNew = runCatching { calendar.favoritesRecent(favIds, favTitles) }.getOrDefault(emptyList())
+            .filterNot { it.seriesId in shownIds || upcoming.any { u -> u.seriesId == it.seriesId } }
+        val weekCalendar = runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
+            .filterNot {
+                it.seriesId in shownIds ||
+                    upcoming.any { u -> u.seriesId == it.seriesId } ||
+                    recentNew.any { u -> u.seriesId == it.seriesId }
+            }
 
         // Represent calendar hits as lightweight Series cards for the row UI.
         fun calendarAsSeries(entries: List<CalendarEntry>): List<Series> =
@@ -343,15 +338,17 @@ class CatalogRepository(
                 )
             }
 
-        val libLabel = if (kind == "movie") "Meine Filme" else "Meine Bibliothek"
         buildList {
-            // Last watched / in progress first (profile-scoped)
             if (continueWatching.isNotEmpty()) {
                 add(HomeRow("Weiterschauen", continueWatching.take(8)))
             }
-            if (libraryPool.isNotEmpty()) add(HomeRow(libLabel, libraryPool))
+            if (seriesFavs.isNotEmpty()) add(HomeRow("Meine Serien", seriesFavs))
+            if (movieFavs.isNotEmpty()) add(HomeRow("Meine Filme", movieFavs))
+            // A–Z combined once (no duplicate of Meine Serien/Filme items beyond the dedicated shelves)
+            val az = (seriesFavs + movieFavs).distinctBy { it.id }.sortedBy { it.title.lowercase() }
+            if (az.size >= 8) add(HomeRow("A–Z", az))
             if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", calendarAsSeries(upcoming)))
-            if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu für Favoriten", calendarAsSeries(recentNew)))
+            if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu", calendarAsSeries(recentNew)))
             if (weekCalendar.isNotEmpty()) add(HomeRow("Serienkalender", calendarAsSeries(weekCalendar)))
             if (recentlyWatched.isNotEmpty()) add(HomeRow("Zuletzt gesehen", recentlyWatched))
         }
@@ -418,6 +415,105 @@ class CatalogRepository(
         if (hits.isEmpty()) return@withContext emptyList()
         listOf(HomeRow(if (query.isBlank()) "Empfohlen" else "Live-Treffer", hits.take(48)))
     }
+
+    /**
+     * Global search across library + series catalog + movie catalog.
+     * [priorityKind] ("series"|"movie"|null) rows are listed first.
+     */
+    suspend fun searchGlobal(query: String, priorityKind: String? = null): List<HomeRow> =
+        withContext(Dispatchers.IO) {
+            val raw = query.trim()
+            val q = raw.lowercase()
+            val catalogSeries = runCatching {
+                val prev = prefs.mediaKind
+                prefs.mediaKind = "series"
+                try {
+                    loadCatalog(false).series.filter { it.mediaKind != "movie" }
+                } finally {
+                    prefs.mediaKind = prev
+                }
+            }.getOrDefault(emptyList())
+            val catalogMovies = runCatching {
+                val prev = prefs.mediaKind
+                prefs.mediaKind = "movie"
+                try {
+                    loadCatalog(false).series.filter { it.mediaKind == "movie" }
+                } finally {
+                    prefs.mediaKind = prev
+                }
+            }.getOrDefault(emptyList())
+            val favs = db.favorites().all(pid()).mapNotNull {
+                runCatching { seriesAdapter.fromJson(it.cachedJson) }.getOrNull()
+            }
+            fun match(list: List<Series>): List<Series> {
+                if (q.isEmpty()) return list.take(24)
+                return list.filter {
+                    it.title.lowercase().contains(q) ||
+                        it.overview?.lowercase()?.contains(q) == true ||
+                        it.genres.any { g -> g.lowercase().contains(q) } ||
+                        it.id.contains(q)
+                }
+            }
+            val libHits = match(favs)
+            val seriesHits = match(catalogSeries)
+            val movieHits = match(catalogMovies)
+
+            // Live site searches (best-effort)
+            val liveSeries = if (raw.length >= 2) {
+                runCatching {
+                    SiteSearch.search(http, prefs.seriesBaseUrl, raw, USER_AGENT, mediaKind = "series")
+                }.getOrDefault(emptyList())
+            } else emptyList()
+            val liveMovies = if (raw.length >= 2) {
+                runCatching {
+                    SiteSearch.search(http, prefs.moviesBaseUrl, raw, USER_AGENT, mediaKind = "movie")
+                }.getOrDefault(emptyList())
+            } else emptyList()
+
+            fun merge(a: List<Series>, b: List<Series>): List<Series> {
+                val map = LinkedHashMap<String, Series>()
+                a.forEach { map[it.id] = it }
+                b.forEach { s ->
+                    val ex = map[s.id]
+                    map[s.id] = ex?.copy(
+                        title = ex.title.ifBlank { s.title },
+                        overview = ex.overview ?: s.overview,
+                        detailPath = ex.detailPath ?: s.detailPath,
+                        posterUrl = ex.posterUrl ?: s.posterUrl,
+                    ) ?: s
+                }
+                return map.values.toList()
+            }
+
+            val seriesRow = merge(seriesHits, liveSeries).take(36)
+            val movieRow = merge(movieHits, liveMovies).take(36)
+            val libRow = libHits.take(24)
+            rememberSeriesHits(seriesRow + movieRow + libRow)
+
+            val rows = mutableListOf<HomeRow>()
+            fun addRow(title: String, items: List<Series>) {
+                if (items.isNotEmpty()) rows += HomeRow(title, items)
+            }
+            when (priorityKind) {
+                "movie" -> {
+                    addRow("Filme", movieRow)
+                    addRow("Serien", seriesRow)
+                    addRow("Meine Bibliothek", libRow)
+                }
+                "series" -> {
+                    addRow("Serien", seriesRow)
+                    addRow("Filme", movieRow)
+                    addRow("Meine Bibliothek", libRow)
+                }
+                else -> {
+                    addRow("Meine Bibliothek", libRow)
+                    addRow("Serien", seriesRow)
+                    addRow("Filme", movieRow)
+                }
+            }
+            rows
+        }
+
 
     private suspend fun applyGenreFilters(series: List<Series>): List<Series> {
         // Antifilter UI removed — never filter by include/exclude genres.
@@ -1386,6 +1482,11 @@ class CatalogRepository(
             total = fav.streamsTotal,
             status = fav.cacheStatus
         )
+    }
+
+    /** Episode IDs that already have a stream URL cached for the active profile. */
+    suspend fun cachedEpisodeIds(seriesId: String): Set<String> = withContext(Dispatchers.IO) {
+        db.streams().forSeries(pid(), seriesId).map { it.episodeId }.toSet()
     }
 
     suspend fun saveProgress(
