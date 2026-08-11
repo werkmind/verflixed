@@ -56,6 +56,14 @@ class HomeActivity : AppCompatActivity() {
             openSeries(it)
         },
         onFocused = { updateHero(it) },
+        onHeroPlay = {
+            UiSound.click(this, prefs)
+            heroSeries?.let { openSeries(it) }
+        },
+        onHeroInfo = {
+            UiSound.click(this, prefs)
+            heroSeries?.let { openSeries(it) }
+        },
         prefsProvider = { prefs },
         browseModeProvider = { mode == HomeMode.BROWSE || mode == HomeMode.SEARCH },
         resolveArt = { series, onResolved ->
@@ -81,6 +89,14 @@ class HomeActivity : AppCompatActivity() {
             openSeries(it)
         },
         onFocused = { updateHero(it) },
+        onHeroPlay = {
+            UiSound.click(this, prefs)
+            heroSeries?.let { openSeries(it) }
+        },
+        onHeroInfo = {
+            UiSound.click(this, prefs)
+            heroSeries?.let { openSeries(it) }
+        },
         prefsProvider = { prefs },
         browseModeProvider = { true },
         resolveArt = { series, onResolved ->
@@ -168,23 +184,17 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRefresh.nextFocusLeftId = R.id.btnUpdate
         binding.btnRefresh.nextFocusRightId = R.id.btnSettings
         binding.btnSettings.nextFocusLeftId = R.id.btnRefresh
-        binding.tabLibrary.nextFocusDownId = R.id.btnHeroPlay
-        binding.tabBrowse.nextFocusDownId = R.id.btnHeroPlay
-        binding.tabSearch.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnKindSeries.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnKindMovies.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnProfile.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnUpdate.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnRefresh.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnSettings.nextFocusDownId = R.id.btnHeroPlay
-        binding.btnHeroPlay.nextFocusUpId = R.id.tabBrowse
-        binding.btnHeroInfo.nextFocusUpId = R.id.tabBrowse
-        binding.btnHeroPlay.nextFocusRightId = R.id.btnHeroInfo
-        binding.btnHeroInfo.nextFocusLeftId = R.id.btnHeroPlay
-        binding.btnHeroPlay.nextFocusDownId = R.id.rows
-        binding.btnHeroInfo.nextFocusDownId = R.id.rows
-        binding.profileAvatar.nextFocusDownId = R.id.btnHeroPlay
-        binding.rows.nextFocusUpId = R.id.btnHeroPlay
+        binding.tabLibrary.nextFocusDownId = R.id.rows
+        binding.tabBrowse.nextFocusDownId = R.id.rows
+        binding.tabSearch.nextFocusDownId = R.id.rows
+        binding.btnKindSeries.nextFocusDownId = R.id.rows
+        binding.btnKindMovies.nextFocusDownId = R.id.rows
+        binding.btnProfile.nextFocusDownId = R.id.rows
+        binding.btnUpdate.nextFocusDownId = R.id.rows
+        binding.btnRefresh.nextFocusDownId = R.id.rows
+        binding.btnSettings.nextFocusDownId = R.id.rows
+        binding.profileAvatar.nextFocusDownId = R.id.rows
+        binding.rows.nextFocusUpId = R.id.tabBrowse
 
         // HSV must not steal DPAD focus from nav buttons
         binding.navScroll.isFocusable = false
@@ -221,7 +231,7 @@ class HomeActivity : AppCompatActivity() {
             binding.tabLibrary, binding.tabBrowse, binding.tabSearch,
             binding.btnKindSeries, binding.btnKindMovies,
             binding.btnProfile, binding.btnSettings, binding.btnRefresh, binding.btnUpdate,
-            binding.btnHeroPlay, binding.btnHeroInfo, binding.profileAvatar,
+            binding.profileAvatar,
         ).forEach { FocusFx.bindScale(it, 1.08f, prefs) }
 
         binding.btnSettings.setOnClickListener {
@@ -247,7 +257,7 @@ class HomeActivity : AppCompatActivity() {
                 runCatching { (application as VerflixedApp).container.catalog.loadMoreBrowse() }
                     .onSuccess {
                         binding.progress.visibility = View.GONE
-                        rowsAdapter.submit(it)
+                        rowsAdapter.submit(it, heroSeries)
                         updateLoadMore()
                     }
                     .onFailure {
@@ -257,14 +267,6 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         binding.btnUpdate.setOnClickListener { checkUpdate() }
-        binding.btnHeroPlay.setOnClickListener {
-            UiSound.click(this, prefs)
-            heroSeries?.let { openSeries(it) }
-        }
-        binding.btnHeroInfo.setOnClickListener {
-            UiSound.click(this, prefs)
-            heroSeries?.let { openSeries(it) }
-        }
 
         binding.tabLibrary.setOnClickListener { setMode(HomeMode.LIBRARY) }
         binding.tabBrowse.setOnClickListener { setMode(HomeMode.BROWSE) }
@@ -390,8 +392,8 @@ class HomeActivity : AppCompatActivity() {
             HomeMode.LIBRARY, HomeMode.BROWSE -> {
                 searchPanel.visibility = View.GONE
                 binding.rows.visibility = View.VISIBLE
-                binding.heroContainer.visibility = View.VISIBLE
-                binding.tabSearch.nextFocusDownId = R.id.btnHeroPlay
+                binding.heroContainer.visibility = View.GONE
+                binding.tabSearch.nextFocusDownId = R.id.rows
                 load(force = false)
             }
         }
@@ -427,8 +429,9 @@ class HomeActivity : AppCompatActivity() {
                 }
             }.onSuccess { rows ->
                 binding.progress.visibility = View.GONE
-                rowsAdapter.submit(rows)
                 val featured = rows.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
+                if (featured != null) heroSeries = featured
+                rowsAdapter.submit(rows, featured)
                 if (featured != null) updateHero(featured)
                 if (rows.all { it.items.isEmpty() }) {
                     binding.emptyText.text = when (mode) {
@@ -468,13 +471,14 @@ class HomeActivity : AppCompatActivity() {
                 .onSuccess { rows ->
                     binding.progress.visibility = View.GONE
                     if (rows.isEmpty() || rows.all { it.items.isEmpty() }) {
-                        searchResultsAdapter.submit(emptyList())
+                        searchResultsAdapter.submit(emptyList(), null)
                         binding.emptyText.text = getString(R.string.search_empty)
                         binding.emptyText.visibility = View.VISIBLE
                     } else {
                         binding.emptyText.visibility = View.GONE
-                        searchResultsAdapter.submit(rows)
-                        rows.firstOrNull()?.items?.firstOrNull()?.let { updateHero(it) }
+                        val featured = rows.firstOrNull()?.items?.firstOrNull()
+                        searchResultsAdapter.submit(rows, featured)
+                        featured?.let { updateHero(it) }
                     }
                 }
                 .onFailure {
@@ -611,6 +615,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun updateHero(series: Series) {
         heroSeries = series
+        rowsAdapter.updateHero(series)
+        if (mode == HomeMode.SEARCH) searchResultsAdapter.updateHero(series)
+        // Keep stub binding fields in sync (legacy IDs, gone in layout).
         binding.heroTitle.text = series.title
         val meta = buildString {
             series.year?.let { append(it) }
@@ -624,12 +631,8 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         binding.heroMeta.text = meta
-        binding.heroMeta.visibility = if (meta.isBlank()) View.GONE else View.VISIBLE
         val overview = series.overview?.trim().orEmpty()
         binding.heroOverview.text = overview
-        binding.heroOverview.visibility = if (overview.isBlank()) View.GONE else View.VISIBLE
-        val art = series.backdropUrl ?: series.posterUrl
-        PosterLoader.loadHero(binding.heroBackdrop, art, browseMode = mode == HomeMode.BROWSE || mode == HomeMode.SEARCH)
     }
 
     private fun openSeries(series: Series) {
@@ -709,25 +712,107 @@ private class ChipAdapter(
 private class RowsAdapter(
     private val onClick: (Series) -> Unit,
     private val onFocused: (Series) -> Unit,
+    private val onHeroPlay: () -> Unit,
+    private val onHeroInfo: () -> Unit,
     private val prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
     private val browseModeProvider: () -> Boolean,
     private val resolveArt: (Series, (Series) -> Unit) -> Unit
-) : RecyclerView.Adapter<RowsAdapter.RowVH>() {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private val rows = mutableListOf<HomeRow>()
+    private var hero: Series? = null
 
-    fun submit(data: List<HomeRow>) {
+    companion object {
+        private const val TYPE_HERO = 0
+        private const val TYPE_ROW = 1
+    }
+
+    fun submit(data: List<HomeRow>, featured: Series? = null) {
         rows.clear()
         rows.addAll(data.filter { it.items.isNotEmpty() })
+        hero = featured ?: rows.firstOrNull()?.items?.firstOrNull()
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RowVH {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_row, parent, false)
-        return RowVH(view, onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
+    fun updateHero(series: Series) {
+        if (hero?.id == series.id &&
+            hero?.posterUrl == series.posterUrl &&
+            hero?.title == series.title &&
+            hero?.overview == series.overview
+        ) {
+            hero = series
+            return
+        }
+        hero = series
+        if (itemCount > 0) notifyItemChanged(0)
     }
 
-    override fun getItemCount(): Int = rows.size
-    override fun onBindViewHolder(holder: RowVH, position: Int) = holder.bind(rows[position])
+    override fun getItemViewType(position: Int): Int =
+        if (hero != null && position == 0) TYPE_HERO else TYPE_ROW
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == TYPE_HERO) {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_home_hero, parent, false)
+            HeroVH(view, onHeroPlay, onHeroInfo, browseModeProvider)
+        } else {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_row, parent, false)
+            RowVH(view, onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
+        }
+    }
+
+    override fun getItemCount(): Int = rows.size + if (hero != null) 1 else 0
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (holder) {
+            is HeroVH -> hero?.let { holder.bind(it) }
+            is RowVH -> {
+                val idx = if (hero != null) position - 1 else position
+                if (idx in rows.indices) holder.bind(rows[idx])
+            }
+        }
+    }
+
+    class HeroVH(
+        itemView: View,
+        onPlay: () -> Unit,
+        onInfo: () -> Unit,
+        private val browseModeProvider: () -> Boolean,
+    ) : RecyclerView.ViewHolder(itemView) {
+        private val backdrop: ImageView = itemView.findViewById(R.id.heroBackdrop)
+        private val title: TextView = itemView.findViewById(R.id.heroTitle)
+        private val meta: TextView = itemView.findViewById(R.id.heroMeta)
+        private val overview: TextView = itemView.findViewById(R.id.heroOverview)
+        private val play: Button = itemView.findViewById(R.id.btnHeroPlay)
+        private val info: Button = itemView.findViewById(R.id.btnHeroInfo)
+
+        init {
+            play.setOnClickListener { onPlay() }
+            info.setOnClickListener { onInfo() }
+            FocusFx.bindScale(play, 1.06f)
+            FocusFx.bindScale(info, 1.06f)
+        }
+
+        fun bind(series: Series) {
+            title.text = series.title
+            val metaText = buildString {
+                series.year?.let { append(it) }
+                val badges = series.genres.take(2)
+                if (badges.isNotEmpty()) {
+                    if (isNotEmpty()) append("  ·  ")
+                    append(badges.joinToString(" · "))
+                }
+            }
+            meta.text = metaText
+            meta.visibility = if (metaText.isBlank()) View.GONE else View.VISIBLE
+            val ov = series.overview?.trim().orEmpty()
+            overview.text = ov
+            overview.visibility = if (ov.isBlank()) View.GONE else View.VISIBLE
+            PosterLoader.loadHero(
+                backdrop,
+                series.backdropUrl ?: series.posterUrl,
+                browseMode = browseModeProvider(),
+            )
+        }
+    }
 
     class RowVH(
         itemView: View,
@@ -745,7 +830,8 @@ private class RowsAdapter(
             list.layoutManager = LinearLayoutManager(itemView.context, RecyclerView.HORIZONTAL, false)
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = false
+            list.clipChildren = true
+            list.clipToPadding = true
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
         }
@@ -819,9 +905,9 @@ private class PosterAdapter(
             }
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            val scale = if (hasFocus) 1.05f else 1f
+            val scale = if (hasFocus) 1.04f else 1f
             v.animate().scaleX(scale).scaleY(scale).setDuration(160).start()
-            v.elevation = if (hasFocus) 10f else 0f
+            v.elevation = if (hasFocus) 6f else 0f
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
@@ -843,11 +929,25 @@ private class PosterAdapter(
     class PosterVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val poster: ImageView = itemView.findViewById(R.id.poster)
         private val title: TextView = itemView.findViewById(R.id.title)
+        private val badge: TextView? = itemView.findViewById(R.id.posterBadge)
 
         fun bind(series: Series, browseMode: Boolean) {
             title.text = series.title
             // Prefer portrait poster art — backdrop (16:9) causes letterbox/whitespace in 2:3 cards
             PosterLoader.loadSeries(poster, series.posterUrl ?: series.backdropUrl, browseMode = browseMode)
+            val badgeText = series.genres.firstOrNull {
+                it.contains("DEMNÄCHST", true) || it.contains("Uhr", true) || it.contains('.')
+            } ?: series.overview?.lineSequence()?.firstOrNull {
+                it.contains("DEMNÄCHST", true)
+            }
+            if (badge != null) {
+                if (!badgeText.isNullOrBlank()) {
+                    badge.text = badgeText.take(28)
+                    badge.visibility = View.VISIBLE
+                } else {
+                    badge.visibility = View.GONE
+                }
+            }
         }
     }
 }

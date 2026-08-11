@@ -1,15 +1,15 @@
 # Verflixed – Installation auf Fire TV Stick
 
-## Downloads (1.6.5)
+## Downloads (1.6.6)
 
 | Datei | Link |
 |---|---|
-| **APK Fire TV (kurz)** | https://clck.ru/3VBn7n |
-| **Update (kurz)** | https://clck.ru/3VBn7w |
-| APK Gofile | https://gofile.io/d/veTMe7 |
-| APK Direkt (72h) | https://litter.catbox.moe/h057me.apk |
+| **APK Fire TV (kurz)** | https://clck.ru/3VBqgg |
+| **Update-Manifest (kurz)** | https://clck.ru/3VBqgo |
+| APK Gofile | https://gofile.io/d/4wWrY3 |
+| APK Direkt (72h) | https://litter.catbox.moe/6o835q.apk |
 
-Lokal: `dist/Verflixed-FireTV.apk` (versionCode **21** / **1.6.5**)
+Lokal:  (versionCode **22** / **1.6.6**)
 
 ---
 
@@ -18,17 +18,19 @@ Lokal: `dist/Verflixed-FireTV.apk` (versionCode **21** / **1.6.5**)
 1. Apps → **Downloader** (AFTVnews) installieren  
 2. Unbekannte Quellen für Downloader erlauben  
 3. URL eingeben:
-   ```text
-   https://clck.ru/3VBn7n
-   ```
+   
 4. Installieren → **Verflixed** starten
 
-### Neu in 1.6.5
+### Neu in 1.6.6
 
-- **Firestream**: Fallback über `/d/{slug}` → direkte CDN-MP4 (fixiert Minions & Monster auch bei IP/VPN-Resolve-Fail)
-- **UI**: Logo entfernt, moderne Focus-Ringe (kein weißer Rand), dunkle Poster-Placeholder, weniger Clipping
+- **VOE Encoding/Geo**: springt automatisch zum nächsten Hoster (Firestream zuerst)
+- **Kein WebView-Leak** mehr bei Filmfehlern / iframe
+- **Home**: Hero scrollt mit (kein Overlay über Kacheln)
+- **Kategorien** für Serien *und* Filme (beide Plattformen)
+- **Serienkalender**: DEMNÄCHST + Release-Zeit (z. B. Silo E7)
+- **Splash**: animiertes Verflixed-Logo + Sound; Defaults laden ohne API-Key
 
 ### Defaults
 
-- Serien: `https://serienstream.cx`
-- Filme: `https://filmpalast.to`
+- Serien: 
+- Filme: 

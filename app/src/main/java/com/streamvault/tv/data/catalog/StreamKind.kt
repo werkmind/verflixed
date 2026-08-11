@@ -68,10 +68,37 @@ object StreamKind {
     }
 
     /**
+     * Hosts that use `/e/{id}` (or similar) but are NOT VOE.
+     * Critical: Firestream embeds look like `/e/slug` and must never be claimed as VOE.
+     */
+    fun isNonVoeEmbedHost(url: String?): Boolean {
+        val host = runCatching { Uri.parse(url.orEmpty()).host?.lowercase() }.getOrNull().orEmpty()
+        if (host.isBlank()) {
+            val u = url?.lowercase().orEmpty()
+            return u.contains("firestream.") || u.contains("vidara.") || u.contains("filemoon.")
+        }
+        return host.contains("firestream") ||
+            host.contains("vidara") ||
+            host.contains("vidnest") ||
+            host.contains("filemoon") ||
+            host.contains("streamtape") ||
+            host.contains("doodstream") ||
+            host.startsWith("dood.") ||
+            host.contains("vidoza") ||
+            host.contains("mixdrop") ||
+            host.contains("upstream") ||
+            host.contains("vidmoly") ||
+            host.contains("filmpalast") ||
+            host.contains("serienstream") ||
+            host.contains("aniworld")
+    }
+
+    /**
      * VOE embed/watch pages – played via embedded WebView (VOE's own player),
      * then HLS is handed off to ExoPlayer when the official player requests it.
      */
     fun isVoePlayerUrl(url: String): Boolean {
+        if (url.isBlank() || isNonVoeEmbedHost(url)) return false
         val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull().orEmpty()
         if (host.isBlank()) return false
         // Primary: any host with VOE-style /e/{id} or bare /{id} share path (proxies rotate constantly)
@@ -100,12 +127,17 @@ object StreamKind {
         "brucevotewathen.com",
     )
 
-    /** VOE-style embed path even on rotated hosts. */
+    /** VOE-style embed path even on rotated hosts. Never matches Firestream/Vidara/etc. */
     fun isVoeEmbedPath(url: String): Boolean {
+        if (url.isBlank() || isNonVoeEmbedHost(url)) return false
         val path = runCatching { Uri.parse(url).path.orEmpty() }.getOrDefault("")
-        if (path.contains("/e/", ignoreCase = true) && path.length > 4) return true
-        // Filmpalast-style share links land on bare /{id} mirrors (no /e/)
         val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull().orEmpty()
+        if (path.contains("/e/", ignoreCase = true) && path.length > 4) {
+            // Firestream-style already excluded via isNonVoeEmbedHost.
+            // Accept /e/ on VOE, known mirrors, or rotating proxy hosts.
+            return true
+        }
+        // Filmpalast-style share links land on bare /{id} mirrors (no /e/)
         if (host.contains("filmpalast")) return false
         return Regex("""^/[A-Za-z0-9_-]{6,}/?$""").matches(path)
     }

@@ -1,0 +1,7 @@
+versionName=1.6.6
+versionCode=22
+apk=https://litter.catbox.moe/6o835q.apk
+install_short=https://clck.ru/3VBqgg
+update_manifest=https://litter.catbox.moe/6m0cc6.json
+update_short=https://clck.ru/3VBqgo
+gofile=https://gofile.io/d/4wWrY3

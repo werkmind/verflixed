@@ -144,17 +144,36 @@ object FilmParser {
         )
     }
 
+    fun scoreHoster(name: String, url: String = ""): Int {
+        val n = "$name $url".lowercase()
+        var s = 0
+        // Firestream first for Filmpalast: progressive CDN, fewer geo/encoding fails than VOE.
+        if (n.contains("firestream")) s += 120
+        if (Regex("""\bvoe\b""").containsMatchIn(n) || n.contains("voe.sx")) s += 100
+        if (n.contains("vidara") || n.contains("vidnest")) s += 70
+        if (n.contains("vidsonic")) s += 40
+        if (n.contains("playmate")) s += 20
+        if (Regex("""\bhd\b""").containsMatchIn(n)) s += 5
+        return s
+    }
+
     fun parseHosters(html: String, pageUrl: String): List<Hoster> {
         val doc = Jsoup.parse(html, pageUrl)
         val hosters = mutableListOf<Hoster>()
         doc.select("ul.currentStreamLinks").forEach { ul ->
             val name = ul.selectFirst(".hostName")?.text()?.trim().orEmpty().ifBlank { "Hoster" }
-            val a = ul.selectFirst("a[data-player-url]")
-                ?: ul.selectFirst("a.iconPlay[href], a.button[href]")
+            // Prefer live data-player-url; skip commented markup; accept plain iconPlay hrefs.
+            val a = ul.select("a[data-player-url]").firstOrNull { it.attr("data-player-url").isNotBlank() }
+                ?: ul.select("a.iconPlay[href], a.button.iconPlay[href], a.button[href]")
+                    .firstOrNull { href ->
+                        val h = href.attr("abs:href").ifBlank { href.attr("href") }
+                        h.isNotBlank() && h != "#" && !h.contains("javascript:", true)
+                    }
                 ?: return@forEach
-            val raw = a.attr("data-player-url").ifBlank { a.attr("href") }
+            val raw = a.attr("data-player-url").ifBlank { a.attr("abs:href") }.ifBlank { a.attr("href") }
             if (raw.isBlank() || raw == "#") return@forEach
             val url = abs(pageUrl, raw)
+            if (url.isBlank()) return@forEach
             val score = scoreHoster(name, url)
             hosters += Hoster(
                 provider = name,
@@ -164,18 +183,6 @@ object FilmParser {
             )
         }
         return hosters.sortedByDescending { it.score }
-    }
-
-    fun scoreHoster(name: String, url: String = ""): Int {
-        val n = "$name $url".lowercase()
-        var s = 0
-        if (Regex("""\bvoe\b""").containsMatchIn(n) || n.contains("voe.sx")) s += 100
-        if (n.contains("firestream")) s += 90
-        if (n.contains("vidara") || n.contains("vidnest")) s += 70
-        if (n.contains("vidsonic")) s += 40
-        if (n.contains("playmate")) s += 20
-        if (Regex("""\bhd\b""").containsMatchIn(n)) s += 5
-        return s
     }
 
     fun cleanTitle(raw: String): String =

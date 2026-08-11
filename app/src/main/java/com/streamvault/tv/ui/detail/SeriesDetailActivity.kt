@@ -454,6 +454,13 @@ private class EpisodeAdapter(
         holder.title.text = ep.title
         val p = progress[ep.id]
         holder.meta.text = when {
+            ep.upcoming || !ep.releaseLabel.isNullOrBlank() -> {
+                listOfNotNull(
+                    if (ep.upcoming) "DEMNÄCHST" else null,
+                    ep.releaseLabel,
+                    ep.overview?.takeIf { it.isNotBlank() && it != ep.releaseLabel },
+                ).distinct().joinToString(" · ")
+            }
             !ep.overview.isNullOrBlank() -> ep.overview
             p == null && ep.streamUrl != null -> "Bereit • Ungesehen"
             p == null -> "Ungesehen"
@@ -464,22 +471,35 @@ private class EpisodeAdapter(
             }
         }
         holder.badge.text = when {
+            ep.upcoming -> "DEMNÄCHST"
             p?.completed == true -> "✓ Gesehen"
             ep.id.endsWith("-movie") -> "○ Ungesehen"
             else -> "○ Ungesehen"
         }
         holder.badge.isFocusable = false
         holder.badge.isClickable = false
-        holder.itemView.isFocusable = true
-        holder.itemView.isClickable = true
-        holder.itemView.isFocusableInTouchMode = true
         holder.badge.setOnClickListener(null)
         holder.itemView.setOnLongClickListener {
-            onToggleWatched(ep)
+            if (!ep.upcoming) onToggleWatched(ep)
             true
         }
         PosterLoader.loadEpisodeStill(holder.still, ep.stillUrl, seriesArtProvider())
-        holder.itemView.setOnClickListener { onClick(ep) }
+        holder.itemView.alpha = if (ep.upcoming) 0.78f else 1f
+        holder.itemView.isEnabled = true
+        holder.itemView.isClickable = true
+        holder.itemView.isFocusable = true
+        holder.itemView.isFocusableInTouchMode = true
+        if (ep.upcoming) {
+            holder.itemView.setOnClickListener {
+                android.widget.Toast.makeText(
+                    holder.itemView.context,
+                    ep.releaseLabel?.let { "Erscheint $it" } ?: "Episode erscheint demnächst",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        } else {
+            holder.itemView.setOnClickListener { onClick(ep) }
+        }
         holder.itemView.setOnKeyListener { v, keyCode, event ->
             if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             when (keyCode) {

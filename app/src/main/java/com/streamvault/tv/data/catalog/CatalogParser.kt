@@ -324,6 +324,9 @@ class CatalogParser(private val moshi: Moshi) {
             still: String?,
             stream: String?,
             page: String?,
+            upcoming: Boolean = false,
+            releaseLabel: String? = null,
+            overview: String? = null,
         ) {
             if (seasonNo <= 0 || epNo <= 0) return
             val list = seasons.getOrPut(seasonNo) { mutableListOf() }
@@ -337,9 +340,12 @@ class CatalogParser(private val moshi: Moshi) {
                     seasonNumber = seasonNo,
                     number = epNo,
                     title = epTitle,
+                    overview = overview,
                     stillUrl = still,
                     streamUrl = stream,
-                    streamPageUrl = page
+                    streamPageUrl = page,
+                    upcoming = upcoming,
+                    releaseLabel = releaseLabel,
                 )
             )
         }
@@ -370,7 +376,28 @@ class CatalogParser(private val moshi: Moshi) {
             val still = SiteImages.preferJpeg(
                 row.selectFirst("img[data-src], img[src], img[srcset]")?.let { imageAbs(it) }
             )
-            addEpisode(seasonNo, epNo, epTitle, still, extractPlayerUrl(row.outerHtml(), baseUrl), link.ifBlank { null })
+            val upcoming = row.hasClass("upcoming") ||
+                row.selectFirst(".badge-upcoming, .badge-release") != null ||
+                row.text().contains("DEMNÄCHST", ignoreCase = true)
+            val releaseLabel = row.selectFirst(".badge-release")?.text()?.replace('\u00a0', ' ')?.trim()
+                ?.takeIf { it.isNotBlank() }
+            val watchHint = row.selectFirst(".episode-watch-cell")?.text()?.trim()
+            val overview = listOfNotNull(
+                releaseLabel?.let { if (upcoming) "DEMNÄCHST · $it" else it },
+                watchHint?.takeIf { it.isNotBlank() && !it.contains("TBA", true) },
+            ).joinToString(" · ").ifBlank { null }
+            val stream = if (upcoming) null else extractPlayerUrl(row.outerHtml(), baseUrl)
+            addEpisode(
+                seasonNo,
+                epNo,
+                epTitle,
+                still,
+                stream,
+                link.ifBlank { null },
+                upcoming = upcoming,
+                releaseLabel = releaseLabel,
+                overview = overview,
+            )
         }
 
         // Generic episode nodes (skip already-handled episode-row)

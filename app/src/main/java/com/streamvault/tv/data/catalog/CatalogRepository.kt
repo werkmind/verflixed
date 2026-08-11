@@ -31,6 +31,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.util.Locale
 
 class CatalogRepository(
     private val http: OkHttpClient,
@@ -173,10 +174,17 @@ class CatalogRepository(
                     rows += HomeRow(title, items)
                 }
             }
+            // Category shelves scraped from Filmpalast genre search pages
+            CatalogFilters.GENRES.take(8).forEach { genre ->
+                val genreMovies = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
+                if (genreMovies.isEmpty()) return@forEach
+                val items = genreMovies.map { hydrateBrowseArt(it) }.take(16)
+                if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
+            }
             return@withContext rows
         }
         // Category rows (limited) from genre pages — premium “shelves” with real covers
-        CatalogFilters.GENRES.take(6).forEach { genre ->
+        CatalogFilters.GENRES.take(8).forEach { genre ->
             val genreSeries = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
             if (genreSeries.isEmpty()) return@forEach
             val items = genreSeries.map { hydrateBrowseArt(it) }.take(16)
@@ -291,14 +299,29 @@ class CatalogRepository(
         // Represent calendar hits as lightweight Series cards for the row UI.
         fun calendarAsSeries(entries: List<CalendarEntry>): List<Series> =
             entries.distinctBy { it.seriesId + it.date + it.episodeNumber }.take(24).map { e ->
+                val ep = if (e.episodeNumber > 0) {
+                    "S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}"
+                } else {
+                    "S${e.seasonNumber}"
+                }
+                val badge = when {
+                    !e.released -> e.releaseLabel?.takeIf { it.isNotBlank() }?.let { "DEMNÄCHST · $it" }
+                        ?: "DEMNÄCHST"
+                    else -> e.releaseLabel ?: listOf(e.date, e.time).filter { it.isNotBlank() }.joinToString(" ")
+                }
                 Series(
                     id = e.seriesId,
-                    title = "${e.title} · S${e.seasonNumber}E${e.episodeNumber}",
+                    title = e.title,
                     posterUrl = e.coverUrl,
                     backdropUrl = e.coverUrl,
-                    overview = e.label(),
+                    overview = listOfNotNull(
+                        badge,
+                        e.episodeTitle?.takeIf { it.isNotBlank() }?.let { "$ep – $it" } ?: ep,
+                    ).joinToString("\n"),
                     detailPath = e.detailPath,
                     mediaKind = "series",
+                    year = null,
+                    genres = listOfNotNull(badge.takeIf { it.isNotBlank() }),
                 )
             }
 
@@ -387,6 +410,8 @@ class CatalogRepository(
         seriesForGenre(genreId).map { it.id }.toSet()
 
     private suspend fun seriesForGenre(genreId: String): List<Series> {
+        val cacheKey = "${if (isMoviesMode()) "m" else "s"}:$genreId"
+        genreSeriesCache[cacheKey]?.let { return it }
         genreSeriesCache[genreId]?.let { return it }
         genreMembers[genreId]?.let { ids ->
             // IDs without art — fall through to fetch
@@ -395,18 +420,42 @@ class CatalogRepository(
             }
         }
         val base = activeBase()
-        if (base.isBlank() || isMoviesMode()) return emptyList()
-        val url = "$base/genre/$genreId"
-        val body = runCatching { getText(url) }.getOrNull() ?: return emptyList()
-        val parsed = runCatching { parser.parseCatalog(body, base, null) }.getOrNull() ?: return emptyList()
-        val withArt = parsed.series.map {
-            it.copy(
-                posterUrl = SiteImages.preferJpeg(it.posterUrl),
-                backdropUrl = SiteImages.preferJpeg(it.backdropUrl ?: it.posterUrl)
+        if (base.isBlank()) return emptyList()
+        val withArt = if (isMoviesMode()) {
+            val label = CatalogFilters.GENRES.find { it.id == genreId }?.label ?: genreId
+            val paths = listOf(
+                "/search/genre/$label",
+                "/search/genre/${label.lowercase(Locale.ROOT)}",
+                "/genre/$genreId",
+                "/movies/genre/$genreId",
             )
+            var parsed = emptyList<Series>()
+            for (path in paths) {
+                val body = runCatching { getText("$base$path") }.getOrNull() ?: continue
+                parsed = FilmParser.parseMovieList(body, base, moviesOnly = true)
+                if (parsed.isNotEmpty()) break
+            }
+            parsed.map {
+                it.copy(
+                    posterUrl = SiteImages.preferJpeg(it.posterUrl),
+                    backdropUrl = SiteImages.preferJpeg(it.backdropUrl ?: it.posterUrl),
+                    genres = (it.genres + label).distinct(),
+                )
+            }
+        } else {
+            val url = "$base/genre/$genreId"
+            val body = runCatching { getText(url) }.getOrNull() ?: return emptyList()
+            val parsed = runCatching { parser.parseCatalog(body, base, null) }.getOrNull() ?: return emptyList()
+            parsed.series.map {
+                it.copy(
+                    posterUrl = SiteImages.preferJpeg(it.posterUrl),
+                    backdropUrl = SiteImages.preferJpeg(it.backdropUrl ?: it.posterUrl)
+                )
+            }
         }
         artResolver.putAll(withArt)
         genreMembers[genreId] = withArt.map { it.id }.toSet()
+        genreSeriesCache[cacheKey] = withArt
         genreSeriesCache[genreId] = withArt
         return withArt
     }
@@ -800,6 +849,7 @@ class CatalogRepository(
 
     /**
      * Filmpalast movie page: hosters → direct HLS/mp4 only. Never returns embed/WebView URLs.
+     * Tries every hoster in score order; VOE encoding/geo failures fall through to Firestream etc.
      */
     private suspend fun resolveMovieStream(episode: Episode, pageUrl: String): String? {
         val body = runCatching { getText(pageUrl) }.getOrNull().orEmpty()
@@ -809,36 +859,40 @@ class CatalogRepository(
 
         for (hoster in hosters) {
             val url = hoster.url
-            when {
-                StreamKind.isDirectMediaUrl(url) -> {
-                    cacheStream(episode, url)
-                    return url
-                }
-                StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) ||
-                    hoster.name.contains("voe", true) -> {
-                    claimVoeHls(url, episode)?.let { return it }
-                }
-                vidaraExtractor.isVidaraUrl(url) ||
-                    hoster.name.contains("vidara", true) ||
-                    hoster.name.contains("vidnest", true) -> {
-                    val hls = runCatching {
-                        vidaraExtractor.extractHls(url, referer = pageUrl)
-                    }.getOrNull()
-                    if (!hls.isNullOrBlank() && StreamKind.isDirectMediaUrl(hls)) {
-                        cacheStream(episode, hls)
-                        return hls
-                    }
-                }
-                firestreamExtractor.isFirestreamUrl(url) ||
-                    hoster.name.contains("firestream", true) -> {
-                    val direct = runCatching {
+            val got = runCatching {
+                when {
+                    StreamKind.isDirectMediaUrl(url) -> url
+                    firestreamExtractor.isFirestreamUrl(url) ||
+                        hoster.name.contains("firestream", true) -> {
                         firestreamExtractor.extractDirect(url, referer = pageUrl)
-                    }.getOrNull()
-                    if (!direct.isNullOrBlank()) {
-                        cacheStream(episode, direct)
-                        return direct
                     }
+                    StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) ||
+                        hoster.name.contains("voe", true) -> {
+                        claimVoeHls(url, episode)
+                    }
+                    vidaraExtractor.isVidaraUrl(url) ||
+                        hoster.name.contains("vidara", true) ||
+                        hoster.name.contains("vidnest", true) -> {
+                        vidaraExtractor.extractHls(url, referer = pageUrl)
+                            ?.takeIf { StreamKind.isDirectMediaUrl(it) }
+                    }
+                    else -> null
                 }
+            }.getOrNull()
+            if (!got.isNullOrBlank() && (
+                    StreamKind.isDirectMediaUrl(got) ||
+                        got.contains(".mp4", true) ||
+                        got.contains(".m3u8", true) ||
+                        got.contains("firestream", true) && got.contains("http", true)
+                    )
+            ) {
+                // Never hand embed/player pages to the movie player.
+                if (StreamKind.isVoePlayerUrl(got) || StreamKind.isVoeEmbedPath(got)) continue
+                if (got.contains("/e/", true) && !StreamKind.isDirectMediaUrl(got) &&
+                    !got.contains(".mp4", true) && !got.contains("md5=", true)
+                ) continue
+                cacheStream(episode, got)
+                return got
             }
         }
         // Never fall back to hoster embed / iframe / captcha pages.

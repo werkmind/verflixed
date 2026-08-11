@@ -706,6 +706,13 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun showPlayerError(msg: String) {
         binding.playerLoading.visibility = View.GONE
+        // Kill leaking iframe / WebView so it never stays visible under the error panel.
+        runCatching {
+            binding.webPlayer.stopLoading()
+            binding.webPlayer.loadUrl("about:blank")
+        }
+        binding.webPlayer.visibility = View.GONE
+        usingWebPlayer = false
         binding.playerError.text = msg.replace(Regex("""\[VF-\d+]"""), "").trim()
         binding.playerError.visibility = View.VISIBLE
         binding.playerErrorPanel.visibility = View.VISIBLE

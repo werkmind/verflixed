@@ -4,17 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/sv_bg"
-    android:clipChildren="false"
-    android:clipToPadding="false">
+    android:clipChildren="true"
+    android:clipToPadding="true">
 
-    <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible.
-         clipChildren=false lets the focus scale breathe instead of slicing pills. -->
+    <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible. -->
     <HorizontalScrollView
         android:id="@+id/navScroll"
         android:layout_width="0dp"
         android:layout_height="50dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
+        android:clipChildren="true"
+        android:clipToPadding="true"
         android:descendantFocusability="afterDescendants"
         android:focusable="false"
         android:focusableInTouchMode="false"
@@ -164,17 +163,13 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- Hero: capped so rows stay visible on 720p Fire TV, but tall enough that the
-         focused CTA (scaled by FocusFx) is never cut off. -->
+    <!-- Legacy fixed hero kept for ViewBinding IDs but GONE — real hero scrolls as list header. -->
     <FrameLayout
         android:id="@+id/heroContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_max="176dp"
-        app:layout_constraintHeight_percent="0.31"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/navScroll">
 
@@ -182,93 +177,41 @@
             android:id="@+id/heroBackdrop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@color/sv_poster_bg"
             android:contentDescription="@null"
             android:scaleType="centerCrop"
             android:src="@drawable/poster_placeholder" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_hero_gradient" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_detail_scrim" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/heroTitle"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:clipChildren="false"
-            android:clipToPadding="false"
-            android:orientation="vertical"
-            android:paddingStart="36dp"
-            android:paddingEnd="36dp"
-            android:paddingBottom="14dp">
+            android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/heroTitle"
-                style="@style/SvHeroTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Verflixed"
-                android:textSize="19sp" />
+        <TextView
+            android:id="@+id/heroMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/heroMeta"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:ellipsize="end"
-                android:letterSpacing="0.02"
-                android:maxLines="1"
-                android:textColor="@color/sv_text_muted"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+        <TextView
+            android:id="@+id/heroOverview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/heroOverview"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:maxWidth="620dp"
-                android:textColor="@color/sv_text_secondary"
-                android:textSize="11sp" />
+        <Button
+            android:id="@+id/btnHeroPlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="false"
+            android:visibility="gone" />
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:clipChildren="false"
-                android:clipToPadding="false"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/btnHeroPlay"
-                    style="@style/SvButton.Primary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="38dp"
-                    android:minHeight="38dp"
-                    android:minWidth="132dp"
-                    android:text="@string/detail_play" />
-
-                <Button
-                    android:id="@+id/btnHeroInfo"
-                    style="@style/SvButton.Ghost"
-                    android:layout_width="wrap_content"
-                    android:layout_height="38dp"
-                    android:layout_marginStart="10dp"
-                    android:minHeight="38dp"
-                    android:minWidth="104dp"
-                    android:text="@string/detail_more_info" />
-            </LinearLayout>
-        </LinearLayout>
+        <Button
+            android:id="@+id/btnHeroInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="false"
+            android:visibility="gone" />
     </FrameLayout>
 
     <EditText
@@ -279,7 +222,7 @@
         android:focusable="false"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/heroContainer" />
+        app:layout_constraintTop_toBottomOf="@id/navScroll" />
 
     <include
         layout="@layout/include_search_panel"
@@ -303,15 +246,15 @@
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
+        android:clipChildren="true"
+        android:clipToPadding="true"
         android:descendantFocusability="afterDescendants"
-        android:paddingTop="6dp"
+        android:paddingTop="4dp"
         android:paddingBottom="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/heroContainer" />
+        app:layout_constraintTop_toBottomOf="@id/navScroll" />
 
     <ProgressBar
         android:id="@+id/progress"

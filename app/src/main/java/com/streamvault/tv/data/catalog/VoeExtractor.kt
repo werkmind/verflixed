@@ -42,6 +42,11 @@ class VoeExtractor(
         for (hop in 0 until 6) {
             if (!visited.add(url)) break
             val html = getHtml(url, pageReferer) ?: break
+            if (isUnavailable(html)) {
+                // Encoding / denied / geo — caller must try next hoster.
+                if (isGeoBlocked(html)) lastGeoBlocked = true
+                break
+            }
             if (isGeoBlocked(html)) {
                 lastGeoBlocked = true
             }
@@ -79,8 +84,21 @@ class VoeExtractor(
 
     fun isGeoBlocked(html: String): Boolean =
         html.contains("Dateizugriff verweigert", ignoreCase = true) ||
+            html.contains("File access denied", ignoreCase = true) ||
             html.contains("Zugang zu Ihrem Land eingeschränkt", ignoreCase = true) ||
             html.contains("access to your country", ignoreCase = true)
+
+    /** VOE still encoding, offline, or otherwise not streamable yet. */
+    fun isUnavailable(html: String): Boolean {
+        if (isGeoBlocked(html)) return true
+        val lower = html.lowercase()
+        return lower.contains("encoding") && (lower.contains("progress") || lower.contains("in progress") || lower.contains("please wait")) ||
+            lower.contains("wird konvertiert") ||
+            lower.contains("noch nicht verfügbar") ||
+            lower.contains("offline") && lower.contains("video") ||
+            lower.contains("file is being") ||
+            (lower.contains("<title>") && lower.contains("file access denied"))
+    }
 
     /**
      * Try to turn a SerienStream `/r?t=` play-blob into a VOE embed URL using

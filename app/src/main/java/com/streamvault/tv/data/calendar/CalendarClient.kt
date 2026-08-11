@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -16,7 +17,8 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * Serienkalender – same structure as SerienStream `/api/calendar`.
+ * Serienkalender – same structure as SerienStream `/api/calendar`,
+ * with HTML fallback for `/serienkalender` pages.
  */
 class CalendarClient(
     private val http: OkHttpClient,
@@ -56,7 +58,90 @@ class CalendarClient(
                 }
             }
         }
-        emptyMap()
+        // HTML fallback: scrape Serienkalender page(s)
+        scrapeHtmlCalendar(base)
+    }
+
+    private fun scrapeHtmlCalendar(base: String): Map<String, List<CalendarEntry>> {
+        val pages = listOf(
+            "$base/serienkalender",
+            "$base/kalender",
+            "$base/serienkalender.html",
+        )
+        val out = linkedMapOf<String, MutableList<CalendarEntry>>()
+        for (url in pages) {
+            val html = runCatching {
+                val req = Request.Builder()
+                    .url(url)
+                    .header("Accept", "text/html")
+                    .header("User-Agent", UA)
+                    .get()
+                    .build()
+                http.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@use null
+                    resp.body?.string()
+                }
+            }.getOrNull().orEmpty()
+            if (html.isBlank()) continue
+            val doc = Jsoup.parse(html, url)
+            doc.select(
+                "tr.episode-row, .episode-row, .calendar-episode, [data-episode], " +
+                    "a[href*=/serie/][href*=episode], a[href*=/serie/][href*=folge]"
+            ).forEach { el ->
+                val link = el.selectFirst("a[href*=episode], a[href*=folge]")?.attr("abs:href")
+                    ?: el.attr("abs:href").takeIf { it.contains("episode", true) || it.contains("folge", true) }
+                    ?: Regex("""['"]([^'"]+(?:episode|folge)[^'"]+)['"]""")
+                        .find(el.attr("onclick"))?.groupValues?.get(1)
+                        ?.let { if (it.startsWith("http")) it else "$base/${it.trimStart('/')}" }
+                    ?: return@forEach
+                val season = Regex("""(?i)(?:staffel|season)[/-]?(\d+)""").find(link)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                val episode = el.selectFirst(".episode-number-cell")?.text()?.trim()?.toIntOrNull()
+                    ?: Regex("""(?i)(?:episode|folge|ep)[/-]?(\d+)""").find(link)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: return@forEach
+                val seriesSlug = Regex("""/(?:serie|series)/(?:stream/)?([^/]+)""", RegexOption.IGNORE_CASE)
+                    .find(link)?.groupValues?.get(1)?.lowercase()?.replace(Regex("[^a-z0-9]+"), "-")?.trim('-')
+                    .orEmpty()
+                val seriesTitle = el.selectFirst(".series-title, .serie-title, .calendar-series-title")?.text()
+                    ?.trim()
+                    ?: seriesSlug.replace('-', ' ').replaceFirstChar { it.uppercase() }
+                val epTitle = el.selectFirst(".episode-title-ger, .episode-title-eng, .episode-title")
+                    ?.attr("title")?.ifBlank { null }
+                    ?: el.selectFirst(".episode-title-ger, .episode-title-eng, .episode-title")?.text()?.trim()
+                val releaseLabel = el.selectFirst(".badge-release")?.text()?.replace('\u00a0', ' ')?.trim()
+                val upcoming = el.hasClass("upcoming") ||
+                    el.selectFirst(".badge-upcoming") != null ||
+                    el.text().contains("DEMNÄCHST", true)
+                val dayKey = releaseLabel?.let { parseGermanReleaseDay(it) }
+                    ?: el.attr("data-date").takeIf { it.isNotBlank() }
+                    ?: DAY.format(Date())
+                val cover = el.selectFirst("img[src], img[data-src]")?.let { img ->
+                    img.attr("abs:src").ifBlank { img.attr("abs:data-src") }.ifBlank { img.attr("src") }
+                }?.takeIf { it.isNotBlank() && !it.startsWith("data:") }
+                val entry = CalendarEntry(
+                    seriesId = seriesSlug.ifBlank { seriesTitle.lowercase().replace(Regex("[^a-z0-9]+"), "-") },
+                    title = seriesTitle.ifBlank { seriesSlug },
+                    seasonNumber = season,
+                    episodeNumber = episode,
+                    date = dayKey,
+                    time = Regex("""~?\d{1,2}:\d{2}""").find(releaseLabel.orEmpty())?.value.orEmpty(),
+                    detailPath = link,
+                    coverUrl = cover,
+                    released = !upcoming,
+                    episodeTitle = epTitle?.takeIf { it.isNotBlank() },
+                    releaseLabel = releaseLabel,
+                )
+                out.getOrPut(dayKey) { mutableListOf() }.add(entry)
+            }
+            if (out.isNotEmpty()) break
+        }
+        return out
+    }
+
+    /** Best-effort parse of "Freitag, 14.08.2026 ~00:00 Uhr" → yyyy-MM-dd */
+    private fun parseGermanReleaseDay(label: String): String? {
+        val m = Regex("""(\d{1,2})\.(\d{1,2})\.(\d{4})""").find(label) ?: return null
+        val (d, mo, y) = m.destructured
+        return "%04d-%02d-%02d".format(y.toInt(), mo.toInt(), d.toInt())
     }
 
     suspend fun favoritesUpcoming(
@@ -72,7 +157,9 @@ class CalendarClient(
             val date = parseDay(day) ?: return@forEach
             if (date.before(today) || date.after(end)) return@forEach
             eps.forEach { ep ->
-                if (matchesFavorite(ep, favoriteIds, favoriteTitles)) out += ep
+                if (matchesFavorite(ep, favoriteIds, favoriteTitles)) {
+                    out += if (ep.released) ep.copy(released = false) else ep
+                }
             }
         }
         return out.sortedWith(compareBy({ it.date }, { it.time }, { it.title }))
@@ -156,7 +243,9 @@ data class ApiCalendarEpisode(
     val cover_url: String? = null,
     val poster: String? = null,
     val language: String? = null,
-    val released: Boolean? = null
+    val released: Boolean? = null,
+    val episode_title: String? = null,
+    val release_label: String? = null,
 ) {
     fun toDomain(base: String, dayKey: String): CalendarEntry {
         val path = url.orEmpty()
@@ -169,6 +258,8 @@ data class ApiCalendarEpisode(
         val cover = when {
             !cover_url.isNullOrBlank() && cover_url.startsWith("http") -> cover_url
             !cover_url.isNullOrBlank() -> base.trimEnd('/') + "/" + cover_url.trimStart('/')
+            !poster.isNullOrBlank() && poster.startsWith("http") -> poster
+            !poster.isNullOrBlank() -> base.trimEnd('/') + "/" + poster.trimStart('/')
             else -> null
         }
         return CalendarEntry(
@@ -185,7 +276,9 @@ data class ApiCalendarEpisode(
             },
             coverUrl = cover,
             language = language,
-            released = released == true
+            released = released == true,
+            episodeTitle = episode_title,
+            releaseLabel = release_label,
         )
     }
 }

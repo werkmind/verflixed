@@ -87,14 +87,15 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
+            android:clipToOutline="true"
             android:minWidth="180dp"
             android:text="@string/setup_continue"
             android:textColor="@color/sv_primary_btn_text" />
 
         <ProgressBar
             android:id="@+id/progress"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:layout_marginTop="16dp"
             android:indeterminateTint="@color/sv_accent"
             android:visibility="gone" />
