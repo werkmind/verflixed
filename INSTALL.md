@@ -1,19 +1,25 @@
 # Verflixed – Installation
 
-## Downloads (1.7.0)
+## Fire TV APK (1.7.1) – empfohlen für Downloader
 
-| Datei | Kurzlink | Direct |
-|---|---|---|
-| **Fire TV APK** | https://clck.ru/3VBtLD | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk |
-| **Desktop Webapp** | https://clck.ru/3VBtLE | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip |
-| **Update-Manifest** | https://clck.ru/3VBtLH | https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json |
+Der alte clck.ru-Kurzlink geht über **Yandex → GitHub** (mehrere Redirects). Viele Fire-TV-Downloader laden dann eine **kaputte Datei** → Meldung **„App nicht installiert“**.
 
-Lokal: `dist/Verflixed-FireTV.apk` · `dist/Verflixed-Webapp.zip`
+### Direkter Download (1 Hop, funktioniert)
+| | Link |
+|---|---|
+| **Direkt (Litterbox, 72h)** | https://litter.catbox.moe/evp2et.apk |
+| **Kurz** | https://tinyurl.com/2xwhy87a |
+| **GitHub Release** | https://github.com/werkmind/verflixed/releases/download/v1.7.1/Verflixed-FireTV.apk |
 
-## Neu in 1.7.0
+### Persistent (kann auf Fire TV scheitern)
+| | Link |
+|---|---|
+| clck.ru | https://clck.ru/3VBtLD → zeigt auf GitHub latest (viele Redirects) |
 
-- Splash: bassiger Netflix-BUM + animiertes V
-- Sidebar/Topbar + Kacheln/Cards **pro Profil**
-- Serien | Filme | Bibliothek | Suche getrennt
-- Globale Suche, Ready-Dots, Skeleton-Loader
-- Scroll-zur-Nav + Clipping-Fixes
+### Tipps
+1. In **Downloader** die **direkte** Litterbox-/TinyURL-Adresse nutzen  
+2. Falls Update scheitert: alte Verflixed-App **deinstallieren**, dann neu installieren  
+3. Nach Download prüfen: Dateigröße ca. **11 MB** (nicht ein paar KB HTML)
+
+Webapp: https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip  
+Release: https://github.com/werkmind/verflixed/releases/tag/v1.7.1
