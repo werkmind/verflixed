@@ -47,18 +47,18 @@
 
     <style name="SvRowTitle">
         <item name="android:textColor">@color/sv_text_primary</item>
-        <item name="android:textSize">22sp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.01</item>
     </style>
 
     <style name="SvHeroTitle">
         <item name="android:textColor">@color/sv_text_primary</item>
-        <item name="android:textSize">42sp</item>
+        <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:shadowColor">#99000000</item>
         <item name="android:shadowDx">0</item>
         <item name="android:shadowDy">2</item>
-        <item name="android:shadowRadius">8</item>
+        <item name="android:shadowRadius">6</item>
     </style>
 </resources>

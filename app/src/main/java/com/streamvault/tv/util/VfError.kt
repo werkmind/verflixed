@@ -33,7 +33,27 @@ object VfCodes {
     const val UNKNOWN = "VF-999"
 }
 
+fun Throwable.isCancellation(): Boolean {
+    var t: Throwable? = this
+    while (t != null) {
+        val name = t::class.java.name
+        if (name.contains("CancellationException") || name.contains("JobCancellationException")) {
+            return true
+        }
+        val msg = t.message.orEmpty()
+        if (msg.contains("Job was cancelled", ignoreCase = true) ||
+            msg.contains("was cancelled", ignoreCase = true) && name.contains("Coroutine")
+        ) {
+            return true
+        }
+        t = t.cause
+    }
+    return false
+}
+
+/** UI-facing message; cancellations are silent (empty). */
 fun Throwable.toVfMessage(): String {
+    if (isCancellation()) return ""
     if (this is VfException) return message ?: "[${this.code}] Fehler"
     val msg = message?.takeIf { it.isNotBlank() } ?: javaClass.simpleName
     return if (msg.startsWith("[VF-")) msg else "[${VfCodes.UNKNOWN}] $msg"

@@ -51,26 +51,31 @@ object StreamKind {
     fun isVoePlayerUrl(url: String): Boolean {
         val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull().orEmpty()
         if (host.isBlank()) return false
+        // Primary: any host with VOE-style /e/{id} or bare /{id} share path (proxies rotate constantly)
+        if (isVoeEmbedPath(url)) return true
         if (host == "voe.sx" || host.endsWith(".voe.sx")) return true
         if (host.contains("voe")) return true
-        // Known VOE mirror / rotate domains (Cloudstream extractors + live mirrors)
-        val mirrors = listOf(
-            "donaldlineelse.com",
-            "charlestoughrace.com",
-            "tubelessceliolymph.com",
-            "simpulumlamerop.com",
-            "urochsunloath.com",
-            "nathanfromsubject.com",
-            "yip.su",
-            "metagnathtuggers.com",
-            "reedunpack.com",
-            "nicolehappyoutside.com",
-        )
-        if (mirrors.any { host == it || host.endsWith(".$it") }) return true
-        // Rotating CDN hosts still use /e/{id} embeds
-        if (isVoeEmbedPath(url)) return true
+        // Known mirrors (hint only — new proxies still match via isVoeEmbedPath)
+        if (KNOWN_VOE_MIRRORS.any { host == it || host.endsWith(".$it") }) return true
         return false
     }
+
+    val KNOWN_VOE_MIRRORS: List<String> = listOf(
+        "donaldlineelse.com",
+        "charlestoughrace.com",
+        "tubelessceliolymph.com",
+        "simpulumlamerop.com",
+        "urochsunloath.com",
+        "nathanfromsubject.com",
+        "yip.su",
+        "metagnathtuggers.com",
+        "reedunpack.com",
+        "nicolehappyoutside.com",
+        "jilliandescribecompany.com",
+        "justinfinishedshooting.com",
+        "shannonpersonalgrade.com",
+        "brucevotewathen.com",
+    )
 
     /** VOE-style embed path even on rotated hosts. */
     fun isVoeEmbedPath(url: String): Boolean {

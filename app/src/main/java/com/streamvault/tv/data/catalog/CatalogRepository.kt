@@ -112,14 +112,47 @@ class CatalogRepository(
         val to = (from + size).coerceAtMost(filtered.size)
         val slice = filtered.subList(from, to)
         val rows = mutableListOf<HomeRow>()
+
+        // Page 0: put homepage hero / Brandneu first
+        if (!isMoviesMode() && page == 0) {
+            val base = activeBase()
+            if (base.isNotBlank()) {
+                val homeHtml = runCatching { getText(base) }.getOrNull().orEmpty()
+                val neu = parser.parseHomeHeroNewReleases(homeHtml, base)
+                    .map { hydrateBrowseArt(it) }
+                    .take(16)
+                if (neu.isNotEmpty()) rows += HomeRow("Neu", neu)
+                val week = runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
+                if (week.isNotEmpty()) {
+                    rows += HomeRow(
+                        "Serienkalender",
+                        week.distinctBy { it.seriesId + it.date }.take(16).map { e ->
+                            Series(
+                                id = e.seriesId,
+                                title = "${e.title} · S${e.seasonNumber}E${e.episodeNumber}",
+                                posterUrl = e.coverUrl,
+                                backdropUrl = e.coverUrl,
+                                overview = e.label(),
+                                detailPath = e.detailPath,
+                                mediaKind = "series",
+                            )
+                        }
+                    )
+                }
+            }
+        }
+
         if (slice.isNotEmpty()) {
             val allLabel = if (isMoviesMode()) "Alle Filme" else "Alle Serien"
             val label = if (filtered.size > size) {
-                "Browse ${from + 1}–$to von ${filtered.size}"
+                "$allLabel (${from + 1}–$to)"
             } else {
                 allLabel
             }
-            rows += HomeRow(label, slice)
+            // Avoid duplicating Neu items in the first alle-slice
+            val neuIds = rows.firstOrNull { it.title == "Neu" }?.items?.map { it.id }?.toSet().orEmpty()
+            val deduped = if (neuIds.isEmpty()) slice else slice.filterNot { it.id in neuIds }
+            if (deduped.isNotEmpty()) rows += HomeRow(label, deduped)
         }
         if (isMoviesMode()) {
             // Extra movie shelves from alternate browse paths when not already the main list.
@@ -212,18 +245,26 @@ class CatalogRepository(
             val favKind = if (fav.mediaKind == "movie") "movie" else "series"
             favKind == kind
         }
-        val continueIds = db.watch().all(pid())
+        val continueIdsOrdered = db.watch().all(pid())
             .filter { !it.completed && it.positionMs > 5_000 }
+            .sortedByDescending { it.updatedAt }
             .map { it.seriesId }
             .distinct()
-        val continueWatching = continueIds.mapNotNull { id ->
+        val continueWatching = continueIdsOrdered.mapNotNull { id ->
             favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id }
         }.filter { s ->
             val sk = if (s.mediaKind == "movie") "movie" else "series"
             sk == kind
         }
+        // One big library: all favorites (and continue items that aren't favs), no redundant Favoriten row
+        val continueIdSet = continueWatching.map { it.id }.toSet()
+        val libraryPool = (favorites + continueWatching)
+            .distinctBy { it.id }
+            .sortedBy { it.title.lowercase() }
+
         val recentlyWatched = db.watch().all(pid())
             .filter { it.completed }
+            .sortedByDescending { it.updatedAt }
             .map { it.seriesId }
             .distinct()
             .mapNotNull { id -> favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id } }
@@ -231,6 +272,8 @@ class CatalogRepository(
                 val sk = if (s.mediaKind == "movie") "movie" else "series"
                 sk == kind
             }
+            .filterNot { it.id in continueIdSet }
+            .take(12)
 
         val favIds = favorites.map { it.id.lowercase() }.toSet()
         val favTitles = favorites.map { it.title.lowercase() }.toSet()
@@ -239,6 +282,9 @@ class CatalogRepository(
         } else emptyList()
         val recentNew = if (kind == "series") {
             runCatching { calendar.favoritesRecent(favIds, favTitles) }.getOrDefault(emptyList())
+        } else emptyList()
+        val weekCalendar = if (kind == "series") {
+            runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
         } else emptyList()
 
         // Represent calendar hits as lightweight Series cards for the row UI.
@@ -255,12 +301,16 @@ class CatalogRepository(
                 )
             }
 
-        val favLabel = if (kind == "movie") "Favoriten Filme" else "Favoriten Serien"
+        val libLabel = if (kind == "movie") "Meine Filme" else "Meine Bibliothek"
         buildList {
+            // Last watched / in progress first (profile-scoped)
+            if (continueWatching.isNotEmpty()) {
+                add(HomeRow("Weiterschauen", continueWatching.take(8)))
+            }
+            if (libraryPool.isNotEmpty()) add(HomeRow(libLabel, libraryPool))
             if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", calendarAsSeries(upcoming)))
             if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu für Favoriten", calendarAsSeries(recentNew)))
-            if (continueWatching.isNotEmpty()) add(HomeRow("Weiterschauen", continueWatching))
-            if (favorites.isNotEmpty()) add(HomeRow(favLabel, favorites))
+            if (weekCalendar.isNotEmpty()) add(HomeRow("Serienkalender", calendarAsSeries(weekCalendar)))
             if (recentlyWatched.isNotEmpty()) add(HomeRow("Zuletzt gesehen", recentlyWatched))
         }
     }
@@ -838,9 +888,33 @@ class CatalogRepository(
             return it
         }
 
-        // Prefer VOE hoster blob on episode pages → resolve with cookies → m3u8
-        parser.extractPlayBlob(body, startUrl)?.let { blob ->
+        // Prefer VOE hoster blobs on episode pages — try several (DE first, then EN)
+        parser.extractPlayBlobs(body, startUrl).take(4).forEach { blob ->
             if (blob != startUrl) claimHlsDeep(blob, episode, depth + 1)?.let { return it }
+        }
+
+        // AniWorld /redirect/{id} → follow Location to VOE embed (any proxy host)
+        parser.extractRedirectUrls(body, startUrl).take(4).forEach { redirect ->
+            runCatching {
+                val req = Request.Builder()
+                    .url(redirect)
+                    .header("User-Agent", USER_AGENT)
+                    .header("Referer", startUrl)
+                    .get()
+                    .build()
+                http.newCall(req).execute().use { resp ->
+                    val final = resp.request.url.toString()
+                    if (StreamKind.isVoePlayerUrl(final) || StreamKind.isVoeEmbedPath(final)) {
+                        claimVoeHls(final, episode)?.let { return it }
+                    }
+                    val html = resp.body?.string().orEmpty()
+                    Regex("""https?://[^\s"'<>]+/e/[A-Za-z0-9_-]+[^\s"'<>]*""", RegexOption.IGNORE_CASE)
+                        .findAll(html)
+                        .map { it.value.trimEnd(')', ']', '.', ',', '"', '\'') }
+                        .firstOrNull { StreamKind.isVoePlayerUrl(it) }
+                        ?.let { claimVoeHls(it, episode)?.let { hls -> return hls } }
+                }
+            }
         }
 
         parser.extractIframeSources(body, startUrl).take(4).forEach { iframe ->
@@ -874,6 +948,11 @@ class CatalogRepository(
                         cacheStream(episode, it)
                         return it
                     }
+                    // Soft redirect / any /e/ proxy in iframe HTML
+                    Regex("""https?://[^\s"'<>]+/e/[A-Za-z0-9_-]+[^\s"'<>]*""", RegexOption.IGNORE_CASE)
+                        .find(html)?.value?.trimEnd(')', ']', '.', ',', '"', '\'')
+                        ?.takeIf { StreamKind.isVoePlayerUrl(it) }
+                        ?.let { claimVoeHls(it, episode)?.let { hls -> return hls } }
                 }
             }
             if (StreamKind.isPlayBlobUrl(iframe)) {
@@ -881,11 +960,13 @@ class CatalogRepository(
             }
         }
 
-        // Explicit VOE URLs in HTML
-        Regex("""https?://[^\s"'<>]+""", RegexOption.IGNORE_CASE).findAll(body)
+        // Explicit VOE URLs in HTML (host-agnostic /e/ first)
+        Regex("""https?://[^\s"'<>]+/e/[A-Za-z0-9_-]+[^\s"'<>]*|https?://[^\s"'<>]+""", RegexOption.IGNORE_CASE)
+            .findAll(body)
             .map { it.value.trimEnd(')', ']', '.', ',', '"', '\'') }
             .filter { StreamKind.isVoePlayerUrl(it) || StreamKind.isVoeEmbedPath(it) }
-            .take(3)
+            .distinct()
+            .take(5)
             .forEach { voe ->
                 claimVoeHls(voe, episode)?.let { return it }
             }
@@ -894,8 +975,8 @@ class CatalogRepository(
     }
 
     /**
-     * Collect & cache player links for every episode (m3u8 and/or VOE page URLs).
-     * Used when favoriting a series so playback / auto-next is instant.
+     * Light favorite cache: store episode page URLs for all episodes, deep-claim HLS
+     * only for the latest season (avoids hanging on 90+ episode shows like Rick & Morty).
      */
     suspend fun collectAllEpisodePlayerLinks(
         seriesId: String,
@@ -905,25 +986,35 @@ class CatalogRepository(
         val episodes = series.flatEpisodes()
         val total = episodes.size
         var cached = 0
-        updateFavoriteMeta(
-            series = series,
-            cached = 0,
-            total = total,
-            status = "caching"
-        )
+        updateFavoriteMeta(series = series, cached = 0, total = total, status = "caching")
         onProgress(FavoriteCacheProgress(seriesId, 0, total, "caching"))
+
+        val latestSeason = series.seasons.maxByOrNull { it.number }?.number
+        val deepTargets = episodes
+            .filter { it.seasonNumber == latestSeason }
+            .take(8)
+            .map { it.id }
+            .toSet()
 
         val resolvedEpisodes = episodes.map { ep ->
             val label = "S${ep.seasonNumber}E${ep.number}"
             onProgress(FavoriteCacheProgress(seriesId, cached, total, "caching", label))
-            val url = runCatching { resolveStream(ep) }.getOrNull()
+            // Always keep watch-page URL so Player can claim on demand.
+            val page = ep.streamPageUrl
+            if (!page.isNullOrBlank()) {
+                runCatching { cacheStream(ep, page) }
+            }
+            val url = if (ep.id in deepTargets) {
+                runCatching { resolveStream(ep) }.getOrNull()
+            } else {
+                page ?: ep.streamUrl
+            }
             if (url != null) {
                 cached++
                 ep.copy(streamUrl = url)
             } else ep
         }
 
-        // Rewrite seasons with resolved streamUrl values and persist favorite JSON.
         val bySeason = resolvedEpisodes.groupBy { it.seasonNumber }
         val hydrated = series.copy(
             seasons = series.seasons.sortedBy { it.number }.map { season ->

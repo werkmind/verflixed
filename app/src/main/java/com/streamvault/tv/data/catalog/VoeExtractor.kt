@@ -132,8 +132,11 @@ class VoeExtractor(
             if (StreamKind.isVoePlayerUrl(final)) return final
             val html = resp.body?.string().orEmpty()
             findVoeUrl(html)?.let { return it }
-            // meta refresh / js location
-            findRedirect(html)?.takeIf { StreamKind.isVoePlayerUrl(it) }?.let { return it }
+            // Soft redirect may land on ANY rotating proxy (/e/ or bare /{id})
+            findRedirect(html)?.let { loc ->
+                val abs = absUrl(postUrl, loc)
+                if (StreamKind.isVoePlayerUrl(abs) || StreamKind.isVoeEmbedPath(abs)) return abs
+            }
         }
         return null
     }
@@ -326,8 +329,9 @@ class VoeExtractor(
             RegexOption.IGNORE_CASE,
         )
         private val EMBED_E = Regex("""['"](\s*https?://[^'"<>\s]+/e/[^'"<>\s]+)['"]""")
+        // Prefer host-agnostic /e/{id}; mirrors rotate and are not always in the known list.
         private val VOE_URL = Regex(
-            """https?://[^\s"'<>]*(?:voe|donaldlineelse|charlestoughrace|tubelessceliolymph|simpulumlamerop|urochsunloath|nathanfromsubject|yip\.su|metagnathtuggers|reedunpack|nicolehappyoutside)[^\s"'<>]*""",
+            """https?://[^\s"'<>]+/e/[A-Za-z0-9_-]+[^\s"'<>]*|https?://[^\s"'<>]*(?:voe\.sx|donaldlineelse|charlestoughrace|tubelessceliolymph|simpulumlamerop|urochsunloath|nathanfromsubject|yip\.su|metagnathtuggers|reedunpack|nicolehappyoutside|jilliandescribecompany|justinfinishedshooting|shannonpersonalgrade|brucevotewathen)[^\s"'<>]*""",
             RegexOption.IGNORE_CASE,
         )
         private val CSRF = Regex("""name=["']_token["']\s+value=["']([^"']+)["']""")

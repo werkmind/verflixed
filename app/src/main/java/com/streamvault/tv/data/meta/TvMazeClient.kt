@@ -107,7 +107,12 @@ class TvMazeClient(
                             if (useFlatFallback) flatIdx++
                             val mazeStill = preferredStill(me?.image)
                             ep.copy(
-                                title = if (ep.title.startsWith("Episode") || ep.title.equals("Folge ${ep.number}", true)) {
+                                title = if (
+                                    ep.title.matches(Regex("""^\d+$""")) ||
+                                    ep.title.startsWith("Episode") ||
+                                    ep.title.equals("Folge ${ep.number}", true) ||
+                                    ep.title.equals("Episode ${ep.number}", true)
+                                ) {
                                     me?.name ?: ep.title
                                 } else ep.title,
                                 overview = ep.overview ?: me?.summary?.let { Jsoup.parse(it).text() },

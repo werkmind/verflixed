@@ -2,30 +2,31 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:clipChildren="false"
-    android:clipToPadding="false"
+    android:clipChildren="true"
+    android:clipToPadding="true"
     android:orientation="vertical"
-    android:paddingStart="48dp"
-    android:paddingTop="10dp"
-    android:paddingEnd="24dp"
-    android:paddingBottom="6dp">
+    android:paddingStart="40dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="4dp">
 
     <TextView
         android:id="@+id/rowTitle"
         style="@style/SvRowTitle"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:textSize="15sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rowList"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
+        android:layout_marginTop="6dp"
+        android:clipChildren="true"
+        android:clipToPadding="true"
         android:descendantFocusability="afterDescendants"
         android:nestedScrollingEnabled="false"
         android:orientation="horizontal"
-        android:paddingTop="8dp"
-        android:paddingBottom="16dp" />
+        android:paddingTop="4dp"
+        android:paddingBottom="8dp" />
 </LinearLayout>

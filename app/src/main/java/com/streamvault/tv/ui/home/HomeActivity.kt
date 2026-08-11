@@ -42,6 +42,7 @@ class HomeActivity : AppCompatActivity() {
     private var heroSeries: Series? = null
     private var mode = HomeMode.LIBRARY
     private var searchJob: Job? = null
+    private var loadJob: Job? = null
     private var searchQuery = ""
     private lateinit var searchPanel: View
     private lateinit var searchQueryLabel: TextView
@@ -381,7 +382,8 @@ class HomeActivity : AppCompatActivity() {
         val repo = (application as VerflixedApp).container.catalog
         binding.progress.visibility = View.VISIBLE
         binding.emptyText.visibility = View.GONE
-        lifecycleScope.launch {
+        loadJob?.cancel()
+        loadJob = lifecycleScope.launch {
             runCatching {
                 when (mode) {
                     HomeMode.LIBRARY -> repo.getLibraryRows()
@@ -410,9 +412,11 @@ class HomeActivity : AppCompatActivity() {
                 updateLoadMore()
             }.onFailure {
                 binding.progress.visibility = View.GONE
-                binding.emptyText.text = it.toVfMessage()
+                val msg = it.toVfMessage()
+                if (msg.isBlank()) return@onFailure
+                binding.emptyText.text = msg
                 binding.emptyText.visibility = View.VISIBLE
-                Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -443,7 +447,10 @@ class HomeActivity : AppCompatActivity() {
                 }
                 .onFailure {
                     binding.progress.visibility = View.GONE
-                    Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                    val msg = it.toVfMessage()
+                    if (msg.isNotBlank()) {
+                        Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
+                    }
                 }
         }
     }
@@ -466,8 +473,107 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 .onFailure {
-                    Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                    val msg = it.toVfMessage()
+                    if (msg.isNotBlank()) {
+                        Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
+                    }
                 }
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU ||
+            keyCode == android.view.KeyEvent.KEYCODE_INFO ||
+            keyCode == android.view.KeyEvent.KEYCODE_BUTTON_Y
+        ) {
+            showHomeContextMenu()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun showHomeContextMenu() {
+        val s = heroSeries ?: return
+        val repo = (application as VerflixedApp).container.catalog
+        val app = application as VerflixedApp
+        lifecycleScope.launch {
+            val isFav = runCatching { repo.isFavorite(s.id) }.getOrDefault(false)
+            val options = mutableListOf(
+                if (isFav) "Aus Favoriten entfernen" else "Zu Favoriten hinzufügen",
+                "Als gesehen markieren",
+                "Noch nicht gesehen markieren",
+                "Metadaten neu laden",
+                "Details öffnen",
+            )
+            android.app.AlertDialog.Builder(this@HomeActivity)
+                .setTitle(s.title)
+                .setItems(options.toTypedArray()) { _, which ->
+                    when (which) {
+                        0 -> lifecycleScope.launch {
+                            runCatching {
+                                val now = repo.toggleFavorite(s.id)
+                                if (now) {
+                                    app.appScope.launch {
+                                        runCatching { repo.collectAllEpisodePlayerLinks(s.id) }
+                                    }
+                                }
+                                now
+                            }.onSuccess { now ->
+                                Toast.makeText(
+                                    this@HomeActivity,
+                                    if (now) "Zu Favoriten hinzugefügt" else "Aus Favoriten entfernt",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                if (mode == HomeMode.LIBRARY) load(false)
+                            }.onFailure {
+                                val msg = it.toVfMessage()
+                                if (msg.isNotBlank()) Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        1 -> lifecycleScope.launch {
+                            runCatching {
+                                val full = repo.getSeries(s.id, enrich = false, detailPathHint = s.detailPath, titleHint = s.title)
+                                val ep = repo.continueEpisode(full, repo.progressForSeries(s.id))
+                                    ?: full.flatEpisodes().firstOrNull()
+                                if (ep != null) repo.setEpisodeWatched(ep, true)
+                            }.onSuccess {
+                                Toast.makeText(this@HomeActivity, "Als gesehen markiert", Toast.LENGTH_SHORT).show()
+                                if (mode == HomeMode.LIBRARY) load(false)
+                            }
+                        }
+                        2 -> lifecycleScope.launch {
+                            runCatching {
+                                val full = repo.getSeries(s.id, enrich = false, detailPathHint = s.detailPath, titleHint = s.title)
+                                full.flatEpisodes().forEach { repo.setEpisodeWatched(it, false) }
+                            }.onSuccess {
+                                Toast.makeText(this@HomeActivity, "Als ungesehen markiert", Toast.LENGTH_SHORT).show()
+                                if (mode == HomeMode.LIBRARY) load(false)
+                            }
+                        }
+                        3 -> lifecycleScope.launch {
+                            Toast.makeText(this@HomeActivity, "Lade Metadaten…", Toast.LENGTH_SHORT).show()
+                            runCatching {
+                                repo.getSeries(
+                                    s.id,
+                                    enrich = true,
+                                    detailPathHint = s.detailPath,
+                                    titleHint = s.title,
+                                    mediaKindHint = s.mediaKind,
+                                )
+                            }.onSuccess { refreshed ->
+                                updateHero(refreshed)
+                                Toast.makeText(this@HomeActivity, "Metadaten aktualisiert", Toast.LENGTH_SHORT).show()
+                                if (mode == HomeMode.LIBRARY) load(true)
+                            }.onFailure {
+                                val msg = it.toVfMessage()
+                                if (msg.isNotBlank()) Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        4 -> openSeries(s)
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
     }
 
@@ -662,9 +768,9 @@ private class PosterAdapter(
         holder.bind(item, browseModeProvider())
         holder.itemView.setOnClickListener { onClick(items[holder.bindingAdapterPosition.coerceAtLeast(0)]) }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            val scale = if (hasFocus) 1.12f else 1f
+            val scale = if (hasFocus) 1.06f else 1f
             v.animate().scaleX(scale).scaleY(scale).setDuration(160).start()
-            v.elevation = if (hasFocus) 16f else 0f
+            v.elevation = if (hasFocus) 10f else 0f
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {

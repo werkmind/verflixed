@@ -11,7 +11,8 @@ class VerflixedApp : Application() {
     lateinit var container: AppContainer
         private set
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** Survives Activity destroy — favorite link caching, background enrich. */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()

@@ -71,13 +71,15 @@ class CatalogParser(private val moshi: Moshi) {
     }
 
     /**
-     * Finds site player entry links already present in HTML:
-     * - data-play-url="/r?t=…"
-     * - iframe[src*="/r?t="]
-     * - anchors containing /r?t=
+     * Finds site player entry links already present in HTML.
      * Prefers provider VOE + language Deutsch when attributes exist.
+     * Returns best single candidate (compat).
      */
-    fun extractPlayBlob(body: String, pageUrl: String): String? {
+    fun extractPlayBlob(body: String, pageUrl: String): String? =
+        extractPlayBlobs(body, pageUrl).firstOrNull()
+
+    /** All play-blobs ranked (VOE+DE first). Try several — one file may be geo-blocked. */
+    fun extractPlayBlobs(body: String, pageUrl: String): List<String> {
         val doc = Jsoup.parse(body, pageUrl)
 
         data class Candidate(
@@ -99,8 +101,11 @@ class CatalogParser(private val moshi: Moshi) {
             val l = language.lowercase()
             if (p.contains("voe")) score += 50
             if (l.contains("deutsch") || l == "de" || l.contains("german")) score += 30
+            else if (l.contains("englisch") || l == "en" || l.contains("english")) score += 10
             if (p.isNotBlank()) score += 5
-            candidates += Candidate(abs, provider, language, score)
+            if (candidates.none { it.url == abs }) {
+                candidates += Candidate(abs, provider, language, score)
+            }
         }
 
         doc.select("[data-play-url], [data-link], button.link-box, .link-box, .link-wrapper button, iframe[src]").forEach { el ->
@@ -114,19 +119,43 @@ class CatalogParser(private val moshi: Moshi) {
         doc.select("a[href*='/r?t='], a[href*='/r?t%']").forEach { a ->
             add(a.attr("abs:href").ifBlank { a.attr("href") }, bonus = 5)
         }
-        // Raw regex fallback for blobs in HTML/JS strings
         PLAY_BLOB.findAll(body).forEach { m ->
             add(m.value, bonus = 1)
         }
 
-        return candidates.maxByOrNull { it.score }?.url
-            ?: candidates.firstOrNull()?.url
+        return candidates.sortedByDescending { it.score }.map { it.url }.distinct()
     }
 
-    /** Best available player URL from a page: m3u8 > play-blob > voe.sx */
+    /** AniWorld-style `/redirect/{id}` hoster links. */
+    fun extractRedirectUrls(body: String, pageUrl: String): List<String> {
+        val doc = Jsoup.parse(body, pageUrl)
+        val out = linkedSetOf<String>()
+        doc.select("a[href*=/redirect/], [data-link*=/redirect/], [href*=/redirect/]").forEach { el ->
+            val raw = el.attr("abs:href").ifBlank {
+                el.attr("href")
+            }.ifBlank {
+                el.attr("data-link")
+            }
+            if (raw.contains("/redirect/", true)) out += resolveUrl(pageUrl, raw)
+        }
+        Regex("""https?://[^\s"'<>]+/redirect/[A-Za-z0-9_-]+""", RegexOption.IGNORE_CASE)
+            .findAll(body)
+            .forEach { out += it.value }
+        Regex("""["'](/redirect/[A-Za-z0-9_-]+)["']""")
+            .findAll(body)
+            .forEach { out += resolveUrl(pageUrl, it.groupValues[1]) }
+        return out.toList()
+    }
+
+    /** Best available player URL from a page: m3u8 > play-blob > VOE (/e/ any host). */
     fun extractPlayerUrl(body: String, pageUrl: String): String? {
         extractM3u8(body, pageUrl)?.let { return it }
         extractPlayBlob(body, pageUrl)?.let { return it }
+        Regex("""https?://[^\s"'<>]+/e/[A-Za-z0-9_-]+[^\s"'<>]*""", RegexOption.IGNORE_CASE)
+            .findAll(body)
+            .map { it.value.trimEnd(')', ']', '.', ',', '"', '\'') }
+            .firstOrNull { StreamKind.isVoePlayerUrl(it) }
+            ?.let { return it }
         Regex("""https?://[^\s"'<>]*voe[^\s"'<>]*""", RegexOption.IGNORE_CASE)
             .findAll(body)
             .map { it.value.trimEnd(')', ']', '.', ',', '"', '\'') }
@@ -174,17 +203,17 @@ class CatalogParser(private val moshi: Moshi) {
         }
 
         doc.select(
-            "[data-series], .series-item, .series, article.series, .filmList .coverListItem, a[href*=/serie/], a[href*=/series/], .latest-episode-row a, .cover"
+            ".card-mini, .card-mini-tile, .home-hero-slide, [data-series], .series-item, .series, article.series, .filmList .coverListItem, a[href*=/serie/], a[href*=/series/], .latest-episode-row a, .cover"
         ).forEach { el ->
             val anchor = when {
                 el.tagName() == "a" -> el
-                else -> el.selectFirst("a[href]")
+                else -> el.selectFirst("a[href*=/serie/], a[href*=/series/], a[href*=/anime/stream/], a[href]")
             } ?: return@forEach
             val href = anchor.attr("abs:href").ifBlank { resolveUrl(baseUrl, anchor.attr("href")) }
             if (href.isBlank()) return@forEach
-            if (!href.contains("/serie", true) && !href.contains("/series", true)) return@forEach
+            if (!href.contains("/serie", true) && !href.contains("/series", true) && !href.contains("/anime/", true)) return@forEach
             val title = el.attr("data-title").ifBlank {
-                el.selectFirst("h1,h2,h3,.title,.name,.ep-title")?.text()
+                el.selectFirst("h1,h2,h3,.title,.name,.home-hero-title,.ep-title")?.text()
             }.orEmpty().ifBlank { anchor.attr("title") }.ifBlank {
                 anchor.selectFirst("img[alt]")?.attr("alt")
             }.orEmpty().ifBlank { anchor.text() }
@@ -201,7 +230,50 @@ class CatalogParser(private val moshi: Moshi) {
             upsert(href, title, poster, backdrop)
         }
 
+        val heroFirst = parseHomeHeroNewReleases(html, baseUrl)
+        if (heroFirst.isNotEmpty()) {
+            val ordered = LinkedHashMap<String, Series>()
+            heroFirst.forEach { ordered[it.id] = it }
+            seen.values.forEach { ordered.putIfAbsent(it.id, it) }
+            return Catalog(ordered.values.toList())
+        }
+
         return Catalog(seen.values.toList())
+    }
+
+    /** Homepage hero slides / Brandneu – Browse „Neu“ shelf. */
+    fun parseHomeHeroNewReleases(html: String, baseUrl: String): List<Series> {
+        val doc = Jsoup.parse(html, baseUrl)
+        val out = LinkedHashMap<String, Series>()
+        doc.select(".home-hero-slide, .home-hero-thumb").forEach { slide ->
+            val anchor = slide.selectFirst("a[href*=/serie/], a.home-hero-overlay") ?: return@forEach
+            val href = anchor.attr("abs:href").ifBlank { resolveUrl(baseUrl, anchor.attr("href")) }
+            val title = cleanTitle(
+                slide.selectFirst(".home-hero-title, h2, h3")?.text()
+                    .orEmpty()
+                    .ifBlank { anchor.attr("title") }
+            )
+            if (title.length < 2) return@forEach
+            val urls = slide.select("img[data-src], img[src], source[srcset], picture source")
+                .mapNotNull { imageAbs(it) }
+            val id = slugId(href, title)
+            out.putIfAbsent(
+                id,
+                Series(
+                    id = id,
+                    title = title,
+                    posterUrl = SiteImages.pickPoster(*urls.toTypedArray()),
+                    backdropUrl = SiteImages.pickBackdrop(*urls.toTypedArray()),
+                    detailPath = runCatching {
+                        val u = URI(href)
+                        val root = SERIES_ROOT.find(u.path.orEmpty())?.groupValues?.get(1) ?: u.path
+                        URI(u.scheme, u.authority, root, null, null).toString()
+                    }.getOrDefault(href),
+                    overview = slide.selectFirst(".home-hero-badge")?.text()?.takeIf { it.isNotBlank() },
+                )
+            )
+        }
+        return out.values.toList()
     }
 
     private fun parseHtmlSeriesDetail(html: String, baseUrl: String, seriesId: String): Series {
@@ -236,37 +308,98 @@ class CatalogParser(private val moshi: Moshi) {
 
         val seasons = LinkedHashMap<Int, MutableList<Episode>>()
 
-        // Explicit episode nodes with stream attrs
-        doc.select("[data-episode], .episode, .episodeItem, tr.episode, .seasonEpisodesList tr, .episodes tr").forEach { epEl ->
-            val seasonNo = epEl.attr("data-season").toIntOrNull()
-                ?: epEl.selectFirst("[data-season]")?.attr("data-season")?.toIntOrNull()
-                ?: guessSeason(epEl.text() + " " + (epEl.selectFirst("a[href]")?.attr("href").orEmpty()), doc)
-            if (seasonNo <= 0) return@forEach
-            val epNo = epEl.attr("data-episode").toIntOrNull()
-                ?: Regex("""(?i)(?:episode|folge|ep)[^\d]*(\d+)""").find(epEl.text())?.groupValues?.get(1)?.toIntOrNull()
-                ?: Regex("""(?i)(?:episode|folge|ep)[/-]?(\d+)""").find(epEl.selectFirst("a[href]")?.attr("href").orEmpty())
-                    ?.groupValues?.get(1)?.toIntOrNull()
-                ?: (seasons[seasonNo]?.size?.plus(1) ?: 1)
-            val epTitle = epEl.attr("data-title").ifBlank {
-                epEl.selectFirst(".title, .episode-title, td:not(:first-child)")?.text()
-            }.orEmpty().ifBlank { "Episode $epNo" }
-            val stream = extractPlayerUrl(epEl.outerHtml(), baseUrl)
-            val page = epEl.selectFirst("a[href*=episode], a[href*=folge], a[href]")?.attr("abs:href")
-            val still = SiteImages.preferJpeg(
-                epEl.selectFirst("img[data-src], img[src], img[srcset]")?.let { imageAbs(it) }
-            )
-            val id = "$seriesId-s${seasonNo}e$epNo"
-            seasons.getOrPut(seasonNo) { mutableListOf() }.add(
+        fun isNoiseEpisodeTitle(t: String): Boolean {
+            val s = t.trim()
+            if (s.length < 2) return true
+            if (s.matches(Regex("""^\d+$"""))) return true
+            if (s.matches(Regex("""^[SE]\d+$""", RegexOption.IGNORE_CASE))) return true
+            if (Regex("""^(stream|serie|series|home|mehr|alle)$""", RegexOption.IGNORE_CASE).matches(s)) return true
+            return false
+        }
+
+        fun addEpisode(
+            seasonNo: Int,
+            epNo: Int,
+            titleRaw: String,
+            still: String?,
+            stream: String?,
+            page: String?,
+        ) {
+            if (seasonNo <= 0 || epNo <= 0) return
+            val list = seasons.getOrPut(seasonNo) { mutableListOf() }
+            if (list.any { it.number == epNo }) return
+            val epTitle = cleanTitle(titleRaw).takeUnless { isNoiseEpisodeTitle(it) }
+                ?: "Episode $epNo"
+            list.add(
                 Episode(
-                    id = id,
+                    id = "$seriesId-s${seasonNo}e$epNo",
                     seriesId = seriesId,
                     seasonNumber = seasonNo,
                     number = epNo,
-                    title = epTitle.trim(),
+                    title = epTitle,
                     stillUrl = still,
                     streamUrl = stream,
                     streamPageUrl = page
                 )
+            )
+        }
+
+        // Modern SerienStream.cx: tr.episode-row with .episode-title-ger / .episode-title-eng
+        doc.select("tr.episode-row, .episode-row").forEach { row ->
+            val onclick = row.attr("onclick")
+            val link = row.selectFirst("a[href*=episode], a[href*=folge]")?.attr("abs:href")
+                ?: Regex("""['"]([^'"]+(?:episode|folge)[^'"]+)['"]""")
+                    .find(onclick)?.groupValues?.get(1)
+                    ?.let { resolveUrl(baseUrl, it) }
+                    .orEmpty()
+            val seasonNo = row.attr("data-season").toIntOrNull()
+                ?: Regex("""(?i)(?:staffel|season)[/-]?(\d+)""").find(link)?.groupValues?.get(1)?.toIntOrNull()
+                ?: guessSeason(row.text() + " " + link, doc)
+            val epNo = row.attr("data-episode").toIntOrNull()
+                ?: row.selectFirst(".episode-number-cell")?.text()?.trim()?.toIntOrNull()
+                ?: Regex("""(?i)(?:episode|folge|ep)[/-]?(\d+)""").find(link)?.groupValues?.get(1)?.toIntOrNull()
+                ?: return@forEach
+            val ger = row.selectFirst(".episode-title-ger")?.attr("title")
+                ?.ifBlank { row.selectFirst(".episode-title-ger")?.text() }
+                .orEmpty()
+            val eng = row.selectFirst(".episode-title-eng")?.attr("title")
+                ?.ifBlank { row.selectFirst(".episode-title-eng")?.text() }
+                .orEmpty()
+            val titleCell = row.selectFirst(".episode-title-cell, .title, .episode-title")?.text().orEmpty()
+            val epTitle = ger.ifBlank { eng }.ifBlank { titleCell }.ifBlank { "Episode $epNo" }
+            val still = SiteImages.preferJpeg(
+                row.selectFirst("img[data-src], img[src], img[srcset]")?.let { imageAbs(it) }
+            )
+            addEpisode(seasonNo, epNo, epTitle, still, extractPlayerUrl(row.outerHtml(), baseUrl), link.ifBlank { null })
+        }
+
+        // Generic episode nodes (skip already-handled episode-row)
+        doc.select("[data-episode], .episode, .episodeItem, tr.episode, .seasonEpisodesList tr, .episodes tr").forEach { epEl ->
+            if (epEl.hasClass("episode-row") || epEl.classNames().any { it.contains("episode-row") }) return@forEach
+            val seasonNo = epEl.attr("data-season").toIntOrNull()
+                ?: epEl.selectFirst("[data-season]")?.attr("data-season")?.toIntOrNull()
+                ?: guessSeason(epEl.text() + " " + (epEl.selectFirst("a[href]")?.attr("href").orEmpty()), doc)
+            if (seasonNo <= 0) return@forEach
+            val href = epEl.selectFirst("a[href*=episode], a[href*=folge], a[href]")?.attr("abs:href").orEmpty()
+            val epNo = epEl.attr("data-episode").toIntOrNull()
+                ?: Regex("""(?i)(?:episode|folge|ep)[^\d]*(\d+)""").find(epEl.text())?.groupValues?.get(1)?.toIntOrNull()
+                ?: Regex("""(?i)(?:episode|folge|ep)[/-]?(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
+                ?: return@forEach
+            val epTitle = epEl.attr("data-title").ifBlank {
+                epEl.selectFirst(".episode-title-ger, .title, .episode-title, td:nth-child(2)")?.attr("title")
+                    ?.ifBlank { epEl.selectFirst(".episode-title-ger, .title, .episode-title, td:nth-child(2)")?.text() }
+                    .orEmpty()
+            }
+            val still = SiteImages.preferJpeg(
+                epEl.selectFirst("img[data-src], img[src], img[srcset]")?.let { imageAbs(it) }
+            )
+            addEpisode(
+                seasonNo,
+                epNo,
+                epTitle,
+                still,
+                extractPlayerUrl(epEl.outerHtml(), baseUrl),
+                href.ifBlank { null },
             )
         }
 
@@ -278,19 +411,9 @@ class CatalogParser(private val moshi: Moshi) {
                 if (seasonNo <= 0) return@forEach
                 val epNo = Regex("""(?i)(?:episode|folge|ep)[/-]?(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
                     ?: return@forEach
-                val id = "$seriesId-s${seasonNo}e$epNo"
-                val list = seasons.getOrPut(seasonNo) { mutableListOf() }
-                if (list.any { it.number == epNo }) return@forEach
-                list.add(
-                    Episode(
-                        id = id,
-                        seriesId = seriesId,
-                        seasonNumber = seasonNo,
-                        number = epNo,
-                        title = a.text().ifBlank { "Episode $epNo" }.trim(),
-                        streamPageUrl = href
-                    )
-                )
+                var epTitle = cleanTitle(a.attr("title").ifBlank { a.text() })
+                if (isNoiseEpisodeTitle(epTitle)) epTitle = "Episode $epNo"
+                addEpisode(seasonNo, epNo, epTitle, null, null, href)
             }
         }
 

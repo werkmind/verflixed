@@ -1,85 +1,50 @@
 # Verflixed – Installation auf Fire TV Stick
 
-## Downloads (1.6.1)
+## Downloads (1.6.2)
 
 | Datei | Link |
 |---|---|
-| **APK Fire TV (kurz)** | https://clck.ru/3VBfVg |
-| **Update (kurz)** | https://clck.ru/3VBfTs |
-| APK Gofile | https://gofile.io/d/w1RrZe |
-| APK Direkt (72h) | https://litter.catbox.moe/e3csn1.apk |
+| **APK Fire TV (kurz)** | https://clck.ru/3VBgGx |
+| **Update (kurz)** | https://clck.ru/3VBgFW |
+| APK Gofile | https://gofile.io/d/sdNpZo |
+| APK Direkt (72h) | https://litter.catbox.moe/qa00q1.apk |
 
-Lokal im Repo:
-- `dist/Verflixed-FireTV.apk` (versionCode **17** / **1.6.1**)
-- `dist/silk/Verflixed-FireTV.apk`
-- Helper: `dist/serve-for-firetv.sh`
+Lokal: `dist/Verflixed-FireTV.apk` (versionCode **18** / **1.6.2**)
 
 ---
 
-## Fire TV – Installation (empfohlen: Downloader-App)
+## Fire TV – Installation (Downloader)
 
-### A) Mit „Downloader“ von AFTVnews (einfachste Variante)
-
-1. Auf dem Fire TV Stick: **Apps** → Suche → **Downloader** (von AFTVnews) installieren.
-2. Einstellungen → **Mein Fire TV** → **Entwickleroptionen**
-   - **Apps aus unbekannten Quellen** → für **Downloader** erlauben
-3. Downloader öffnen → URL:
+1. Apps → **Downloader** (AFTVnews) installieren  
+2. Unbekannte Quellen für Downloader erlauben  
+3. URL eingeben:
    ```text
-   https://clck.ru/3VBfVg
+   https://clck.ru/3VBgGx
    ```
-4. Download → **Installieren** → Apps → **Verflixed** starten.
+4. Installieren → **Verflixed** starten
 
-### B) Mit Silk Browser
+### Menü-Taste (3 Balken)
 
-1. Unbekannte Quellen für Silk erlauben.
-2. Öffnen: `https://clck.ru/3VBfVg` → installieren.
+Auf Poster/Episode: **als gesehen**, **Favorit**, **ungesehen**, **Metadaten neu laden**
 
-### C) Vom PC im Heimnetz
+### Defaults
 
-```bash
-./dist/serve-for-firetv.sh
-```
-
-```text
-http://DEINE-PC-IP:8080/Verflixed-FireTV.apk
-```
+- Serien: `https://serienstream.cx`
+- Filme: `https://filmpalast.to`
 
 ---
 
-## Erste Einrichtung
+## Neu in 1.6.2
 
-Defaults sind gesetzt:
+- Echte Episodentitel (nicht mehr 1/2/3)
+- VOE: mehrere Play-Blobs + beliebige Proxy-Hosts (`/e/…`), `/redirect/`-Follow
+- Favoriten-Cache hängt nicht mehr bei 90+ Episoden (nur letzte Staffel deep-claim)
+- VF-999 „Job cancelled“ unterdrückt
+- Meine Bibliothek: Weiterschauen oben + eine große Library (kein doppeltes Favoriten-Row)
+- Serienkalender-Shelf + Browse **Neu** (Homepage-Hero zuerst)
+- Layout Overflow / dichteres UI
+- Menü-Taste Kontextaktionen
 
-1. **Serien**: `https://serienstream.cx`
-2. **Filme**: `https://filmpalast.to`
-3. Oben **Serien** / **Filme** umschalten
-4. Optional: Profil → Favoriten getrennt je Medientyp
+### 1.6.1
 
-### Fernbedienung
-
-- **OK**: auswählen · **← →**: Seek ±10s · **Back**: zurück
-- Suche: Netflix-Keyboard links + Live-Treffer rechts (kein System-IME-Overlay)
-- Episode **Markieren**-Badge per D-Pad rechts erreichbar
-
-### In-App-Update
-
-```text
-https://clck.ru/3VBfTs
-```
-
----
-
-## Neu in 1.6.1
-
-- Filme-URL wird zuverlässig gespeichert (Defaults beide URLs)
-- VF-201 / Live-Suche öffnet Treffer auch ohne Katalog-Eintrag
-- Markieren + Action-Buttons per D-Pad erreichbar
-- Dichteres Layout (mehr Inhalt sichtbar)
-- Antifilter entfernt
-- Netflix-Style Such-Keyboard + AJAX Live-Results
-- Keine eigenen Nav-Sounds (Fire-TV-System)
-- Fluidere Apple-TV-ähnliche Focus-Animationen
-
-### Neu in 1.6.0
-
-- Serien + Filme, Filmpalast, VOE→Vidara-Fallback
+- Filme-URL Fix, VF-201 Search, Netflix-Keyboard, Antifilter/Sounds weg

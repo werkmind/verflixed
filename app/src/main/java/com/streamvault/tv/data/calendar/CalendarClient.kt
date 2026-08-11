@@ -97,6 +97,20 @@ class CalendarClient(
         return out.sortedWith(compareByDescending<CalendarEntry> { it.date }.thenByDescending { it.time })
     }
 
+    /** Next N days of the full Serienkalender (not only favorites). */
+    suspend fun weekAhead(daysAhead: Long = 7): List<CalendarEntry> {
+        val schedule = fetchSchedule()
+        val today = startOfDay(Date())
+        val end = Date(today.time + TimeUnit.DAYS.toMillis(daysAhead))
+        val out = mutableListOf<CalendarEntry>()
+        schedule.forEach { (day, eps) ->
+            val date = parseDay(day) ?: return@forEach
+            if (date.before(today) || date.after(end)) return@forEach
+            out += eps
+        }
+        return out.sortedWith(compareBy({ it.date }, { it.time }, { it.title })).take(48)
+    }
+
     private fun parseDay(day: String): Date? =
         runCatching { DAY.parse(day) }.getOrNull()?.let { startOfDay(it) }
 

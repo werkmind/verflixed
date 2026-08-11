@@ -255,21 +255,18 @@ class SeriesDetailActivity : AppCompatActivity() {
     private fun toggleFavorite() {
         val s = series ?: return
         val repo = (application as VerflixedApp).container.catalog
+        val app = application as VerflixedApp
         binding.btnFavorite.isEnabled = false
         lifecycleScope.launch {
             runCatching {
                 val nowFav = repo.toggleFavorite(s.id)
                 if (nowFav) {
                     renderCacheStatus(0, s.flatEpisodes().size, "caching")
-                    // Collect all episode player links on IO, publish progress on Main.
-                    withContext(Dispatchers.IO) {
-                        repo.collectAllEpisodePlayerLinks(s.id) { progress ->
-                            launch(Dispatchers.Main) {
-                                renderCacheStatus(progress.cached, progress.total, progress.status)
-                                if (progress.currentEpisodeLabel != null && progress.status == "caching") {
-                                    binding.cacheStatus.text =
-                                        "Sammle ${progress.currentEpisodeLabel}… ${progress.cached}/${progress.total}"
-                                }
+                    // Background — do not block Detail UI / cancel into VF-999
+                    app.appScope.launch {
+                        runCatching {
+                            repo.collectAllEpisodePlayerLinks(s.id) { progress ->
+                                // best-effort status if still on screen
                             }
                         }
                     }
@@ -285,15 +282,88 @@ class SeriesDetailActivity : AppCompatActivity() {
                 }
                 Toast.makeText(
                     this@SeriesDetailActivity,
-                    if (nowFav) "Favorit gespeichert – alle Player-Links werden gesammelt" else "Favorit entfernt",
+                    if (nowFav) "Favorit gespeichert – Links werden im Hintergrund vorbereitet"
+                    else "Favorit entfernt",
                     Toast.LENGTH_SHORT
                 ).show()
                 load(s.id, s.detailPath, s.title, s.mediaKind)
             }.onFailure {
                 binding.btnFavorite.isEnabled = true
-                Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                val msg = it.toVfMessage()
+                if (msg.isNotBlank()) {
+                    Toast.makeText(this@SeriesDetailActivity, msg, Toast.LENGTH_LONG).show()
+                }
             }
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU ||
+            keyCode == android.view.KeyEvent.KEYCODE_INFO ||
+            keyCode == android.view.KeyEvent.KEYCODE_BUTTON_Y
+        ) {
+            showContextMenu()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun showContextMenu() {
+        val s = series ?: return
+        val focusedEp = episodeAdapter.focusedEpisode()
+        val options = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
+        val repo = (application as VerflixedApp).container.catalog
+
+        options += if (binding.btnFavorite.text.toString().contains("entfernen", true)) {
+            "Aus Favoriten entfernen"
+        } else {
+            "Zu Favoriten hinzufügen"
+        }
+        actions += { toggleFavorite() }
+
+        if (focusedEp != null) {
+            options += "Als gesehen markieren"
+            actions += { toggleEpisodeWatched(focusedEp) }
+            options += "Noch nicht gesehen"
+            actions += {
+                lifecycleScope.launch {
+                    runCatching { repo.setEpisodeWatched(focusedEp, false) }
+                    load(s.id, s.detailPath, s.title, s.mediaKind)
+                }
+            }
+        }
+        options += "Staffel als gesehen"
+        actions += { toggleSeasonWatched() }
+        options += "Metadaten neu laden"
+        actions += {
+            lifecycleScope.launch {
+                binding.progress.visibility = View.VISIBLE
+                runCatching {
+                    repo.getSeries(
+                        s.id,
+                        enrich = true,
+                        detailPathHint = s.detailPath,
+                        titleHint = s.title,
+                        mediaKindHint = s.mediaKind,
+                    )
+                }.onSuccess {
+                    load(s.id, s.detailPath, s.title, s.mediaKind)
+                }.onFailure {
+                    binding.progress.visibility = View.GONE
+                    val msg = it.toVfMessage()
+                    if (msg.isNotBlank()) Toast.makeText(this@SeriesDetailActivity, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle(s.title)
+            .setItems(options.toTypedArray()) { _, which ->
+                actions.getOrNull(which)?.invoke()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun play(episode: Episode) {
@@ -356,6 +426,7 @@ private class EpisodeAdapter(
 ) : RecyclerView.Adapter<EpisodeAdapter.VH>() {
     private val items = mutableListOf<Episode>()
     private var progress: Map<String, WatchProgressEntity> = emptyMap()
+    private var focused: Episode? = null
 
     fun submit(data: List<Episode>, progressMap: Map<String, WatchProgressEntity>) {
         items.clear()
@@ -364,16 +435,23 @@ private class EpisodeAdapter(
         notifyDataSetChanged()
     }
 
+    fun focusedEpisode(): Episode? = focused ?: items.firstOrNull()
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_episode, parent, false)
+        val holder = VH(v)
+        v.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) focused = holder.bound
+        }
         FocusFx.bindScale(v, 1.02f)
-        return VH(v)
+        return holder
     }
 
     override fun getItemCount(): Int = items.size
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val ep = items[position]
+        holder.bound = ep
         holder.number.text = if (ep.id.endsWith("-movie")) "Film" else "E${ep.number}"
         holder.title.text = ep.title
         val p = progress[ep.id]
@@ -409,6 +487,7 @@ private class EpisodeAdapter(
     }
 
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        var bound: Episode? = null
         val still: ImageView = itemView.findViewById(R.id.episodeStill)
         val number: TextView = itemView.findViewById(R.id.episodeNumber)
         val title: TextView = itemView.findViewById(R.id.episodeTitle)

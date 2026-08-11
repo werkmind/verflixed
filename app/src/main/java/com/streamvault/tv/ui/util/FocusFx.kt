@@ -13,22 +13,21 @@ object FocusFx {
     private val easeOut = PathInterpolator(0.16f, 1f, 0.3f, 1f)
     private val easeIn = PathInterpolator(0.4f, 0f, 0.2f, 1f)
 
-    fun bindScale(view: View, focusedScale: Float = 1.08f, prefs: UserPrefs? = null) {
+    fun bindScale(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
         val previous = view.onFocusChangeListener
         view.setOnFocusChangeListener { v, hasFocus ->
             previous?.onFocusChange(v, hasFocus)
             val scale = if (hasFocus) focusedScale else 1f
-            val elevation = if (hasFocus) 18f else 0f
+            val elevation = if (hasFocus) 12f else 0f
             v.animate().cancel()
             v.animate()
                 .scaleX(scale)
                 .scaleY(scale)
                 .translationZ(elevation)
-                .setDuration(if (hasFocus) 240 else 160)
+                .setDuration(if (hasFocus) 200 else 140)
                 .setInterpolator(if (hasFocus) easeOut else easeIn)
                 .start()
             v.elevation = elevation
-            // No UiSound — Fire OS handles focus audio.
         }
     }
 
