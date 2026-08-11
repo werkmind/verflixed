@@ -6,6 +6,8 @@
 
   const state = {
     mediaKind: localStorage.getItem("vf_media_kind") || "series",
+    homeMode: "library",
+    lastContentMode: "library",
     seriesBaseUrl:
       localStorage.getItem("vf_base_series") ||
       localStorage.getItem("vf_base") ||
@@ -14,7 +16,11 @@
     baseUrl: "",
     series: [],
     movies: [],
+    seriesRows: [],
+    moviesRows: [],
     rows: [],
+    seriesLoaded: false,
+    moviesLoaded: false,
     current: null,
     season: 1,
     lastPlay: null,
@@ -26,6 +32,12 @@
     activePageLang: "de",
     controlsVisible: false,
     lastBackExitAt: 0,
+    warmingStreams: false,
+    warmToken: 0,
+    seriesLoading: false,
+    moviesLoading: false,
+    seriesLoadPromise: null,
+    moviesLoadPromise: null,
   };
   state.baseUrl =
     state.mediaKind === "movie" ? state.moviesBaseUrl : state.seriesBaseUrl;
@@ -43,17 +55,98 @@
     if (el) el.textContent = msg || "";
   }
 
-  function showTab(name) {
-    document.querySelectorAll(".tab").forEach((t) => {
-      t.classList.toggle("active", t.dataset.tab === name);
-    });
-    ["browse", "search", "profiles", "detail", "player"].forEach((v) => {
+  function contentViews() {
+    return ["library", "series", "movies", "search", "profiles", "detail", "player"];
+  }
+
+  function showView(name) {
+    contentViews().forEach((v) => {
       const node = $(`view-${v}`);
       if (node) node.classList.toggle("active", v === name);
     });
     if (name !== "player") {
       state.controlsVisible = false;
       state.lastBackExitAt = 0;
+    }
+  }
+
+  /** @deprecated alias — prefer showView / setHomeMode */
+  function showTab(name) {
+    if (name === "browse") {
+      setHomeMode(state.lastContentMode === "movies" ? "movies" : state.lastContentMode === "series" ? "series" : "library");
+      return;
+    }
+    if (["library", "series", "movies", "search", "profiles"].includes(name)) {
+      setHomeMode(name);
+      return;
+    }
+    showView(name);
+  }
+
+  function paintNavActive(mode) {
+    document.querySelectorAll("[data-nav]").forEach((el) => {
+      el.classList.toggle("active", el.dataset.nav === mode);
+    });
+  }
+
+  function applyChromePrefs() {
+    const app = $("app");
+    if (!app) return;
+    const nav = window.VfProfiles?.navLayout?.() || "sidebar";
+    const lib = window.VfProfiles?.libraryView?.() || "tiles";
+    app.classList.toggle("nav-sidebar", nav === "sidebar");
+    app.classList.toggle("nav-topbar", nav === "topbar");
+    app.classList.toggle("lib-cards", lib === "cards");
+    app.classList.toggle("lib-tiles", lib !== "cards");
+  }
+
+  function paintSettingsToggles() {
+    const navBtn = $("btnToggleNavLayout");
+    if (navBtn) {
+      const nav = window.VfProfiles?.navLayout?.() || "sidebar";
+      navBtn.textContent = nav === "topbar" ? "Layout: Topbar" : "Layout: Sidebar";
+    }
+    const libBtn = $("btnToggleLibraryView");
+    if (libBtn) {
+      const lib = window.VfProfiles?.libraryView?.() || "tiles";
+      libBtn.textContent = lib === "cards" ? "Bibliothek: Cards" : "Bibliothek: Kacheln";
+    }
+    paintLanguagePrefButton();
+  }
+
+  function setHomeMode(mode, opts = {}) {
+    const m = mode === "update" ? "update" : mode;
+    if (m === "update") {
+      runUpdateCheck();
+      return;
+    }
+    if (["library", "series", "movies"].includes(m)) {
+      state.lastContentMode = m;
+      state.homeMode = m;
+      if (m === "series") state.mediaKind = "series";
+      if (m === "movies") state.mediaKind = "movie";
+      localStorage.setItem("vf_media_kind", state.mediaKind);
+      syncBaseUrlInputs();
+      updateSearchPlaceholder();
+    } else if (m === "search" || m === "profiles") {
+      state.homeMode = m;
+    } else {
+      state.homeMode = "library";
+    }
+    paintNavActive(state.homeMode);
+    showView(state.homeMode);
+    if (state.homeMode === "library") {
+      refreshLibrary();
+    } else if (state.homeMode === "series") {
+      ensureSeriesCatalog(opts.force);
+    } else if (state.homeMode === "movies") {
+      ensureMoviesCatalog(opts.force);
+    } else if (state.homeMode === "profiles") {
+      renderProfileGrid();
+      paintSettingsToggles();
+    } else if (state.homeMode === "search") {
+      const q = $("searchInput")?.value || "";
+      if (q.trim()) scheduleSearch(q);
     }
   }
 
@@ -64,7 +157,32 @@
   function paintLanguagePrefButton() {
     const btn = $("btnToggleLanguagePref");
     if (!btn) return;
-    btn.textContent = `Standard-Ton: ${window.StreamLanguage?.label?.(preferredLang()) || "Deutsch"}`;
+    btn.textContent = `Profil-Ton: ${window.StreamLanguage?.label?.(preferredLang()) || "Deutsch"}`;
+  }
+
+  async function runUpdateCheck() {
+    setHomeMode("profiles");
+    const status = $("updateStatus");
+    if (status) status.textContent = "Prüfe GitHub Releases…";
+    try {
+      const m = await window.VfUpdates.check();
+      if (!m) {
+        if (status) status.textContent = "Kein Update-Manifest gefunden.";
+        return;
+      }
+      const newer = window.VfUpdates.isNewer(m);
+      if (!newer) {
+        if (status) {
+          status.textContent = `Aktuell (${window.VfUpdates.currentVersion()}). Latest: ${m.versionName}`;
+        }
+        return;
+      }
+      if (status) {
+        status.innerHTML = `Update ${escapeHtml(m.versionName)} verfügbar · <a href="${escapeHtml(m.webappUrl || m.htmlUrl)}" target="_blank" rel="noopener">Webapp</a> · <a href="${escapeHtml(m.apkUrl || m.htmlUrl)}" target="_blank" rel="noopener">Fire TV APK</a>`;
+      }
+    } catch (e) {
+      if (status) status.textContent = `Update-Check fehlgeschlagen: ${e.message || e}`;
+    }
   }
 
   function paintLanguageButton() {
@@ -257,8 +375,8 @@
     state.controlsVisible = false;
     state.lastBackExitAt = 0;
     showTvControls(false);
-    if (state.current) showTab("detail");
-    else showTab("browse");
+    if (state.current) showView("detail");
+    else setHomeMode(state.lastContentMode || "library");
   }
 
   /** First Back hides controls; second within 2s leaves the player. */
@@ -323,33 +441,22 @@
   }
 
   function updateKindButtons() {
-    document.querySelectorAll(".kind-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.kind === state.mediaKind);
-    });
+    // Kind switcher removed — Serien/Filme are dedicated nav pages.
   }
 
   function updateSearchPlaceholder() {
     const input = $("searchInput");
     if (!input) return;
-    input.placeholder =
-      state.mediaKind === "movie" ? "Filme suchen…" : "Serien suchen…";
+    input.placeholder = "Bibliothek, Serien & Filme suchen…";
   }
 
   function setMediaKind(kind) {
     const k = kind === "movie" ? "movie" : "series";
-    if (state.mediaKind === k && state.series.length) {
-      updateKindButtons();
-      updateSearchPlaceholder();
-      syncBaseUrlInputs();
-      return;
-    }
     state.mediaKind = k;
     localStorage.setItem("vf_media_kind", k);
     state.baseUrl = activeBase();
-    updateKindButtons();
     updateSearchPlaceholder();
     syncBaseUrlInputs();
-    refreshCatalog();
   }
 
   function isMovieItem(item) {
@@ -368,6 +475,8 @@
     const p = window.VfProfiles.activeProfile();
     const el = $("profileChipName");
     if (el && p) el.textContent = p.name;
+    const letter = $("sideAvatarLetter");
+    if (letter) letter.textContent = (p?.name || "V").charAt(0).toUpperCase();
   }
 
   function formatTime(sec) {
@@ -506,7 +615,9 @@
   function posterCard(s, opts = {}) {
     const el = document.createElement("button");
     el.type = "button";
-    el.className = "card" + (opts.continuePct ? " card-continue" : "");
+    const libView = window.VfProfiles?.libraryView?.() || "tiles";
+    const viewClass = libView === "cards" ? " lib-cards" : " lib-tiles";
+    el.className = "card" + viewClass + (opts.continuePct ? " card-continue" : "");
     const pct = opts.continuePct ? Math.min(100, Math.round(opts.continuePct)) : 0;
     el.innerHTML = `
       <div class="card-media">
@@ -529,8 +640,8 @@
     return el;
   }
 
-  function renderBrowseRows(rows) {
-    const host = $("rows");
+  function renderRowsInto(host, rows) {
+    if (!host) return;
     host.innerHTML = "";
     for (const g of rows) {
       if (!g.items?.length) continue;
@@ -541,7 +652,7 @@
       scroller.className = "scroller";
       for (const item of g.items) {
         const s = item.series || item;
-        const p = item._continue;
+        const p = item._continue || s._continue;
         let continuePct = 0;
         if (p?.durationMs > 0) continuePct = (p.positionMs / p.durationMs) * 100;
         scroller.appendChild(posterCard(s, { continuePct }));
@@ -551,31 +662,152 @@
     }
   }
 
-  function buildBrowseRows() {
-    const continueItems = window.VfProfiles.continueRow(state.series)
-      .filter((s) => {
-        if (!s.mediaKind) return true;
-        return s.mediaKind === state.mediaKind;
-      })
-      .map((s) => ({
-        series: s,
-        _continue: s._continue,
-      }));
-    const favItems = window.VfProfiles.listFavorites(state.mediaKind);
-    const browse = state.series.slice(0, BROWSE_PAGE_SIZE);
+  function renderBrowseRows(rows) {
+    const host =
+      state.homeMode === "movies"
+        ? $("moviesRows")
+        : state.homeMode === "series"
+          ? $("seriesRows")
+          : $("libraryRows");
+    renderRowsInto(host, rows);
+  }
+
+  function catalogIndex() {
+    const map = new Map();
+    for (const s of state.series || []) if (s?.id) map.set(s.id, s);
+    for (const m of state.movies || []) if (m?.id) map.set(m.id, m);
+    return map;
+  }
+
+  function recentlyWatchedRow(continueIdSet) {
+    const map = window.VfProfiles.progressMap();
+    const index = catalogIndex();
+    const favs = window.VfProfiles.listFavorites();
+    const favById = new Map(favs.map((f) => [f.id, f]));
+    const ordered = Object.values(map)
+      .filter((p) => p.completed)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      .map((p) => p.seriesId)
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .filter((id) => !continueIdSet.has(id))
+      .map((id) => favById.get(id) || index.get(id))
+      .filter((s) => s?.detailPath)
+      .slice(0, 12);
+    return ordered;
+  }
+
+  function buildLibraryRows() {
+    const index = [...(state.series || []), ...(state.movies || [])];
+    const continueItems = window.VfProfiles.continueRow(index).slice(0, 8);
+    const continueIdSet = new Set(continueItems.map((s) => s.id));
+    const seriesFavs = window.VfProfiles.listFavorites("series").sort((a, b) =>
+      String(a.title || "").localeCompare(String(b.title || ""), "de"),
+    );
+    const movieFavs = window.VfProfiles.listFavorites("movie").sort((a, b) =>
+      String(a.title || "").localeCompare(String(b.title || ""), "de"),
+    );
+    const az = [...seriesFavs, ...movieFavs]
+      .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+      .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "de"));
+    const recent = recentlyWatchedRow(continueIdSet);
     const rows = [];
-    if (continueItems.length) rows.push({ title: "Weiterschauen", items: continueItems });
-    if (favItems.length) rows.push({ title: "Meine Liste", items: favItems });
+    if (continueItems.length) {
+      rows.push({
+        title: "Weiterschauen",
+        items: continueItems.map((s) => ({ series: s, _continue: s._continue })),
+      });
+    }
+    if (seriesFavs.length) rows.push({ title: "Meine Serien", items: seriesFavs });
+    if (movieFavs.length) rows.push({ title: "Meine Filme", items: movieFavs });
+    if (az.length >= 8) rows.push({ title: "A–Z", items: az });
+    if (recent.length) rows.push({ title: "Zuletzt gesehen", items: recent });
+    return rows;
+  }
+
+  function buildSeriesBrowseRows() {
+    const browse = (state.series || []).slice(0, BROWSE_PAGE_SIZE);
+    const rows = [];
     if (browse.length) rows.push({ title: "Browse", items: browse });
-    for (const shelf of state.rows.filter((r) => !["Weiterschauen", "Meine Liste", "Browse"].includes(r.title))) {
+    for (const shelf of state.seriesRows || []) {
+      if (shelf.title === "Browse") continue;
       rows.push(shelf);
     }
     return rows;
   }
 
+  function buildMoviesBrowseRows() {
+    const rows = [];
+    for (const shelf of state.moviesRows || []) rows.push(shelf);
+    if (!rows.length && (state.movies || []).length) {
+      rows.push({ title: "Browse", items: state.movies.slice(0, BROWSE_PAGE_SIZE) });
+    }
+    return rows;
+  }
+
+  /** Legacy combined builder — used when a caller still expects browse shelves. */
+  function buildBrowseRows() {
+    if (state.homeMode === "library") return buildLibraryRows();
+    if (state.homeMode === "movies" || state.mediaKind === "movie") return buildMoviesBrowseRows();
+    return buildSeriesBrowseRows();
+  }
+
+  function refreshLibrary() {
+    const rows = buildLibraryRows();
+    renderRowsInto($("libraryRows"), rows);
+    const status = $("libraryStatus");
+    if (!rows.length) {
+      setStatus(status, "Noch nichts in der Bibliothek — füge Favoriten hinzu oder schaue etwas an.");
+    } else {
+      setStatus(status, "");
+    }
+  }
+
   function refreshBrowseFromState() {
-    const rows = buildBrowseRows();
-    renderBrowseRows(rows);
+    if (state.homeMode === "library") {
+      refreshLibrary();
+      return;
+    }
+    if (state.homeMode === "movies" || state.mediaKind === "movie") {
+      renderRowsInto($("moviesRows"), buildMoviesBrowseRows());
+      return;
+    }
+    if (state.homeMode === "series") {
+      renderRowsInto($("seriesRows"), buildSeriesBrowseRows());
+    }
+  }
+
+  function fillSkeleton(host, shelves = 3, tiles = 6) {
+    if (!host) return;
+    host.innerHTML = "";
+    for (let i = 0; i < shelves; i++) {
+      const shelf = document.createElement("div");
+      shelf.className = "skeleton-shelf";
+      shelf.innerHTML = `<div class="skeleton-title"></div><div class="skeleton-row"></div>`;
+      const row = shelf.querySelector(".skeleton-row");
+      for (let j = 0; j < tiles; j++) {
+        const t = document.createElement("div");
+        t.className = "skeleton-tile";
+        row.appendChild(t);
+      }
+      host.appendChild(shelf);
+    }
+  }
+
+  function showSkeleton(kind, show) {
+    const sk = $(kind === "movie" ? "moviesSkeleton" : "seriesSkeleton");
+    const rows = $(kind === "movie" ? "moviesRows" : "seriesRows");
+    if (!sk) return;
+    if (show) {
+      fillSkeleton(sk);
+      sk.classList.remove("hidden");
+      sk.setAttribute("aria-hidden", "false");
+      if (rows) rows.classList.add("hidden");
+    } else {
+      sk.classList.add("hidden");
+      sk.setAttribute("aria-hidden", "true");
+      sk.innerHTML = "";
+      if (rows) rows.classList.remove("hidden");
+    }
   }
 
   function renderProfileGrid() {
@@ -597,6 +829,8 @@
         if (e.target.closest(".profile-del")) return;
         window.VfProfiles.switchProfile(p.id);
         syncProfileChip();
+        applyChromePrefs();
+        paintSettingsToggles();
         renderProfileGrid();
         refreshBrowseFromState();
         if (state.current) {
@@ -613,6 +847,8 @@
           try {
             window.VfProfiles.deleteProfile(p.id);
             syncProfileChip();
+            applyChromePrefs();
+            paintSettingsToggles();
             renderProfileGrid();
             refreshBrowseFromState();
           } catch (err) {
@@ -681,7 +917,9 @@
   }
 
   async function openDetail(seriesLight) {
-    showTab("detail");
+    showView("detail");
+    state.warmingStreams = false;
+    state.warmToken += 1;
     $("detailTitle").textContent = seriesLight.title;
     $("detailMeta").textContent = isMovieItem(seriesLight) ? "Lade Film…" : "Lade Staffeln…";
     $("detailOverview").textContent = "";
@@ -766,6 +1004,7 @@
         updatePlayContinueButton();
         renderEpisodes();
         await refreshAvailableLanguages(detailed, workingHtml, workingUrl);
+        warmEpisodeStreamsLight(detailed);
         return;
       }
 
@@ -809,6 +1048,7 @@
       updatePlayContinueButton();
       renderSeasons();
       renderEpisodes();
+      warmEpisodeStreamsLight(detailed);
       const firstEp = detailed.seasons[0]?.episodes?.[0];
       const probeUrl = firstEp?.streamPageUrl || detailed.detailPath;
       if (probeUrl) {
@@ -913,6 +1153,7 @@
         prog && prog.durationMs > 0 && !watched
           ? Math.min(100, (prog.positionMs / prog.durationMs) * 100)
           : 0;
+      const ready = !!window.VfProfiles.getCachedStream(ep.id, preferredLang());
 
       const row = document.createElement("div");
       row.className = "episode" + (watched ? " watched" : "");
@@ -926,6 +1167,7 @@
           <div class="epmeta">${escapeHtml(ep.overview || `S${ep.seasonNumber}E${ep.number}`)}</div>
           ${pct > 0 ? `<div class="ep-progress"><span style="width:${Math.round(pct)}%"></span></div>` : ""}
         </div>
+        <span class="stream-ready-dot${ready ? " ready" : ""}" title="${ready ? "Stream bereit" : "Noch nicht gecacht"}" aria-hidden="true"></span>
         <button type="button" class="ep-watch ${watched ? "on" : ""}" title="Gesehen">${watched ? "✓" : "○"}</button>
         <button type="button" class="play-pill ep-go">Play</button>`;
 
@@ -945,6 +1187,63 @@
         refreshBrowseFromState();
       };
       list.appendChild(row);
+    }
+  }
+
+  /** Best-effort: warm a few episode pages / stream URLs in the background. */
+  async function warmEpisodeStreamsLight(series) {
+    if (!series || state.warmingStreams) return;
+    const token = state.warmToken;
+    const movieMode = isMovieItem(series);
+    const eps = (series.seasons || [])
+      .flatMap((s) => s.episodes || [])
+      .filter((ep) => ep?.streamPageUrl && !window.VfProfiles.getCachedStream(ep.id, preferredLang()))
+      .slice(0, movieMode ? 1 : 8);
+    if (!eps.length) return;
+    state.warmingStreams = true;
+    try {
+      for (const ep of eps) {
+        if (token !== state.warmToken) break;
+        if (state.current?.id !== series.id) break;
+        try {
+          const { text, finalUrl } = await getText(ep.streamPageUrl);
+          const page = finalUrl || ep.streamPageUrl;
+          const hosters = movieMode
+            ? window.FilmParser?.parseHosters?.(text, page, preferredLang()) || []
+            : parseEpisodeHosters(text, page);
+          let cached = false;
+          if (window.verflixed?.resolveHostersToHls && hosters.length) {
+            const resolved = await window.verflixed.resolveHostersToHls(hosters, page);
+            if (resolved?.ok && resolved.hlsUrl) {
+              window.VfProfiles.cacheStream(ep.id, ep.seriesId, resolved.hlsUrl, preferredLang());
+              cached = true;
+            }
+          }
+          if (!cached) {
+            const voe =
+              hosters.find((h) => /voe/i.test(h.provider || h.name || "") || /\/e\//.test(h.url || ""))?.url ||
+              (text.match(/https?:\/\/[^'"\s]+\/e\/[a-zA-Z0-9]+/) || [])[0];
+            if (voe) {
+              try {
+                const extracted = await extractVoeHls(voe, page);
+                const hls =
+                  typeof extracted === "string"
+                    ? extracted
+                    : extracted?.hls || extracted?.hlsUrl || extracted?.url || null;
+                if (hls) {
+                  window.VfProfiles.cacheStream(ep.id, ep.seriesId, hls, preferredLang());
+                  cached = true;
+                }
+              } catch (_) {}
+            }
+          }
+          if (cached && state.current?.id === series.id && token === state.warmToken) {
+            renderEpisodes();
+          }
+        } catch (_) {}
+      }
+    } finally {
+      if (token === state.warmToken) state.warmingStreams = false;
     }
   }
 
@@ -1403,69 +1702,15 @@
     }
   }
 
-  async function refreshCatalog() {
-    persistBasesFromInputs();
-    const base = activeBase().trim().replace(/\/$/, "");
+  async function loadSeriesCatalog() {
+    if (state.seriesLoadPromise) return state.seriesLoadPromise;
+    const base = state.seriesBaseUrl.trim().replace(/\/$/, "");
     if (!base) return;
-    state.baseUrl = base;
-    syncBaseUrlInputs();
-    setStatus(
-      $("browseStatus"),
-      state.mediaKind === "movie" ? "Lade Filme…" : "Lade Katalog…",
-    );
+    state.seriesLoading = true;
+    showSkeleton("series", true);
+    setStatus($("seriesStatus"), "Lade Serien…");
+    state.seriesLoadPromise = (async () => {
     try {
-      if (state.mediaKind === "movie") {
-        const paths = window.FilmParser?.browsePaths?.() || ["/movies/new", "/movies/top", "/"];
-        const byId = new Map();
-        const shelfMap = new Map();
-
-        for (const path of paths) {
-          try {
-            const url = path === "/" ? base : `${base}${path}`;
-            const { text, finalUrl, status } = await getText(url);
-            if (status >= 400 || !text) continue;
-            const items = (window.FilmParser.parseMovieList(text, finalUrl || base, {
-              moviesOnly: true,
-            }) || []).map((m) => ({ ...m, mediaKind: "movie" }));
-            if (!items.length) continue;
-
-            for (const m of items) {
-              if (!byId.has(m.id)) byId.set(m.id, m);
-            }
-
-            let title = null;
-            if (/\/movies\/new/i.test(path) || /neu/i.test(path)) title = "Neu";
-            else if (/\/movies\/top/i.test(path) || /top/i.test(path)) title = "Top";
-            if (title && items.length) {
-              shelfMap.set(title, items.slice(0, BROWSE_PAGE_SIZE));
-            }
-          } catch (_) {}
-        }
-
-        const movies = [...byId.values()];
-        state.movies = movies;
-        state.series = movies;
-        const genreRows = [];
-        for (const title of ["Neu", "Top"]) {
-          if (shelfMap.has(title)) {
-            genreRows.push({ title, items: shelfMap.get(title) });
-          }
-        }
-        if (!genreRows.length && movies.length) {
-          genreRows.push({ title: "Browse", items: movies.slice(0, BROWSE_PAGE_SIZE) });
-        } else if (movies.length > BROWSE_PAGE_SIZE) {
-          genreRows.push({
-            title: "Mehr Filme",
-            items: movies.slice(BROWSE_PAGE_SIZE, BROWSE_PAGE_SIZE * 3),
-          });
-        }
-        state.rows = genreRows;
-        refreshBrowseFromState();
-        setStatus($("browseStatus"), `${movies.length} Filme`);
-        showTab("browse");
-        return;
-      }
-
       let series = [];
       for (const path of ["/catalog.json", "/api/catalog.json", "/api/catalog", ""]) {
         try {
@@ -1506,10 +1751,12 @@
       state.series = series;
       const browse = series.slice(0, BROWSE_PAGE_SIZE);
       const genreRows = [{ title: "Browse", items: browse }];
-
-      setStatus($("browseStatus"), `${series.length} Serien · lade Regale…`);
+      state.seriesRows = genreRows;
       state.rows = genreRows;
-      refreshBrowseFromState();
+      state.seriesLoaded = true;
+      showSkeleton("series", false);
+      renderRowsInto($("seriesRows"), buildSeriesBrowseRows());
+      setStatus($("seriesStatus"), `${series.length} Serien · lade Regale…`);
 
       const genres = window.CatalogParser.GENRES.slice(0, 6);
       const shelves = await Promise.all(genres.map((g) => loadGenreShelf(base, g)));
@@ -1527,34 +1774,180 @@
           items: series.slice(BROWSE_PAGE_SIZE, BROWSE_PAGE_SIZE * 3),
         });
       }
+      state.seriesRows = genreRows;
       state.rows = genreRows;
-      refreshBrowseFromState();
-      setStatus($("browseStatus"), `${series.length} Serien`);
-      showTab("browse");
+      if (state.homeMode === "series") {
+        renderRowsInto($("seriesRows"), buildSeriesBrowseRows());
+      }
+      setStatus($("seriesStatus"), `${series.length} Serien`);
+      refreshLibrary();
     } catch (e) {
-      setStatus($("browseStatus"), `Fehler: ${e.message || e}`);
+      showSkeleton("series", false);
+      setStatus($("seriesStatus"), `Fehler: ${e.message || e}`);
+    } finally {
+      state.seriesLoading = false;
+      state.seriesLoadPromise = null;
+    }
+    })();
+    return state.seriesLoadPromise;
+  }
+
+  async function loadMoviesCatalog() {
+    if (state.moviesLoadPromise) return state.moviesLoadPromise;
+    const base = state.moviesBaseUrl.trim().replace(/\/$/, "");
+    if (!base) return;
+    state.moviesLoading = true;
+    showSkeleton("movie", true);
+    setStatus($("moviesStatus"), "Lade Filme…");
+    state.moviesLoadPromise = (async () => {
+    try {
+      const paths = window.FilmParser?.browsePaths?.() || ["/movies/new", "/movies/top", "/"];
+      const byId = new Map();
+      const shelfMap = new Map();
+
+      for (const path of paths) {
+        try {
+          const url = path === "/" ? base : `${base}${path}`;
+          const { text, finalUrl, status } = await getText(url);
+          if (status >= 400 || !text) continue;
+          const items = (window.FilmParser.parseMovieList(text, finalUrl || base, {
+            moviesOnly: true,
+          }) || []).map((m) => ({ ...m, mediaKind: "movie" }));
+          if (!items.length) continue;
+
+          for (const m of items) {
+            if (!byId.has(m.id)) byId.set(m.id, m);
+          }
+
+          let title = null;
+          if (/\/movies\/new/i.test(path) || /neu/i.test(path)) title = "Neu";
+          else if (/\/movies\/top/i.test(path) || /top/i.test(path)) title = "Top";
+          if (title && items.length) {
+            shelfMap.set(title, items.slice(0, BROWSE_PAGE_SIZE));
+          }
+        } catch (_) {}
+      }
+
+      const movies = [...byId.values()];
+      state.movies = movies;
+      const genreRows = [];
+      for (const title of ["Neu", "Top"]) {
+        if (shelfMap.has(title)) {
+          genreRows.push({ title, items: shelfMap.get(title) });
+        }
+      }
+      if (!genreRows.length && movies.length) {
+        genreRows.push({ title: "Browse", items: movies.slice(0, BROWSE_PAGE_SIZE) });
+      } else if (movies.length > BROWSE_PAGE_SIZE) {
+        genreRows.push({
+          title: "Mehr Filme",
+          items: movies.slice(BROWSE_PAGE_SIZE, BROWSE_PAGE_SIZE * 3),
+        });
+      }
+      state.moviesRows = genreRows;
+      state.moviesLoaded = true;
+      showSkeleton("movie", false);
+      if (state.homeMode === "movies") {
+        renderRowsInto($("moviesRows"), buildMoviesBrowseRows());
+      }
+      setStatus($("moviesStatus"), `${movies.length} Filme`);
+      refreshLibrary();
+    } catch (e) {
+      showSkeleton("movie", false);
+      setStatus($("moviesStatus"), `Fehler: ${e.message || e}`);
+    } finally {
+      state.moviesLoading = false;
+      state.moviesLoadPromise = null;
+    }
+    })();
+    return state.moviesLoadPromise;
+  }
+
+  async function ensureSeriesCatalog(force = false) {
+    if (state.seriesLoaded && !force) {
+      renderRowsInto($("seriesRows"), buildSeriesBrowseRows());
+      setStatus($("seriesStatus"), `${state.series.length} Serien`);
+      return;
+    }
+    if (force) {
+      state.seriesLoaded = false;
+      state.seriesLoadPromise = null;
+    }
+    await loadSeriesCatalog();
+  }
+
+  async function ensureMoviesCatalog(force = false) {
+    if (state.moviesLoaded && !force) {
+      renderRowsInto($("moviesRows"), buildMoviesBrowseRows());
+      setStatus($("moviesStatus"), `${state.movies.length} Filme`);
+      return;
+    }
+    if (force) {
+      state.moviesLoaded = false;
+      state.moviesLoadPromise = null;
+    }
+    await loadMoviesCatalog();
+  }
+
+  async function refreshCatalog() {
+    persistBasesFromInputs();
+    state.baseUrl = activeBase().trim().replace(/\/$/, "");
+    syncBaseUrlInputs();
+    if (state.homeMode === "movies" || state.mediaKind === "movie") {
+      state.moviesLoaded = false;
+      state.moviesLoadPromise = null;
+      await loadMoviesCatalog();
+    } else if (state.homeMode === "series") {
+      state.seriesLoaded = false;
+      state.seriesLoadPromise = null;
+      await loadSeriesCatalog();
+    } else {
+      // Library / other: refresh both in background for search + shelves
+      state.seriesLoaded = false;
+      state.moviesLoaded = false;
+      state.seriesLoadPromise = null;
+      state.moviesLoadPromise = null;
+      await Promise.all([loadSeriesCatalog(), loadMoviesCatalog()]);
+      refreshLibrary();
     }
   }
 
   let searchTimer = null;
   let searchSeq = 0;
 
-  function localSearchHits(query) {
+  function matchQuery(item, q) {
+    const hay = `${item.title || ""} ${item.overview || ""} ${(item.genres || []).join(" ")} ${item.id}`.toLowerCase();
+    return hay.includes(q);
+  }
+
+  function localLibraryHits(query) {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const favs = (window.VfProfiles?.listFavorites?.(state.mediaKind) || []).filter(Boolean);
-    const pool = [...favs, ...(state.series || [])];
+    return (window.VfProfiles?.listFavorites?.() || []).filter((s) => s && matchQuery(s, q));
+  }
+
+  function localCatalogHits(query, kind) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const pool = kind === "movie" ? state.movies || [] : state.series || [];
     const seen = new Set();
     const hits = [];
     for (const s of pool) {
       if (!s?.id || seen.has(s.id)) continue;
-      if (s.mediaKind && s.mediaKind !== state.mediaKind) continue;
-      const hay = `${s.title || ""} ${s.overview || ""} ${(s.genres || []).join(" ")} ${s.id}`.toLowerCase();
-      if (!hay.includes(q)) continue;
+      if (!matchQuery(s, q)) continue;
       seen.add(s.id);
       hits.push(s);
     }
     return hits;
+  }
+
+  function localSearchHits(query) {
+    // Kept for compatibility — prefer sectioned global search.
+    return [
+      ...localLibraryHits(query),
+      ...localCatalogHits(query, "series"),
+      ...localCatalogHits(query, "movie"),
+    ].filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i);
   }
 
   function mergeSearchHits(localHits, siteHits) {
@@ -1574,14 +1967,16 @@
           detailPath: prev.detailPath || s.detailPath,
           posterUrl: prev.posterUrl || s.posterUrl,
           backdropUrl: prev.backdropUrl || s.backdropUrl,
+          mediaKind: prev.mediaKind || s.mediaKind,
         });
       }
     }
     return [...byId.values()];
   }
 
-  function renderSearchHits(hits, statusMsg) {
+  function renderSearchSections(sections, statusMsg) {
     const box = $("searchResults");
+    if (!box) return;
     box.innerHTML = "";
     if (statusMsg) {
       const st = document.createElement("div");
@@ -1589,10 +1984,42 @@
       st.textContent = statusMsg;
       box.appendChild(st);
     }
-    for (const s of hits) box.appendChild(posterCard(s));
-    if (!hits.length && !statusMsg) {
+    let any = false;
+    for (const sec of sections) {
+      if (!sec.items?.length) continue;
+      any = true;
+      const wrap = document.createElement("section");
+      wrap.className = "shelf search-section";
+      wrap.innerHTML = `<div class="shelf-head"><h2 class="row-title">${escapeHtml(sec.title)}</h2><span class="shelf-count">${sec.items.length}</span></div>`;
+      const scroller = document.createElement("div");
+      scroller.className = "scroller";
+      for (const s of sec.items) scroller.appendChild(posterCard(s));
+      wrap.appendChild(scroller);
+      box.appendChild(wrap);
+    }
+    if (!any && !statusMsg) {
       box.innerHTML = `<div class="status">Keine Treffer</div>`;
     }
+  }
+
+  function renderSearchHits(hits, statusMsg) {
+    renderSearchSections([{ title: "Treffer", items: hits }], statusMsg);
+  }
+
+  function searchPriorityOrder() {
+    const last = state.lastContentMode || "library";
+    if (last === "series") return ["series", "movies", "library"];
+    if (last === "movies") return ["movies", "series", "library"];
+    return ["library", "series", "movies"];
+  }
+
+  function buildSearchSections(lib, series, movies) {
+    const map = {
+      library: { title: "Meine Bibliothek", items: lib },
+      series: { title: "Serien", items: series },
+      movies: { title: "Filme", items: movies },
+    };
+    return searchPriorityOrder().map((k) => map[k]).filter((s) => s.items?.length);
   }
 
   async function runSearch(q) {
@@ -1604,49 +2031,56 @@
       return;
     }
 
-    const localHits = localSearchHits(query);
-    renderSearchHits(localHits, query.length >= 2 ? "Suche auf der Seite…" : null);
+    const libLocal = localLibraryHits(query);
+    const seriesLocal = localCatalogHits(query, "series");
+    const movieLocal = localCatalogHits(query, "movie");
+    renderSearchSections(
+      buildSearchSections(libLocal, seriesLocal, movieLocal),
+      query.length >= 2 ? "Suche auf der Seite…" : null,
+    );
 
     if (query.length < 2) {
-      if (!localHits.length) renderSearchHits([], null);
+      if (!libLocal.length && !seriesLocal.length && !movieLocal.length) {
+        renderSearchSections([], null);
+      }
       return;
     }
 
     const seq = ++searchSeq;
-    const base = activeBase().trim().replace(/\/$/, "");
-    if (!base || !window.SiteSearch?.searchSite) {
-      if (!localHits.length) renderSearchHits([], null);
-      return;
-    }
-
     try {
-      const siteHits = await window.SiteSearch.searchSite(
-        { getText, postText },
-        base,
-        query,
-        { mediaKind: state.mediaKind },
-      );
+      const [siteSeries, siteMovies] = await Promise.all([
+        window.SiteSearch?.searchSite
+          ? window.SiteSearch.searchSite(
+              { getText, postText },
+              state.seriesBaseUrl.trim().replace(/\/$/, ""),
+              query,
+              { mediaKind: "series" },
+            ).catch(() => [])
+          : Promise.resolve([]),
+        window.SiteSearch?.searchSite
+          ? window.SiteSearch.searchSite(
+              { getText, postText },
+              state.moviesBaseUrl.trim().replace(/\/$/, ""),
+              query,
+              { mediaKind: "movie" },
+            ).catch(() => [])
+          : Promise.resolve([]),
+      ]);
       if (seq !== searchSeq) return;
-      const filteredSite = (siteHits || []).filter(
-        (s) => !s.mediaKind || s.mediaKind === state.mediaKind,
+      const seriesMerged = mergeSearchHits(
+        seriesLocal,
+        (siteSeries || []).map((s) => ({ ...s, mediaKind: s.mediaKind || "series" })),
       );
-      const merged = mergeSearchHits(localHits, filteredSite);
-      renderSearchHits(
-        merged,
-        filteredSite.length
-          ? `${merged.length} Treffer (inkl. Live-Suche)`
-          : merged.length
-            ? null
-            : null,
+      const moviesMerged = mergeSearchHits(
+        movieLocal,
+        (siteMovies || []).map((s) => ({ ...s, mediaKind: "movie" })),
       );
-      if (!merged.length) renderSearchHits([], null);
+      renderSearchSections(buildSearchSections(libLocal, seriesMerged, moviesMerged), null);
     } catch (e) {
       if (seq !== searchSeq) return;
-      renderSearchHits(
-        localHits,
-        localHits.length
-          ? `Live-Suche fehlgeschlagen · ${localHits.length} lokal`
-          : `Keine Treffer (${e.message || e})`,
+      renderSearchSections(
+        buildSearchSections(libLocal, seriesLocal, movieLocal),
+        `Live-Suche fehlgeschlagen (${e.message || e})`,
       );
     }
   }
@@ -1664,31 +2098,35 @@
   }
 
   function wireEvents() {
-    document.querySelectorAll(".tab").forEach((t) => {
-      t.addEventListener("click", () => showTab(t.dataset.tab));
-    });
-
-    document.querySelectorAll(".kind-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const kind = btn.dataset.kind === "movie" ? "movie" : "series";
-        setMediaKind(kind);
+    document.querySelectorAll("[data-nav]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const nav = el.dataset.nav;
+        if (nav === "update") {
+          runUpdateCheck();
+          return;
+        }
+        setHomeMode(nav);
       });
     });
 
     const saveBases = () => {
       persistBasesFromInputs();
+      state.seriesLoaded = false;
+      state.moviesLoaded = false;
       refreshCatalog();
     };
     if ($("btnSaveBase")) $("btnSaveBase").onclick = saveBases;
     if ($("btnSaveBase2")) $("btnSaveBase2").onclick = saveBases;
-    if ($("btnBack")) $("btnBack").onclick = () => showTab("browse");
+    if ($("btnBack")) {
+      $("btnBack").onclick = () => setHomeMode(state.lastContentMode || "library");
+    }
     if ($("searchInput")) $("searchInput").addEventListener("input", (e) => scheduleSearch(e.target.value));
 
     if ($("btnProfileChip")) {
-      $("btnProfileChip").onclick = () => {
-        showTab("profiles");
-        renderProfileGrid();
-      };
+      $("btnProfileChip").onclick = () => setHomeMode("profiles");
+    }
+    if ($("btnSideAvatar")) {
+      $("btnSideAvatar").onclick = () => setHomeMode("profiles");
     }
 
     if ($("btnAddProfile")) {
@@ -1697,6 +2135,8 @@
         if (!name) return;
         window.VfProfiles.createProfile(name);
         syncProfileChip();
+        applyChromePrefs();
+        paintSettingsToggles();
         renderProfileGrid();
         refreshBrowseFromState();
         if (state.current) {
@@ -1719,7 +2159,7 @@
       $("btnToggleFav").onclick = () => {
         if (!state.current) return;
         if (!state.current.mediaKind) {
-          state.current.mediaKind = state.mediaKind === "movie" ? "movie" : "series";
+          state.current.mediaKind = isMovieItem(state.current) ? "movie" : "series";
         }
         window.VfProfiles.toggleFavorite(state.current);
         updateDetailFavButton();
@@ -1747,53 +2187,101 @@
       };
     }
 
-    if ($("btnCheckUpdate")) {
-      $("btnCheckUpdate").onclick = async () => {
-        const status = $("updateStatus");
-        if (status) status.textContent = "Prüfe GitHub Releases…";
-        try {
-          const m = await window.VfUpdates.check();
-          if (!m) {
-            if (status) status.textContent = "Kein Update-Manifest gefunden.";
-            return;
-          }
-          const newer = window.VfUpdates.isNewer(m);
-          if (!newer) {
-            if (status) {
-              status.textContent = `Aktuell (${window.VfUpdates.currentVersion()}). Latest: ${m.versionName}`;
-            }
-            return;
-          }
-          if (status) {
-            status.innerHTML = `Update ${escapeHtml(m.versionName)} verfügbar · <a href="${escapeHtml(m.webappUrl || m.htmlUrl)}" target="_blank" rel="noopener">Webapp</a> · <a href="${escapeHtml(m.apkUrl || m.htmlUrl)}" target="_blank" rel="noopener">Fire TV APK</a>`;
-          }
-        } catch (e) {
-          if (status) status.textContent = `Update-Check fehlgeschlagen: ${e.message || e}`;
-        }
+    if ($("btnToggleNavLayout")) {
+      $("btnToggleNavLayout").onclick = () => {
+        const cur = window.VfProfiles.navLayout();
+        const next = cur === "sidebar" ? "topbar" : "sidebar";
+        window.VfProfiles.setNavLayout(next);
+        applyChromePrefs();
+        paintSettingsToggles();
       };
+    }
+
+    if ($("btnToggleLibraryView")) {
+      $("btnToggleLibraryView").onclick = () => {
+        const cur = window.VfProfiles.libraryView();
+        const next = cur === "tiles" ? "cards" : "tiles";
+        window.VfProfiles.setLibraryView(next);
+        applyChromePrefs();
+        paintSettingsToggles();
+        refreshBrowseFromState();
+      };
+    }
+
+    if ($("btnCheckUpdate")) {
+      $("btnCheckUpdate").onclick = () => runUpdateCheck();
     }
 
     bindPlayerUi();
   }
 
-  localStorage.setItem("vf_app_version", "1.6.9");
-  localStorage.setItem("vf_version_code", "25");
+  function playSplashBoom() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(90, now);
+      osc.frequency.exponentialRampToValueAtTime(38, now + 0.55);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.45, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.75);
+      setTimeout(() => {
+        try {
+          ctx.close();
+        } catch (_) {}
+      }, 900);
+    } catch (_) {}
+  }
+
+  function hideSplash() {
+    const splash = $("splash");
+    if (!splash) return;
+    splash.classList.add("hide");
+    splash.setAttribute("aria-hidden", "true");
+    setTimeout(() => {
+      try {
+        splash.remove();
+      } catch (_) {}
+    }, 500);
+  }
+
+  function runSplash() {
+    playSplashBoom();
+    setTimeout(hideSplash, 1600);
+  }
+
+  localStorage.setItem("vf_app_version", "1.7.0");
+  localStorage.setItem("vf_version_code", "26");
+  applyChromePrefs();
   syncBaseUrlInputs();
-  updateKindButtons();
   updateSearchPlaceholder();
   syncProfileChip();
   renderProfileGrid();
-  paintLanguagePrefButton();
+  paintSettingsToggles();
   wireEvents();
+  runSplash();
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.6.9";
+      const v = (await window.verflixed?.getVersion?.()) || "1.7.0";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
-      $("versionLabel").textContent = `v${v} · ${p}`;
+      if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.6.9";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.7.0";
     }
-    refreshCatalog();
+    setHomeMode("library");
+    // Prefetch catalogs in background so search/library resolve better
+    Promise.all([
+      loadSeriesCatalog().catch(() => {}),
+      loadMoviesCatalog().catch(() => {}),
+    ]).then(() => refreshLibrary());
   })();
 })();

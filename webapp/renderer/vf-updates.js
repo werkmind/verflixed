@@ -10,7 +10,7 @@ window.VfUpdates = (() => {
     return (
       document.querySelector('meta[name="vf-version"]')?.content ||
       localStorage.getItem("vf_app_version") ||
-      "1.6.9"
+      "1.7.0"
     );
   }
 

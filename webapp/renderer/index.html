@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.6.9" />
+  <meta name="vf-version" content="1.7.0" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -15,121 +15,186 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <header class="topbar">
-      <div class="brand">
-        <img class="mark-img" src="icons/icon-128.png" alt="Verflixed" />
-        <div>
-          <div class="title">Verflixed</div>
-          <div class="subtitle" id="versionLabel">Desktop</div>
-        </div>
-      </div>
-      <nav class="tabs">
-        <button class="tab active" data-tab="browse">Home</button>
-        <button class="tab" data-tab="search">Suche</button>
-        <button class="tab" data-tab="profiles">Profil</button>
-      </nav>
-      <div class="kind-row" id="kindRow">
-        <button type="button" class="kind-btn active" data-kind="series">Serien</button>
-        <button type="button" class="kind-btn" data-kind="movie">Filme</button>
-      </div>
-      <div class="base-row">
-        <button id="btnProfileChip" class="profile-chip" type="button" title="Profil">
-          <span id="profileChipName">Profil</span>
-        </button>
-        <input id="baseUrl" type="url" placeholder="Quellen-URL" />
-        <button id="btnSaveBase" class="btn primary">Aktualisieren</button>
-      </div>
-    </header>
+  <div id="splash" class="splash" aria-hidden="false">
+    <div class="splash-inner">
+      <svg id="splashLogo" class="splash-logo" viewBox="0 0 120 120" aria-label="Verflixed">
+        <defs>
+          <linearGradient id="splashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#e50914"/>
+            <stop offset="100%" stop-color="#b20710"/>
+          </linearGradient>
+        </defs>
+        <path id="splashVPath" class="splash-v-stroke" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
+          d="M22 28 L60 96 L98 28" pathLength="100"/>
+        <path class="splash-v-fill" fill="url(#splashGrad)" opacity="0"
+          d="M22 28 L60 96 L98 28 L82 28 L60 68 L38 28 Z"/>
+      </svg>
+      <div class="splash-title">VERFLIXED</div>
+      <div class="splash-bar"></div>
+    </div>
+  </div>
 
-    <main>
-      <section id="view-browse" class="view active">
-        <div id="browseStatus" class="status"></div>
-        <div id="rows" class="rows"></div>
-      </section>
+  <div id="app" class="nav-sidebar">
+    <aside id="sideNav" class="side-nav" aria-label="Hauptnavigation">
+      <button type="button" class="side-avatar" id="btnSideAvatar" title="Profil">
+        <span id="sideAvatarLetter">V</span>
+      </button>
+      <div class="side-divider"></div>
+      <button type="button" class="nav-btn active" data-nav="library" title="Meine Bibliothek">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 6h2v12H4zm4 0h2v12H8zm3.5 0 7.5 6-7.5 6V6z"/></svg>
+        <span class="nav-label">Bibliothek</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav="series" title="Serien">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 6h16v2H4zm0 4h16v8H4zm2 2v4h12v-4z"/></svg>
+        <span class="nav-label">Serien</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav="movies" title="Filme">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 4v1h-2V4H8v1H6V4H4v16h2v-1h2v1h8v-1h2v1h2V4h-2zm-2 13H8v-2h8v2zm0-4H8v-2h8v2zm0-4H8V7h8v2z"/></svg>
+        <span class="nav-label">Filme</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav="search" title="Suche">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 5L20.49 19l-5-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <span class="nav-label">Suche</span>
+      </button>
+      <div class="side-spacer"></div>
+      <button type="button" class="nav-btn" data-nav="update" title="Update">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        <span class="nav-label">Update</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav="profiles" title="Profil / Einstellungen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.2 7.2 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 14 2h-4a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.55-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.65 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.39 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.55 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+        <span class="nav-label">Profil</span>
+      </button>
+    </aside>
 
-      <section id="view-search" class="view">
-        <div class="search-box">
-          <input id="searchInput" type="search" placeholder="Suchen…" autofocus />
+    <div class="app-body">
+      <header class="topbar" id="topNav">
+        <div class="brand">
+          <img class="mark-img" src="icons/icon-128.png" alt="Verflixed" />
+          <div>
+            <div class="title">Verflixed</div>
+            <div class="subtitle" id="versionLabel">Desktop</div>
+          </div>
         </div>
-        <div id="searchResults" class="grid"></div>
-      </section>
+        <nav class="tabs top-tabs" aria-label="Navigation">
+          <button class="tab active" data-nav="library">Meine Bibliothek</button>
+          <button class="tab" data-nav="series">Serien</button>
+          <button class="tab" data-nav="movies">Filme</button>
+          <button class="tab" data-nav="search">Suche</button>
+          <button class="tab" data-nav="update">Update</button>
+          <button class="tab" data-nav="profiles">Profil</button>
+        </nav>
+        <div class="base-row topbar-actions">
+          <button id="btnProfileChip" class="profile-chip" type="button" title="Profil">
+            <span id="profileChipName">Profil</span>
+          </button>
+          <input id="baseUrl" type="url" placeholder="Quellen-URL" />
+          <button id="btnSaveBase" class="btn primary">Aktualisieren</button>
+        </div>
+      </header>
 
-      <section id="view-profiles" class="view">
-        <div class="profiles-head">
-          <h2>Wer schaut?</h2>
-          <p class="muted">Eigene Favoriten & Fortschritt pro Profil</p>
-        </div>
-        <div id="profileGrid" class="profile-grid"></div>
-        <div class="profile-actions">
-          <button id="btnAddProfile" class="btn primary">Profil hinzufügen</button>
-        </div>
-        <div class="settings-card">
-          <label>Serien-Quellen-URL</label>
-          <div class="base-row tight">
-            <input id="seriesBaseUrl" type="url" placeholder="https://aniworld.to" />
-          </div>
-          <label style="margin-top:12px;display:block;">Filme-Quellen-URL</label>
-          <div class="base-row tight">
-            <input id="moviesBaseUrl" type="url" placeholder="https://filmpalast.to" />
-            <button id="btnSaveBase2" class="btn ghost">Speichern</button>
-          </div>
-          <p class="muted" style="margin-top:8px;font-size:0.85rem;">
-            Aktive Quelle folgt dem Serien/Filme-Schalter oben.
-          </p>
-          <label style="margin-top:14px;display:block;">Standard-Ton</label>
-          <button id="btnToggleLanguagePref" class="btn ghost" type="button">Standard-Ton: Deutsch</button>
-          <div class="base-row tight" style="margin-top:12px;">
-            <button id="btnCheckUpdate" class="btn primary" type="button">Update prüfen</button>
-          </div>
-          <p id="updateStatus" class="muted" style="margin-top:8px;font-size:0.85rem;"></p>
-        </div>
-      </section>
+      <main>
+        <section id="view-library" class="view active">
+          <div id="libraryStatus" class="status"></div>
+          <div id="libraryRows" class="rows"></div>
+        </section>
 
-      <section id="view-player" class="view">
-        <div class="player-shell" id="playerShell">
-          <video id="video" playsinline></video>
-          <div id="playerOverlay" class="player-overlay">
-            <div id="playerTitle">Kein Stream</div>
-            <div id="playerStatus">Wähle eine Episode</div>
+        <section id="view-series" class="view">
+          <div id="seriesStatus" class="status"></div>
+          <div id="seriesSkeleton" class="skeleton-host hidden" aria-hidden="true"></div>
+          <div id="seriesRows" class="rows"></div>
+        </section>
+
+        <section id="view-movies" class="view">
+          <div id="moviesStatus" class="status"></div>
+          <div id="moviesSkeleton" class="skeleton-host hidden" aria-hidden="true"></div>
+          <div id="moviesRows" class="rows"></div>
+        </section>
+
+        <section id="view-search" class="view">
+          <div class="search-box">
+            <input id="searchInput" type="search" placeholder="Bibliothek, Serien &amp; Filme suchen…" autofocus />
           </div>
-          <div id="tvControls" class="tv-controls hidden">
-            <button type="button" data-act="exit" title="Zurück">← Zurück</button>
-            <button type="button" data-act="rew" title="-10s">⏪ 10</button>
-            <button type="button" data-act="play" title="Play/Pause">⏯</button>
-            <button type="button" data-act="fwd" title="+10s">10 ⏩</button>
-            <button type="button" data-act="next" title="Nächste">⏭</button>
-            <div class="tv-scrub">
-              <input id="seekBar" type="range" min="0" max="1000" value="0" />
-              <div class="tv-times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+          <div id="searchResults" class="search-sections"></div>
+        </section>
+
+        <section id="view-profiles" class="view">
+          <div class="profiles-head">
+            <h2>Wer schaut?</h2>
+            <p class="muted">Eigene Favoriten &amp; Fortschritt pro Profil</p>
+          </div>
+          <div id="profileGrid" class="profile-grid"></div>
+          <div class="profile-actions">
+            <button id="btnAddProfile" class="btn primary">Profil hinzufügen</button>
+          </div>
+          <div class="settings-card">
+            <label>Serien-Quellen-URL</label>
+            <div class="base-row tight">
+              <input id="seriesBaseUrl" type="url" placeholder="https://aniworld.to" />
             </div>
+            <label style="margin-top:12px;display:block;">Filme-Quellen-URL</label>
+            <div class="base-row tight">
+              <input id="moviesBaseUrl" type="url" placeholder="https://filmpalast.to" />
+              <button id="btnSaveBase2" class="btn ghost">Speichern</button>
+            </div>
+            <label style="margin-top:14px;display:block;">Layout</label>
+            <button id="btnToggleNavLayout" class="btn ghost" type="button">Layout: Sidebar</button>
+            <label style="margin-top:14px;display:block;">Bibliothek</label>
+            <button id="btnToggleLibraryView" class="btn ghost" type="button">Bibliothek: Kacheln</button>
+            <label style="margin-top:14px;display:block;">Profil-Ton</label>
+            <button id="btnToggleLanguagePref" class="btn ghost" type="button">Profil-Ton: Deutsch</button>
+            <div class="base-row tight" style="margin-top:12px;">
+              <button id="btnCheckUpdate" class="btn primary" type="button">Update prüfen</button>
+            </div>
+            <p id="updateStatus" class="muted" style="margin-top:8px;font-size:0.85rem;"></p>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="view-detail" class="view">
-        <div id="detailHero" class="detail-hero-bg">
-          <div class="detail-hero-scrim">
-            <button id="btnBack" class="btn ghost">← Zurück</button>
-            <div class="detail-hero">
-              <img id="detailPoster" alt="" />
-              <div class="detail-copy">
-                <h1 id="detailTitle"></h1>
-                <p id="detailMeta" class="detail-meta"></p>
-                <p id="detailOverview"></p>
-                <div class="detail-actions">
-                  <button id="btnPlayContinue" class="btn primary">Play</button>
-                  <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
-                  <button id="btnLanguage" class="btn ghost" type="button" hidden>DE</button>
-                </div>
-                <div id="seasonTabs" class="chips"></div>
+        <section id="view-player" class="view">
+          <div class="player-shell" id="playerShell">
+            <video id="video" playsinline></video>
+            <div id="playerOverlay" class="player-overlay">
+              <div id="playerTitle">Kein Stream</div>
+              <div id="playerStatus">Wähle eine Episode</div>
+            </div>
+            <div id="tvControls" class="tv-controls hidden">
+              <button type="button" data-act="exit" title="Zurück">← Zurück</button>
+              <button type="button" data-act="rew" title="-10s">⏪ 10</button>
+              <button type="button" data-act="play" title="Play/Pause">⏯</button>
+              <button type="button" data-act="fwd" title="+10s">10 ⏩</button>
+              <button type="button" data-act="next" title="Nächste">⏭</button>
+              <div class="tv-scrub">
+                <input id="seekBar" type="range" min="0" max="1000" value="0" />
+                <div class="tv-times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
               </div>
             </div>
           </div>
-        </div>
-        <div id="episodeList" class="episode-list"></div>
-      </section>
-    </main>
+        </section>
+
+        <section id="view-detail" class="view">
+          <div id="detailHero" class="detail-hero-bg">
+            <div class="detail-hero-scrim">
+              <button id="btnBack" class="btn ghost">← Zurück</button>
+              <div class="detail-hero">
+                <img id="detailPoster" alt="" />
+                <div class="detail-copy">
+                  <h1 id="detailTitle"></h1>
+                  <p id="detailMeta" class="detail-meta"></p>
+                  <p id="detailOverview"></p>
+                  <div class="detail-actions">
+                    <button id="btnPlayContinue" class="btn primary">Play</button>
+                    <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
+                    <button id="btnLanguage" class="btn ghost" type="button" hidden>DE</button>
+                  </div>
+                  <div id="seasonTabs" class="chips"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="episodeList" class="episode-list"></div>
+        </section>
+      </main>
+    </div>
   </div>
 
   <script src="hls.min.js"></script>

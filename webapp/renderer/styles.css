@@ -12,7 +12,8 @@
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   --pad: clamp(12px, 2.2vw, 28px);
   --tile-w: clamp(160px, 18vw, 240px);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --side-w: 72px;
+  font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -27,7 +28,171 @@ html, body {
 }
 button, input { font: inherit; }
 button { color: inherit; }
-#app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ===== Splash ===== */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: #000;
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+.splash.hide {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.splash-logo {
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 0 18px rgba(229, 9, 20, 0.35));
+}
+.splash-v-stroke {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: splashDraw 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.splash-v-fill {
+  animation: splashFill 0.7s ease 0.55s forwards;
+}
+.splash-title {
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  font-size: 18px;
+  opacity: 0;
+  animation: splashFade 0.5s ease 0.7s forwards;
+}
+.splash-bar {
+  width: 140px;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+  opacity: 0;
+  animation: splashFade 0.4s ease 0.85s forwards, splashShimmer 1.2s linear 0.85s infinite;
+}
+@keyframes splashDraw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes splashFill {
+  to { opacity: 1; }
+}
+@keyframes splashFade {
+  to { opacity: 1; }
+}
+@keyframes splashShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ===== App shell / nav layouts ===== */
+#app {
+  min-height: 100vh;
+  display: flex;
+}
+#app.nav-sidebar {
+  flex-direction: row;
+}
+#app.nav-topbar {
+  flex-direction: column;
+}
+#app.nav-topbar .side-nav { display: none; }
+#app.nav-sidebar .top-tabs { display: none; }
+
+.app-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.side-nav {
+  width: var(--side-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px;
+  background: rgba(10, 13, 20, 0.93);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 30;
+}
+.side-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, #3a4a6b, #1c2230);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.side-divider {
+  width: 28px;
+  height: 1px;
+  background: var(--line);
+  margin: 8px 0 6px;
+}
+.side-spacer { flex: 1; min-height: 12px; }
+.nav-btn {
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.nav-btn svg { width: 22px; height: 22px; }
+.nav-btn .nav-label {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1c2230;
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 40;
+}
+.nav-btn:hover .nav-label,
+.nav-btn:focus-visible .nav-label { opacity: 1; }
+.nav-btn:hover,
+.nav-btn:focus-visible {
+  color: var(--text);
+  background: #1a2030;
+  outline: none;
+}
+.nav-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 6px 18px rgba(229, 9, 20, 0.35);
+}
 
 .topbar {
   display: grid;
@@ -52,28 +217,6 @@ button { color: inherit; }
 }
 .title { font-weight: 800; font-size: 18px; letter-spacing: 0.02em; }
 .subtitle { color: var(--muted); font-size: 12px; }
-
-.kind-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-right: 4px;
-}
-.kind-btn {
-  background: #1a2030;
-  color: #9aa3b5;
-  border: 1px solid #2a3348;
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.kind-btn.active {
-  background: var(--accent, #e50914);
-  border-color: var(--accent, #e50914);
-  color: #fff;
-  font-weight: 600;
-}
 
 .base-row {
   display: flex;
@@ -134,15 +277,16 @@ button { color: inherit; }
 }
 .btn.fav-on { border-color: var(--accent-soft); color: var(--accent-soft); }
 
-.tabs { display: flex; gap: 6px; justify-content: center; }
+.tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .tab {
   background: transparent;
   color: var(--muted);
   border: 0;
-  padding: 10px 16px;
+  padding: 10px 14px;
   border-radius: 999px;
   cursor: pointer;
   font-weight: 600;
+  white-space: nowrap;
 }
 .tab.active { background: #1c2230; color: var(--text); }
 
@@ -156,6 +300,7 @@ main {
 .view.active { display: block; }
 .status { color: var(--muted); margin: 8px 0 16px; font-size: 14px; }
 .muted { color: var(--muted); font-size: 14px; }
+.hidden { display: none !important; }
 
 .rows { display: flex; flex-direction: column; gap: clamp(18px, 3vw, 28px); }
 .shelf-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
@@ -176,6 +321,7 @@ main {
 .scroller::-webkit-scrollbar { height: 8px; }
 .scroller::-webkit-scrollbar-thumb { background: #3a4560; border-radius: 99px; }
 
+/* Library view: tiles (widescreen) vs cards (portrait poster) */
 .card {
   appearance: none;
   background: transparent;
@@ -206,6 +352,10 @@ main {
   object-fit: cover;
   display: block;
   background: #0e121a;
+}
+.card.lib-cards img,
+.lib-cards .card img {
+  aspect-ratio: 2/3;
 }
 .card-veil {
   position: absolute;
@@ -243,6 +393,10 @@ main {
   overflow: hidden;
 }
 
+#app.lib-cards {
+  --tile-w: clamp(120px, 14vw, 168px);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tile-w)), 1fr));
@@ -250,7 +404,7 @@ main {
 }
 .search-box { margin-bottom: 16px; }
 #searchInput {
-  width: min(520px, 100%);
+  width: min(560px, 100%);
   background: var(--bg2);
   color: var(--text);
   border: 1px solid var(--line);
@@ -259,6 +413,51 @@ main {
   outline: none;
 }
 #searchInput:focus { border-color: var(--accent-soft); }
+.search-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.search-section .scroller,
+.search-section .grid {
+  margin-top: 4px;
+}
+
+/* Skeleton loaders */
+.skeleton-host {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 12px 0 20px;
+}
+.skeleton-shelf { display: flex; flex-direction: column; gap: 10px; }
+.skeleton-title {
+  width: 160px;
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #1a2030 25%, #252c3d 50%, #1a2030 75%);
+  background-size: 200% 100%;
+  animation: skel 1.2s ease infinite;
+}
+.skeleton-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--tile-w);
+  gap: 12px;
+  overflow: hidden;
+}
+.skeleton-tile {
+  aspect-ratio: 16/9;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, #151a26 25%, #222938 50%, #151a26 75%);
+  background-size: 200% 100%;
+  animation: skel 1.2s ease infinite;
+}
+#app.lib-cards .skeleton-tile { aspect-ratio: 2/3; }
+@keyframes skel {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
 
 /* Profiles */
 .profiles-head { margin-bottom: 20px; }
@@ -330,6 +529,10 @@ main {
   font-weight: 700;
   margin-bottom: 8px;
   font-size: 14px;
+}
+.settings-card .btn.ghost {
+  width: 100%;
+  text-align: left;
 }
 
 /* Detail */
@@ -416,7 +619,7 @@ main {
 .episode {
   width: 100%;
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr) auto auto;
+  grid-template-columns: 160px minmax(0, 1fr) auto auto auto;
   gap: 12px;
   align-items: center;
   background: var(--card);
@@ -483,6 +686,19 @@ main {
   display: block;
   height: 100%;
   background: var(--accent);
+}
+.stream-ready-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  flex-shrink: 0;
+  align-self: center;
+}
+.stream-ready-dot.ready {
+  background: #2ecc71;
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.55);
+  opacity: 1;
 }
 .ep-watch {
   width: 40px;
@@ -610,29 +826,56 @@ main {
 }
 
 @media (max-width: 980px) {
+  #app.nav-sidebar {
+    --side-w: 56px;
+  }
+  .nav-btn { width: 42px; height: 42px; }
+  .nav-btn .nav-label { display: none; }
   .topbar {
     grid-template-columns: 1fr;
     gap: 10px;
   }
-  .tabs { justify-content: flex-start; overflow-x: auto; }
+  .tabs { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; }
   #baseUrl { width: 100%; flex: 1; min-width: 0; }
   .base-row { width: 100%; }
   .base-row .btn { flex: 0 0 auto; }
+  .topbar-actions { flex-wrap: wrap; }
+}
+
+@media (max-width: 640px) {
+  #app.nav-sidebar .side-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  #app.nav-sidebar .side-avatar,
+  #app.nav-sidebar .side-divider,
+  #app.nav-sidebar .side-spacer,
+  #app.nav-sidebar .nav-btn[data-nav="update"] {
+    display: none;
+  }
+  #app.nav-sidebar .app-body {
+    padding-bottom: 72px;
+  }
+  #app.nav-topbar .tabs {
+    width: 100%;
+  }
 }
 
 @media (max-width: 720px) {
   .detail-hero { grid-template-columns: 1fr; }
   .episode {
-    grid-template-columns: 112px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "img body watch"
-      "img meta play";
+    grid-template-columns: 112px minmax(0, 1fr) auto auto auto;
   }
-  .ep-play { grid-area: img; }
-  .epbody { grid-area: body; }
-  .episode .epmeta { grid-area: meta; }
-  .ep-watch { grid-area: watch; }
-  .ep-go { grid-area: play; justify-self: start; margin-top: 4px; }
   .episode img { width: 112px; height: 63px; }
   .episode .epno { font-size: 12px; }
   .tv-controls {

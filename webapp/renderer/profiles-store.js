@@ -251,6 +251,58 @@ window.VfProfiles = (() => {
     return norm;
   }
 
+  function normalizeNavLayout(v) {
+    return String(v || "").toLowerCase() === "topbar" ? "topbar" : "sidebar";
+  }
+
+  function normalizeLibraryView(v) {
+    return String(v || "").toLowerCase() === "cards" ? "cards" : "tiles";
+  }
+
+  function navLayout(profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const p = s.profiles.find((x) => x.id === id);
+    const fromProfile = p?.navLayout;
+    const fromMap = s.navLayouts?.[id];
+    return normalizeNavLayout(fromProfile || fromMap || s.navLayout || "sidebar");
+  }
+
+  function setNavLayout(layout, profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const norm = normalizeNavLayout(layout);
+    const p = s.profiles.find((x) => x.id === id);
+    if (p) p.navLayout = norm;
+    if (!s.navLayouts) s.navLayouts = {};
+    s.navLayouts[id] = norm;
+    s.navLayout = norm;
+    save(s);
+    return norm;
+  }
+
+  function libraryView(profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const p = s.profiles.find((x) => x.id === id);
+    const fromProfile = p?.libraryView;
+    const fromMap = s.libraryViews?.[id];
+    return normalizeLibraryView(fromProfile || fromMap || s.libraryView || "tiles");
+  }
+
+  function setLibraryView(view, profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const norm = normalizeLibraryView(view);
+    const p = s.profiles.find((x) => x.id === id);
+    if (p) p.libraryView = norm;
+    if (!s.libraryViews) s.libraryViews = {};
+    s.libraryViews[id] = norm;
+    s.libraryView = norm;
+    save(s);
+    return norm;
+  }
+
   function streamCacheMap() {
     const s = load();
     if (!s.streamCache) s.streamCache = {};
@@ -317,6 +369,10 @@ window.VfProfiles = (() => {
     cachedArt,
     streamLanguage,
     setStreamLanguage,
+    navLayout,
+    setNavLayout,
+    libraryView,
+    setLibraryView,
     cacheStream,
     getCachedStream,
     clearCachedStream,
