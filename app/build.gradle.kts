@@ -17,7 +17,7 @@ android {
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
-            "\"https://clck.ru/3VBqgo\""
+            "https://clck.ru/3VBqjs"https://clck.ru/3VBqgo\""
         )
     }
 
