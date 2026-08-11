@@ -617,6 +617,12 @@ class PlayerActivity : AppCompatActivity() {
         hideError()
         showModeBar(false)
 
+        // Firestream CDN: prefer firestream origin as Referer (download/resolve URLs).
+        if (url.contains("firestream", ignoreCase = true) &&
+            playReferer?.contains("firestream", ignoreCase = true) != true
+        ) {
+            playReferer = "https://firestream.to/"
+        }
         val referer = playReferer
             ?: episode?.streamPageUrl
             ?: (application as VerflixedApp).container.prefs.activeBaseUrl()

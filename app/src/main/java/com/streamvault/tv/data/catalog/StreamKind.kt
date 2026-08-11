@@ -28,16 +28,22 @@ object StreamKind {
         if (lower.contains("/hls/") && (lower.contains("index") || lower.contains("master"))) return true
         // Signed CDN progressive / HLS (Firestream, S3, CloudFront…)
         if (
-            (lower.contains("x-amz-") || lower.contains("signature=") || lower.contains("x-goog-")) &&
+            (lower.contains("x-amz-") || lower.contains("signature=") || lower.contains("x-goog-") ||
+                (lower.contains("md5=") && lower.contains("expires="))) &&
             (lower.contains(".mp4") || lower.contains(".m3u8") || lower.contains("/video.") ||
                 lower.contains("firestream") || lower.contains("cloudfront") || lower.contains("amazonaws"))
         ) {
             return true
         }
-        if (lower.contains("firestream") && (lower.contains("video") || lower.contains("media"))) {
-            if (lower.contains(".mp4") || lower.contains(".m3u8") || lower.contains("x-amz") || lower.contains("signature")) {
-                return true
-            }
+        // Firestream CDN: fr-cdn-*.firestream.to/encodings/.../video.mp4?...
+        if (lower.contains("firestream.to") && (
+                lower.contains("/encodings/") ||
+                    lower.contains("/video.mp4") ||
+                    lower.contains("/video.m3u8") ||
+                    (lower.contains("video") && (lower.contains("md5=") || lower.contains(".mp4")))
+                )
+        ) {
+            return true
         }
         // Signed cloud URLs ending with video.mp4 / video.m3u8 before query
         if (Regex("""/video\.(mp4|m3u8)(?:\?|$)""", RegexOption.IGNORE_CASE).containsMatchIn(url)) return true
