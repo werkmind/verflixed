@@ -41,9 +41,18 @@ jobs:
             V="${GITHUB_REF_NAME#v}"
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          # versionCode: major*10000 + minor*100 + patch
-          IFS=. read -r A B C <<< "$V"
-          CODE=$((10#$A * 10000 + 10#$B * 100 + 10#$C))
+          # Prefer versionCode from app/build.gradle.kts (keeps in-app update checks consistent).
+          CODE="$(python3 - <<'PY'
+import re, pathlib
+text = pathlib.Path("app/build.gradle.kts").read_text()
+m = re.search(r"versionCode\s*=\s*(\d+)", text)
+print(m.group(1) if m else "0")
+PY
+)"
+          if [ -z "$CODE" ] || [ "$CODE" = "0" ]; then
+            IFS=. read -r A B C <<< "$V"
+            CODE=$((10#$A * 10000 + 10#$B * 100 + 10#$C))
+          fi
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
 
