@@ -25,6 +25,8 @@ import com.streamvault.tv.ui.util.FocusFx
 import com.streamvault.tv.ui.util.PosterLoader
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -53,6 +55,8 @@ class SeriesDetailActivity : AppCompatActivity() {
     )
     private var readyEpisodeIds: Set<String> = emptySet()
     private var warmingStreams = false
+    private var readyDotsJob: Job? = null
+    private var warmupSeriesId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -356,25 +360,30 @@ class SeriesDetailActivity : AppCompatActivity() {
     }
 
     private fun refreshReadyDots(seriesId: String) {
-        val repo = (application as VerflixedApp).container.catalog
-        lifecycleScope.launch {
-            readyEpisodeIds = withContext(Dispatchers.IO) {
+        if (series?.id != seriesId) return
+        readyDotsJob?.cancel()
+        readyDotsJob = lifecycleScope.launch {
+            delay(250) // coalesce rapid warmup callbacks
+            if (series?.id != seriesId || isFinishing || isDestroyed) return@launch
+            val repo = (application as VerflixedApp).container.catalog
+            val ids = withContext(Dispatchers.IO) {
                 runCatching { repo.cachedEpisodeIds(seriesId) }.getOrDefault(emptySet())
             }
-            // Episodes that already carry a resolved streamUrl also count as ready.
+            if (series?.id != seriesId) return@launch
+            var merged = ids
             series?.flatEpisodes()?.forEach { ep ->
-                if (!ep.streamUrl.isNullOrBlank()) {
-                    readyEpisodeIds = readyEpisodeIds + ep.id
-                }
+                if (!ep.streamUrl.isNullOrBlank()) merged = merged + ep.id
             }
+            readyEpisodeIds = merged
             renderEpisodes()
         }
     }
 
     private fun startBackgroundStreamWarmup(s: Series) {
-        if (warmingStreams) return
+        if (warmingStreams && warmupSeriesId == s.id) return
         if (s.flatEpisodes().isEmpty()) return
         warmingStreams = true
+        warmupSeriesId = s.id
         val repo = (application as VerflixedApp).container.catalog
         val app = application as VerflixedApp
         renderCacheStatus(readyEpisodeIds.size, s.flatEpisodes().size, "caching")
@@ -400,7 +409,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                     refreshReadyDots(s.id)
                 }
             }.onFailure {
-                warmingStreams = false
+                if (warmupSeriesId == s.id) warmingStreams = false
             }
         }
     }
@@ -533,6 +542,13 @@ class SeriesDetailActivity : AppCompatActivity() {
         )
     }
 
+    override fun onDestroy() {
+        readyDotsJob?.cancel()
+        warmingStreams = false
+        warmupSeriesId = null
+        super.onDestroy()
+    }
+
     companion object {
         const val EXTRA_SERIES_ID = "series_id"
         const val EXTRA_DETAIL_PATH = "detail_path"
@@ -648,14 +664,17 @@ private class EpisodeAdapter(
         holder.badge.isClickable = false
         holder.badge.setOnClickListener(null)
         // Tiny ready indicator (green = cached, dim = pending, gone for upcoming)
-        if (ep.upcoming) {
-            holder.readyDot.visibility = View.GONE
-        } else {
-            holder.readyDot.visibility = View.VISIBLE
-            holder.readyDot.setBackgroundResource(
-                if (ready) R.drawable.bg_stream_dot_ready else R.drawable.bg_stream_dot
-            )
-            holder.readyDot.alpha = if (ready) 1f else 0.45f
+        val dot = holder.readyDot
+        if (dot != null) {
+            if (ep.upcoming) {
+                dot.visibility = View.GONE
+            } else {
+                dot.visibility = View.VISIBLE
+                dot.setBackgroundResource(
+                    if (ready) R.drawable.bg_stream_dot_ready else R.drawable.bg_stream_dot
+                )
+                dot.alpha = if (ready) 1f else 0.45f
+            }
         }
         holder.itemView.setOnLongClickListener {
             if (!ep.upcoming) onToggleWatched(ep)
@@ -701,6 +720,6 @@ private class EpisodeAdapter(
         val title: TextView = itemView.findViewById(R.id.episodeTitle)
         val meta: TextView = itemView.findViewById(R.id.episodeMeta)
         val badge: TextView = itemView.findViewById(R.id.watchedBadge)
-        val readyDot: View = itemView.findViewById(R.id.streamReadyDot)
+        val readyDot: View? = itemView.findViewById(R.id.streamReadyDot)
     }
 }

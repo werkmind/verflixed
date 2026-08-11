@@ -70,6 +70,14 @@ class CatalogRepository(
     }
     private fun activeBase(): String = prefs.activeBaseUrl().trimEnd('/')
 
+    private fun baseForKind(kind: String): String {
+        val preferred = when (kind) {
+            "movie" -> prefs.moviesBaseUrl
+            else -> prefs.seriesBaseUrl
+        }.trim().trimEnd('/')
+        return preferred.ifBlank { activeBase() }
+    }
+
     private fun isMoviesMode(): Boolean = prefs.isMovies
 
     /** Active profile stream language preference (default Deutsch). */
@@ -419,32 +427,25 @@ class CatalogRepository(
     /**
      * Global search across library + series catalog + movie catalog.
      * [priorityKind] ("series"|"movie"|null) rows are listed first.
+     * Does NOT mutate prefs.mediaKind (avoids races with Home browse loads).
      */
     suspend fun searchGlobal(query: String, priorityKind: String? = null): List<HomeRow> =
         withContext(Dispatchers.IO) {
             val raw = query.trim()
             val q = raw.lowercase()
             val catalogSeries = runCatching {
-                val prev = prefs.mediaKind
-                prefs.mediaKind = "series"
-                try {
-                    loadCatalog(false).series.filter { it.mediaKind != "movie" }
-                } finally {
-                    prefs.mediaKind = prev
-                }
+                loadCatalog(forceRefresh = false, kindOverride = "series")
+                    .series.filter { it.mediaKind != "movie" }
             }.getOrDefault(emptyList())
             val catalogMovies = runCatching {
-                val prev = prefs.mediaKind
-                prefs.mediaKind = "movie"
-                try {
-                    loadCatalog(false).series.filter { it.mediaKind == "movie" }
-                } finally {
-                    prefs.mediaKind = prev
+                loadCatalog(forceRefresh = false, kindOverride = "movie")
+                    .series.filter { it.mediaKind == "movie" }
+            }.getOrDefault(emptyList())
+            val favs = runCatching {
+                db.favorites().all(pid()).mapNotNull {
+                    runCatching { seriesAdapter.fromJson(it.cachedJson) }.getOrNull()
                 }
             }.getOrDefault(emptyList())
-            val favs = db.favorites().all(pid()).mapNotNull {
-                runCatching { seriesAdapter.fromJson(it.cachedJson) }.getOrNull()
-            }
             fun match(list: List<Series>): List<Series> {
                 if (q.isEmpty()) return list.take(24)
                 return list.filter {
@@ -1645,14 +1646,23 @@ class CatalogRepository(
         return enriched
     }
 
-    private suspend fun loadCatalog(forceRefresh: Boolean): Catalog = mutex.withLock {
-        val kind = prefs.mediaKind
-        if (memoryKind != null && memoryKind != kind) {
-            // Switching Serien ↔ Filme: drop in-memory genre caches.
-            genreMembers.clear()
-            genreSeriesCache.clear()
+    private suspend fun loadCatalog(
+        forceRefresh: Boolean,
+        kindOverride: String? = null,
+    ): Catalog = mutex.withLock {
+        val kind = when (kindOverride) {
+            "movie" -> "movie"
+            "series" -> "series"
+            else -> prefs.mediaKind
         }
-        memoryKind = kind
+        // Only clear genre caches when the *active* browse kind flips (not for search overrides).
+        if (kindOverride == null) {
+            if (memoryKind != null && memoryKind != kind) {
+                genreMembers.clear()
+                genreSeriesCache.clear()
+            }
+            memoryKind = kind
+        }
 
         if (!forceRefresh) {
             if (kind == "movie") {
@@ -1660,7 +1670,7 @@ class CatalogRepository(
                 moviesCacheFile().takeIf { it.exists() }?.readText()?.let { cached ->
                     runCatching {
                         val obj = JSONObject(cached)
-                        val base = obj.optString("base").ifBlank { activeBase() }
+                        val base = obj.optString("base").ifBlank { baseForKind(kind) }
                         Catalog(FilmParser.parseMovieList(obj.getString("body"), base, moviesOnly = true))
                     }.getOrNull()?.let {
                         memoryMoviesCatalog = it
@@ -1672,7 +1682,7 @@ class CatalogRepository(
                 cacheFile().takeIf { it.exists() }?.readText()?.let { cached ->
                     runCatching {
                         val obj = JSONObject(cached)
-                        val base = obj.optString("base").ifBlank { activeBase() }
+                        val base = obj.optString("base").ifBlank { baseForKind(kind) }
                         parser.parseCatalog(obj.getString("body"), base, obj.optString("contentType"))
                     }.getOrNull()?.let {
                         memoryCatalog = it
@@ -1682,7 +1692,7 @@ class CatalogRepository(
             }
         }
 
-        val base = activeBase()
+        val base = baseForKind(kind)
         if (base.isBlank()) {
             throw VfException.of(VfCodes.CATALOG_UNREACHABLE, "Keine Base-URL konfiguriert")
         }

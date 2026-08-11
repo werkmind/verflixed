@@ -292,7 +292,8 @@ class HomeActivity : AppCompatActivity() {
         val sidebar = prefs.isSidebarNav
         binding.sideNav.visibility = if (sidebar) View.VISIBLE else View.GONE
         binding.navScroll.visibility = if (sidebar) View.GONE else View.VISIBLE
-        val rowsParams = binding.rows.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+        val rowsParams = binding.rows.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            ?: return
         if (sidebar) {
             rowsParams.startToEnd = R.id.sideNav
             rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
@@ -345,11 +346,7 @@ class HomeActivity : AppCompatActivity() {
             else -> searchQuery += key
         }
         updateSearchQueryLabel()
-        searchJob?.cancel()
-        searchJob = lifecycleScope.launch {
-            delay(180)
-            runSearch(searchQuery)
-        }
+        runSearch(searchQuery)
     }
 
     private fun updateSearchQueryLabel() {
@@ -436,6 +433,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnLoadMore.visibility = View.GONE
         when (mode) {
             HomeMode.SEARCH -> {
+                loadJob?.cancel()
                 binding.heroContainer.visibility = View.GONE
                 binding.rows.visibility = View.GONE
                 searchPanel.visibility = View.VISIBLE
@@ -445,6 +443,8 @@ class HomeActivity : AppCompatActivity() {
                 runSearch(searchQuery)
             }
             HomeMode.LIBRARY -> {
+                searchJob?.cancel()
+                showSkeleton(false)
                 searchPanel.visibility = View.GONE
                 binding.rows.visibility = View.VISIBLE
                 binding.heroContainer.visibility = View.GONE
@@ -452,6 +452,8 @@ class HomeActivity : AppCompatActivity() {
                 load(force = false)
             }
             HomeMode.SERIES -> {
+                searchJob?.cancel()
+                showSkeleton(false)
                 searchPanel.visibility = View.GONE
                 binding.rows.visibility = View.VISIBLE
                 binding.heroContainer.visibility = View.GONE
@@ -464,6 +466,8 @@ class HomeActivity : AppCompatActivity() {
                 load(force = true)
             }
             HomeMode.MOVIES -> {
+                searchJob?.cancel()
+                showSkeleton(false)
                 searchPanel.visibility = View.GONE
                 binding.rows.visibility = View.VISIBLE
                 binding.heroContainer.visibility = View.GONE
@@ -502,9 +506,10 @@ class HomeActivity : AppCompatActivity() {
         showSkeleton(true)
         binding.emptyText.visibility = View.GONE
         loadJob?.cancel()
+        val requestedMode = mode
         loadJob = lifecycleScope.launch {
             runCatching {
-                when (mode) {
+                when (requestedMode) {
                     HomeMode.LIBRARY -> repo.getLibraryRows()
                     HomeMode.SERIES -> {
                         prefs.mediaKind = UserPrefs.KIND_SERIES
@@ -519,13 +524,14 @@ class HomeActivity : AppCompatActivity() {
                     HomeMode.SEARCH -> emptyList()
                 }
             }.onSuccess { rows ->
+                if (mode != requestedMode || mode == HomeMode.SEARCH) return@onSuccess
                 showSkeleton(false)
                 val featured = rows.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
                 if (featured != null) heroSeries = featured
                 rowsAdapter.submit(rows, featured)
                 if (featured != null) updateHero(featured)
                 if (rows.all { it.items.isEmpty() }) {
-                    binding.emptyText.text = when (mode) {
+                    binding.emptyText.text = when (requestedMode) {
                         HomeMode.LIBRARY -> getString(R.string.library_empty)
                         HomeMode.MOVIES -> "Keine Filme gefunden. [VF-102]"
                         else -> "Keine Serien gefunden. [VF-102]"
@@ -534,6 +540,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 updateLoadMore()
             }.onFailure {
+                if (mode != requestedMode || mode == HomeMode.SEARCH) return@onFailure
                 showSkeleton(false)
                 val msg = it.toVfMessage()
                 if (msg.isBlank()) return@onFailure
@@ -553,17 +560,22 @@ class HomeActivity : AppCompatActivity() {
 
     private fun runSearch(query: String) {
         val repo = (application as VerflixedApp).container.catalog
-        showSkeleton(true)
-        // Active content tab wins search ranking (library → library-first).
+        val q = query
         val effectivePriority = when (lastContentMode) {
             HomeMode.SERIES -> UserPrefs.KIND_SERIES
             HomeMode.MOVIES -> UserPrefs.KIND_MOVIE
             else -> null
         }
-        lifecycleScope.launch {
-            runCatching { repo.searchGlobal(query, effectivePriority) }
+        searchJob?.cancel()
+        searchJob = lifecycleScope.launch {
+            delay(180)
+            if (mode != HomeMode.SEARCH) return@launch
+            // Skeleton only overlays browse rows; keep search panel responsive.
+            showSkeleton(false)
+            binding.emptyText.visibility = View.GONE
+            runCatching { repo.searchGlobal(q, effectivePriority) }
                 .onSuccess { rows ->
-                    showSkeleton(false)
+                    if (mode != HomeMode.SEARCH || q != searchQuery) return@onSuccess
                     if (rows.isEmpty() || rows.all { it.items.isEmpty() }) {
                         searchResultsAdapter.submit(emptyList(), null)
                         binding.emptyText.text = getString(R.string.search_empty)
@@ -576,7 +588,7 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 .onFailure {
-                    showSkeleton(false)
+                    if (mode != HomeMode.SEARCH || q != searchQuery) return@onFailure
                     val msg = it.toVfMessage()
                     if (msg.isNotBlank()) {
                         Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
@@ -995,13 +1007,18 @@ private class PosterAdapter(
 
     fun updateItem(series: Series) {
         val idx = items.indexOfFirst { it.id == series.id }
-        if (idx >= 0) {
-            items[idx] = series
+        if (idx !in items.indices) return
+        items[idx] = series
+        // Avoid "Cannot call this method while RecyclerView is computing layout"
+        try {
             notifyItemChanged(idx)
+        } catch (_: IllegalStateException) {
+            // Next bind will refresh.
         }
     }
 
-    override fun getItemId(position: Int): Long = items[position].id.hashCode().toLong()
+    override fun getItemId(position: Int): Long =
+        items.getOrNull(position)?.id?.hashCode()?.toLong() ?: position.toLong()
 
     private fun useCards(): Boolean {
         if (browseModeProvider()) return false
@@ -1019,15 +1036,18 @@ private class PosterAdapter(
 
     override fun getItemCount(): Int = items.size
 
+    private fun itemAt(pos: Int): Series? = items.getOrNull(pos)
+
     override fun onBindViewHolder(holder: PosterVH, position: Int) {
-        val item = items[position]
+        val item = itemAt(position) ?: return
         holder.bind(item, browseModeProvider())
         holder.itemView.isClickable = true
         holder.itemView.isFocusable = true
         holder.itemView.isFocusableInTouchMode = true
         val open = View.OnClickListener {
             val pos = holder.bindingAdapterPosition
-            if (pos != RecyclerView.NO_POSITION) onClick(items[pos])
+            val s = itemAt(pos) ?: return@OnClickListener
+            onClick(s)
         }
         holder.itemView.setOnClickListener(open)
         holder.itemView.setOnKeyListener { v, keyCode, event ->
@@ -1050,15 +1070,21 @@ private class PosterAdapter(
             v.elevation = if (hasFocus) 4f else 0f
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
-                if (pos != RecyclerView.NO_POSITION) {
-                    (holder.itemView.parent as? RecyclerView)?.smoothScrollToPosition(pos)
-                    val row = (holder.itemView.parent as? View)?.parent as? View
-                    val rowsRv = row?.parent as? RecyclerView
-                    val rowHolder = row?.let { rowsRv?.getChildViewHolder(it) }
-                    rowHolder?.bindingAdapterPosition?.takeIf { it >= 0 }?.let { rowsRv?.smoothScrollToPosition(it) }
-                    onFocused(items[pos])
-                    resolveArt(items[pos]) { resolved -> updateItem(resolved) }
+                val s = itemAt(pos) ?: return@setOnFocusChangeListener
+                val parentRv = holder.itemView.parent as? RecyclerView
+                parentRv?.post {
+                    if (holder.bindingAdapterPosition == pos) {
+                        parentRv.smoothScrollToPosition(pos)
+                    }
                 }
+                val row = (holder.itemView.parent as? View)?.parent as? View
+                val rowsRv = row?.parent as? RecyclerView
+                val rowHolder = row?.let { rowsRv?.getChildViewHolder(it) }
+                rowHolder?.bindingAdapterPosition?.takeIf { it >= 0 }?.let { rp ->
+                    rowsRv?.post { rowsRv.smoothScrollToPosition(rp) }
+                }
+                onFocused(s)
+                resolveArt(s) { resolved -> updateItem(resolved) }
             }
         }
         if (item.posterUrl.isNullOrBlank() && item.backdropUrl.isNullOrBlank() && browseModeProvider()) {
