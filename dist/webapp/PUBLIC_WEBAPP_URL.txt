@@ -1,0 +1,14 @@
+Verflixed 1.6.0
+===============
+Webapp (macOS/Windows): https://gofile.io/d/03TBCj
+APK Fire TV / Android TV: https://gofile.io/d/Y6ykVA
+
+Spiegel APK (72h litter): https://litter.catbox.moe/cndwtx.apk
+Spiegel APK: https://tmpfiles.org/wgw0Oc8n8qQv/verflixed-firetv.apk
+Spiegel Webapp: https://tmpfiles.org/wFwJOH8p8Lif/verflixed-webapp-macos-windows.zip
+
+Lokal:
+  dist/webapp/Verflixed-Webapp-macOS-Windows.zip
+  dist/Verflixed-FireTV.apk (versionCode 15 / 1.6.0)
+
+Fire-TV-Anleitung: INSTALL.md
