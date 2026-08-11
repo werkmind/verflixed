@@ -164,8 +164,8 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_max="240dp"
-        app:layout_constraintHeight_percent="0.34"
+        app:layout_constraintHeight_max="180dp"
+        app:layout_constraintHeight_percent="0.26"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/navScroll">
 
@@ -204,7 +204,7 @@
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:text="Verflixed"
-                android:textSize="28sp" />
+                android:textSize="22sp" />
 
             <TextView
                 android:id="@+id/heroMeta"
@@ -258,31 +258,27 @@
         android:id="@+id/searchInput"
         style="@style/SvEditText"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="40dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="40dp"
-        android:hint="@string/search_hint"
-        android:imeOptions="actionSearch"
-        android:inputType="text"
-        android:minHeight="44dp"
+        android:layout_height="0dp"
+        android:focusable="false"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/heroContainer" />
+
+    <include
+        layout="@layout/include_search_panel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/navScroll" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/filterChips"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginTop="4dp"
-        android:layout_marginEnd="20dp"
-        android:clipToPadding="false"
-        android:orientation="horizontal"
-        android:paddingBottom="2dp"
+        android:layout_height="0dp"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/searchInput" />
 
@@ -294,11 +290,11 @@
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:paddingTop="2dp"
-        android:paddingBottom="28dp"
+        android:paddingBottom="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/filterChips" />
+        app:layout_constraintTop_toBottomOf="@id/heroContainer" />
 
     <ProgressBar
         android:id="@+id/progress"
