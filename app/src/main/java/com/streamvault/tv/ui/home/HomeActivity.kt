@@ -130,9 +130,13 @@ class HomeActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         searchPanel = findViewById(R.id.searchPanel)
+            ?: error("searchPanel missing from activity_home")
         searchQueryLabel = findViewById(R.id.searchQueryLabel)
+            ?: error("searchQueryLabel missing")
         searchKeyboard = findViewById(R.id.searchKeyboard)
+            ?: error("searchKeyboard missing")
         searchResultsList = findViewById(R.id.searchResults)
+            ?: error("searchResults missing")
 
         binding.rows.layoutManager = LinearLayoutManager(this)
         binding.rows.adapter = rowsAdapter
@@ -302,8 +306,9 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.rows.layoutParams = rowsParams
         // Mirror for search + skeleton + empty
-        listOf(binding.skeletonHost, binding.emptyText, binding.progress).forEach { v ->
-            val p = v.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+        listOf(binding.skeletonHost, binding.emptyText, binding.progress, searchPanel).forEach { v ->
+            val p = v.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+                ?: return@forEach
             p.startToEnd = if (sidebar) R.id.sideNav else androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
             p.startToStart = if (sidebar) androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
             else androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID

@@ -13,11 +13,13 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <com.streamvault.tv.ui.splash.AnimatedVLogoView
+        <ImageView
             android:id="@+id/splashLogo"
             android:layout_width="148dp"
             android:layout_height="148dp"
-            android:contentDescription="@string/app_name" />
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_verflixed_mark_clear" />
 
         <TextView
             android:id="@+id/splashTitle"

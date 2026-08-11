@@ -8,6 +8,7 @@ import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.View
 import android.view.animation.PathInterpolator
+import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.R
@@ -18,7 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Netflix-style branded splash: black screen, animated V mark + deep cinematic boom.
+ * Branded splash: official V mark (transparent) + cinematic boom → Home.
  */
 class SplashActivity : AppCompatActivity() {
     private var player: MediaPlayer? = null
@@ -35,27 +36,34 @@ class SplashActivity : AppCompatActivity() {
             prefs.moviesBaseUrl = UserPrefs.DEFAULT_MOVIES_BASE
         }
 
-        val logo = findViewById<AnimatedVLogoView>(R.id.splashLogo)
+        val logo = findViewById<ImageView>(R.id.splashLogo)
         val title = findViewById<View>(R.id.splashTitle)
         val progress = findViewById<View>(R.id.splashProgress)
 
+        logo.alpha = 0f
+        logo.scaleX = 0.82f
+        logo.scaleY = 0.82f
         title.alpha = 0f
         title.translationY = 22f
         progress.alpha = 0f
 
         playSplashSound()
-        logo.playIntro(1450L)
 
         val ease = PathInterpolator(0.16f, 1f, 0.3f, 1f)
+        val logoFade = ObjectAnimator.ofFloat(logo, View.ALPHA, 0f, 1f).setDuration(700)
+        val logoSx = ObjectAnimator.ofFloat(logo, View.SCALE_X, 0.82f, 1f).setDuration(900)
+        val logoSy = ObjectAnimator.ofFloat(logo, View.SCALE_Y, 0.82f, 1f).setDuration(900)
         val titleFade = ObjectAnimator.ofFloat(title, View.ALPHA, 0f, 1f).setDuration(700)
         val titleRise = ObjectAnimator.ofFloat(title, View.TRANSLATION_Y, 22f, 0f).setDuration(700)
         val barFade = ObjectAnimator.ofFloat(progress, View.ALPHA, 0f, 1f).setDuration(420)
-        titleFade.startDelay = 520
-        titleRise.startDelay = 520
-        barFade.startDelay = 900
-        listOf(titleFade, titleRise, barFade).forEach { it.interpolator = ease }
+        titleFade.startDelay = 420
+        titleRise.startDelay = 420
+        barFade.startDelay = 850
+        listOf(logoFade, logoSx, logoSy, titleFade, titleRise, barFade).forEach {
+            it.interpolator = ease
+        }
         AnimatorSet().apply {
-            playTogether(titleFade, titleRise, barFade)
+            playTogether(logoFade, logoSx, logoSy, titleFade, titleRise, barFade)
             start()
         }
 
@@ -74,7 +82,6 @@ class SplashActivity : AppCompatActivity() {
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
-                // Louder, bass-forward cinematic hit
                 mp.setVolume(1f, 1f)
                 mp.start()
             }
