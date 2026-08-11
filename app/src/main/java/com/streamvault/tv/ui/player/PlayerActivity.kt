@@ -120,6 +120,11 @@ class PlayerActivity : AppCompatActivity() {
         val detailPathHint = intent.getStringExtra(EXTRA_DETAIL_PATH)
         val mediaKindHint = intent.getStringExtra(EXTRA_MEDIA_KIND)
         val titleHint = intent.getStringExtra(EXTRA_TITLE)
+        val startOverride = if (intent.hasExtra(EXTRA_START_POSITION_MS)) {
+            intent.getLongExtra(EXTRA_START_POSITION_MS, 0L)
+        } else {
+            null
+        }
 
         FocusFx.bindScale(binding.btnRetryHls, 1.06f)
         FocusFx.bindScale(binding.btnUseWebPlayer, 1.06f)
@@ -176,7 +181,11 @@ class PlayerActivity : AppCompatActivity() {
                     ?: (application as VerflixedApp).container.prefs.activeBaseUrl()
                 val url = repo.resolveStream(ep)
                 val progress = repo.getProgress(ep.id)
-                val resume = progress?.takeIf { !it.completed }?.positionMs ?: 0L
+                val resume = when {
+                    startOverride != null -> startOverride.coerceAtLeast(0L)
+                    progress != null && !progress.completed -> progress.positionMs
+                    else -> 0L
+                }
                 Triple(s, ep, url to resume)
             }.onSuccess { (s, ep, pair) ->
                 series = s
@@ -1151,6 +1160,8 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_DETAIL_PATH = "detail_path"
         const val EXTRA_MEDIA_KIND = "media_kind"
         const val EXTRA_TITLE = "title"
+        /** Explicit start position in ms (0 = from beginning). If absent, saved progress is used. */
+        const val EXTRA_START_POSITION_MS = "start_position_ms"
 
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 12; SHIELD Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

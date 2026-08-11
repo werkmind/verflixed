@@ -532,6 +532,40 @@ class SeriesDetailActivity : AppCompatActivity() {
 
     private fun play(episode: Episode) {
         val s = series ?: return
+        val progress = progressMap[episode.id]
+        val pos = progress?.takeIf { !it.completed }?.positionMs ?: 0L
+        if (pos > 5_000L) {
+            val label = formatResumeTime(pos)
+            android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.resume_title)
+                .setMessage(getString(R.string.resume_message, label))
+                .setPositiveButton(R.string.resume_continue) { _, _ ->
+                    launchPlayer(episode, startMs = pos)
+                }
+                .setNeutralButton(R.string.resume_restart) { _, _ ->
+                    lifecycleScope.launch {
+                        runCatching {
+                            (application as VerflixedApp).container.catalog.saveProgress(
+                                episodeId = episode.id,
+                                seriesId = episode.seriesId,
+                                positionMs = 0L,
+                                durationMs = progress?.durationMs ?: 0L,
+                                seasonNumber = episode.seasonNumber,
+                                episodeNumber = episode.number,
+                            )
+                        }
+                        launchPlayer(episode, startMs = 0L)
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        } else {
+            launchPlayer(episode, startMs = 0L)
+        }
+    }
+
+    private fun launchPlayer(episode: Episode, startMs: Long) {
+        val s = series ?: return
         startActivity(
             Intent(this, PlayerActivity::class.java)
                 .putExtra(PlayerActivity.EXTRA_SERIES_ID, s.id)
@@ -539,7 +573,20 @@ class SeriesDetailActivity : AppCompatActivity() {
                 .putExtra(PlayerActivity.EXTRA_DETAIL_PATH, episode.streamPageUrl ?: s.detailPath)
                 .putExtra(PlayerActivity.EXTRA_MEDIA_KIND, s.mediaKind)
                 .putExtra(PlayerActivity.EXTRA_TITLE, s.title)
+                .putExtra(PlayerActivity.EXTRA_START_POSITION_MS, startMs)
         )
+    }
+
+    private fun formatResumeTime(ms: Long): String {
+        val totalSec = (ms / 1000L).coerceAtLeast(0L)
+        val h = totalSec / 3600L
+        val m = (totalSec % 3600L) / 60L
+        val s = totalSec % 60L
+        return if (h > 0) {
+            getString(R.string.resume_time_hours, h.toInt(), m.toInt(), s.toInt())
+        } else {
+            getString(R.string.resume_time_minutes, m.toInt(), s.toInt())
+        }
     }
 
     override fun onDestroy() {

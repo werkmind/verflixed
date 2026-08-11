@@ -44,6 +44,15 @@
     <string name="settings_sounds_on">UI-Sounds: An</string>
     <string name="settings_sounds_off">UI-Sounds: Aus</string>
     <string name="library_empty">Noch keine Favoriten. Wechsle zu Serien/Filme und favorisiere Titel – dann erscheinen Kalender &amp; Metadaten-Cache.</string>
+    <string name="update_downloading">Update wird geladen… %1$d%%</string>
+    <string name="update_install">Update installieren</string>
+    <string name="update_allow_unknown">Bitte Installation aus unbekannten Quellen für Verflixed erlauben, dann erneut „Update“ tippen.</string>
+    <string name="resume_title">Weiterschauen?</string>
+    <string name="resume_message">Fortschritt bei %1$s.\nWeiterschauen oder von vorn starten?</string>
+    <string name="resume_continue">Weiterschauen</string>
+    <string name="resume_restart">Von vorn</string>
+    <string name="resume_time_hours">%1$d:%2$02d:%3$02d</string>
+    <string name="resume_time_minutes">%1$d:%2$02d</string>
     <string name="settings_nav_sidebar">Layout: Sidebar</string>
     <string name="settings_nav_topbar">Layout: Topbar</string>
     <string name="settings_lib_tiles">Bibliothek: Kacheln</string>

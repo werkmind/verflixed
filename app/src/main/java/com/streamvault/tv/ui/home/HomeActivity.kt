@@ -599,19 +599,58 @@ class HomeActivity : AppCompatActivity() {
 
     private fun checkUpdate() {
         val updates = (application as VerflixedApp).container.updates
+        val installer = com.streamvault.tv.data.update.ApkUpdateInstaller()
         Toast.makeText(this, "Prüfe Update…", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             runCatching { updates.check() }
                 .onSuccess { manifest ->
                     if (manifest == null) {
                         Toast.makeText(this@HomeActivity, "Kein Update verfügbar", Toast.LENGTH_SHORT).show()
-                    } else {
+                        return@onSuccess
+                    }
+                    if (!installer.canInstallPackages(this@HomeActivity)) {
                         Toast.makeText(
                             this@HomeActivity,
-                            "Update ${manifest.versionName ?: manifest.versionCode} – Download startet",
-                            Toast.LENGTH_LONG
+                            getString(R.string.update_allow_unknown),
+                            Toast.LENGTH_LONG,
                         ).show()
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(manifest.apkUrl)))
+                        installer.openUnknownSourcesSettings(this@HomeActivity)
+                        return@onSuccess
+                    }
+                    Toast.makeText(
+                        this@HomeActivity,
+                        "Update ${manifest.versionName ?: manifest.versionCode} – lade APK…",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    runCatching {
+                        val apkUrl = manifest.apkUrl?.trim().orEmpty()
+                        if (apkUrl.isBlank()) error("Keine APK-URL im Manifest")
+                        installer.download(this@HomeActivity, apkUrl) { frac ->
+                            // Fire TV: lightweight toast every ~25%
+                            val pct = (frac * 100).toInt()
+                            if (pct % 25 == 0) {
+                                runOnUiThread {
+                                    Toast.makeText(
+                                        this@HomeActivity,
+                                        getString(R.string.update_downloading, pct),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                        }
+                    }.onSuccess { result ->
+                        Toast.makeText(
+                            this@HomeActivity,
+                            getString(R.string.update_install),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        installer.install(this@HomeActivity, result.file)
+                    }.onFailure {
+                        Toast.makeText(
+                            this@HomeActivity,
+                            "Update-Download fehlgeschlagen: ${it.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
                     }
                 }
                 .onFailure {

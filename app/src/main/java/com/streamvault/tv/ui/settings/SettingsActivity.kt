@@ -1,7 +1,6 @@
 package com.streamvault.tv.ui.settings
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -39,18 +38,45 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         binding.btnCheckUpdate.setOnClickListener {
+            val installer = com.streamvault.tv.data.update.ApkUpdateInstaller()
             lifecycleScope.launch {
                 runCatching { app.container.updates.check() }
                     .onSuccess { m ->
                         if (m == null) {
                             Toast.makeText(this@SettingsActivity, "Kein Update", Toast.LENGTH_SHORT).show()
-                        } else {
+                            return@onSuccess
+                        }
+                        if (!installer.canInstallPackages(this@SettingsActivity)) {
                             Toast.makeText(
                                 this@SettingsActivity,
-                                "Update ${m.versionName} gefunden",
-                                Toast.LENGTH_LONG
+                                getString(R.string.update_allow_unknown),
+                                Toast.LENGTH_LONG,
                             ).show()
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(m.apkUrl)))
+                            installer.openUnknownSourcesSettings(this@SettingsActivity)
+                            return@onSuccess
+                        }
+                        Toast.makeText(
+                            this@SettingsActivity,
+                            "Update ${m.versionName} – lade APK…",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        runCatching {
+                            val apkUrl = m.apkUrl?.trim().orEmpty()
+                            if (apkUrl.isBlank()) error("Keine APK-URL im Manifest")
+                            installer.download(this@SettingsActivity, apkUrl)
+                        }.onSuccess { result ->
+                            Toast.makeText(
+                                this@SettingsActivity,
+                                getString(R.string.update_install),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            installer.install(this@SettingsActivity, result.file)
+                        }.onFailure {
+                            Toast.makeText(
+                                this@SettingsActivity,
+                                "Download fehlgeschlagen: ${it.message}",
+                                Toast.LENGTH_LONG,
+                            ).show()
                         }
                     }
                     .onFailure {
