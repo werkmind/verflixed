@@ -8,3 +8,6 @@ webapp_short=https://clck.ru/3VBtLE
 update_short=https://clck.ru/3VBtLH
 repo=https://github.com/werkmind/verflixed
 releases=https://github.com/werkmind/verflixed/releases/latest
+
+interim_webapp_gofile=https://gofile.io/d/VLsDI7
+interim_apk_gofile=https://gofile.io/d/ldsHPf
