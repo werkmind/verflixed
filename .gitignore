@@ -1,0 +1,28 @@
+# Built artifacts / IDE
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+*.apk
+*.ap_
+*.dex
+*.class
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node / webapp
+webapp/node_modules/
+webapp/dist/
+webapp/*.log
+
+# Dist binaries (large)
+dist/*.apk
+dist/*.idsig
+dist/webapp/
+
+# OS
+.DS_Store
+Thumbs.db

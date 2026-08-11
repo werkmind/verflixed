@@ -1,0 +1,54 @@
+{
+  "name": "verflixed-webapp",
+  "version": "1.5.1",
+  "description": "Verflixed – multi-profile Netflix-style player (macOS/Windows/PWA)",
+  "main": "main.js",
+  "author": "Verflixed",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack:dir": "electron-builder --dir",
+    "pack:win": "electron-builder --win portable --x64",
+    "pack:mac": "electron-builder --mac dir --x64 --arm64",
+    "pack:linux": "electron-builder --linux AppImage --x64"
+  },
+  "build": {
+    "appId": "com.verflixed.webapp",
+    "productName": "Verflixed",
+    "directories": {
+      "output": "../dist/webapp"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "voe-core.js",
+      "voe-capture.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "target": [
+        "dir"
+      ]
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "portable": {
+      "artifactName": "Verflixed-Webapp-Windows.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "jsdom": "^29.1.1"
+  }
+}

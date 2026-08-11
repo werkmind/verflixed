@@ -1,0 +1,630 @@
+package com.streamvault.tv.ui.home
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CircleCrop
+import com.streamvault.tv.R
+import com.streamvault.tv.VerflixedApp
+import com.streamvault.tv.data.model.CatalogFilters
+import com.streamvault.tv.data.model.GenreChip
+import com.streamvault.tv.data.model.HomeRow
+import com.streamvault.tv.data.model.Series
+import com.streamvault.tv.data.prefs.UserPrefs
+import com.streamvault.tv.databinding.ActivityHomeBinding
+import com.streamvault.tv.ui.detail.SeriesDetailActivity
+import com.streamvault.tv.ui.profile.ProfilesActivity
+import com.streamvault.tv.ui.settings.SettingsActivity
+import com.streamvault.tv.ui.util.FocusFx
+import com.streamvault.tv.ui.util.PosterLoader
+import com.streamvault.tv.ui.util.UiSound
+import com.streamvault.tv.util.toVfMessage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+enum class HomeMode { LIBRARY, BROWSE, SEARCH }
+
+class HomeActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityHomeBinding
+    private var heroSeries: Series? = null
+    private var mode = HomeMode.LIBRARY
+    private var searchJob: Job? = null
+    private val prefs by lazy { (application as VerflixedApp).container.prefs }
+
+    private val rowsAdapter = RowsAdapter(
+        onClick = {
+            UiSound.click(this, prefs)
+            openSeries(it)
+        },
+        onFocused = { updateHero(it) },
+        prefsProvider = { prefs },
+        browseModeProvider = { mode == HomeMode.BROWSE || mode == HomeMode.SEARCH },
+        resolveArt = { series, onResolved ->
+            // Browse/Search: lazy site covers only — never enrich/TVMaze/Room
+            if (mode == HomeMode.LIBRARY) return@RowsAdapter
+            if (!series.posterUrl.isNullOrBlank() || !series.backdropUrl.isNullOrBlank()) return@RowsAdapter
+            lifecycleScope.launch {
+                runCatching {
+                    (application as VerflixedApp).container.catalog.resolveBrowseArt(series)
+                }.onSuccess { resolved ->
+                    if (!resolved.posterUrl.isNullOrBlank() || !resolved.backdropUrl.isNullOrBlank()) {
+                        onResolved(resolved)
+                        if (heroSeries?.id == resolved.id) updateHero(resolved)
+                    }
+                }
+            }
+        }
+    )
+
+    private val chipAdapter = ChipAdapter { chip ->
+        toggleChip(chip)
+        when (mode) {
+            HomeMode.SEARCH -> runSearch(binding.searchInput.text?.toString().orEmpty())
+            HomeMode.BROWSE -> {
+                lifecycleScope.launch {
+                    (application as VerflixedApp).container.catalog.resetBrowsePage()
+                    load(force = false)
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityHomeBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        binding.rows.layoutManager = LinearLayoutManager(this)
+        binding.rows.adapter = rowsAdapter
+        binding.rows.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
+            addDuration = 180
+            removeDuration = 140
+            changeDuration = 120
+        }
+        binding.rows.isNestedScrollingEnabled = true
+        binding.rows.setHasFixedSize(false)
+        // Keep focused row visible for D-pad TV navigation
+        binding.rows.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
+            override fun onChildViewAttachedToWindow(view: View) = Unit
+            override fun onChildViewDetachedFromWindow(view: View) = Unit
+        })
+
+        binding.profileNameLabel.isFocusable = true
+        binding.profileNameLabel.isFocusableInTouchMode = true
+        binding.profileNameLabel.setOnClickListener { openProfiles() }
+        binding.profileNameLabel.setOnFocusChangeListener { v, hasFocus ->
+            v.alpha = if (hasFocus) 1f else 0.85f
+        }
+        // Explicit Fire TV focus chain: avatar → tabs → profile → content
+        binding.profileAvatar.nextFocusRightId = R.id.tabLibrary
+        binding.tabLibrary.nextFocusLeftId = R.id.profileAvatar
+        binding.tabLibrary.nextFocusRightId = R.id.tabBrowse
+        binding.tabBrowse.nextFocusLeftId = R.id.tabLibrary
+        binding.tabBrowse.nextFocusRightId = R.id.tabSearch
+        binding.tabSearch.nextFocusLeftId = R.id.tabBrowse
+        binding.tabSearch.nextFocusRightId = R.id.btnKindSeries
+        binding.btnKindSeries.nextFocusLeftId = R.id.tabSearch
+        binding.btnKindSeries.nextFocusRightId = R.id.btnKindMovies
+        binding.btnKindMovies.nextFocusLeftId = R.id.btnKindSeries
+        binding.btnKindMovies.nextFocusRightId = R.id.btnProfile
+        binding.btnProfile.nextFocusLeftId = R.id.btnKindMovies
+        binding.btnProfile.nextFocusRightId = R.id.btnSettings
+        binding.btnSettings.nextFocusLeftId = R.id.btnProfile
+        binding.tabLibrary.nextFocusDownId = R.id.btnHeroPlay
+        binding.tabBrowse.nextFocusDownId = R.id.btnHeroPlay
+        binding.tabSearch.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnKindSeries.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnKindMovies.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnProfile.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnSettings.nextFocusDownId = R.id.btnHeroPlay
+        binding.btnHeroPlay.nextFocusUpId = R.id.tabBrowse
+        binding.btnHeroInfo.nextFocusUpId = R.id.tabBrowse
+        binding.btnHeroPlay.nextFocusRightId = R.id.btnHeroInfo
+        binding.btnHeroInfo.nextFocusLeftId = R.id.btnHeroPlay
+        binding.btnHeroPlay.nextFocusDownId = R.id.rows
+        binding.btnHeroInfo.nextFocusDownId = R.id.rows
+        binding.profileAvatar.nextFocusDownId = R.id.btnHeroPlay
+        binding.rows.nextFocusUpId = R.id.btnHeroPlay
+
+        binding.filterChips.layoutManager =
+            LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        binding.filterChips.adapter = chipAdapter
+
+        listOf(
+            binding.tabLibrary, binding.tabBrowse, binding.tabSearch,
+            binding.btnKindSeries, binding.btnKindMovies,
+            binding.btnProfile, binding.btnSettings, binding.btnRefresh, binding.btnUpdate,
+            binding.btnHeroPlay, binding.btnHeroInfo, binding.profileAvatar,
+        ).forEach { FocusFx.bindScale(it, 1.08f, prefs) }
+
+        binding.btnSettings.setOnClickListener {
+            UiSound.click(this, prefs)
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        binding.btnProfile.setOnClickListener { openProfiles() }
+        binding.profileAvatar.setOnClickListener { openProfiles() }
+        binding.profileNameLabel.setOnClickListener { openProfiles() }
+        binding.btnRefresh.setOnClickListener {
+            UiSound.click(this, prefs)
+            lifecycleScope.launch {
+                if (mode == HomeMode.BROWSE) {
+                    (application as VerflixedApp).container.catalog.resetBrowsePage()
+                }
+                load(force = true)
+            }
+        }
+        binding.btnLoadMore.setOnClickListener {
+            UiSound.click(this, prefs)
+            lifecycleScope.launch {
+                binding.progress.visibility = View.VISIBLE
+                runCatching { (application as VerflixedApp).container.catalog.loadMoreBrowse() }
+                    .onSuccess {
+                        binding.progress.visibility = View.GONE
+                        rowsAdapter.submit(it)
+                        updateLoadMore()
+                    }
+                    .onFailure {
+                        binding.progress.visibility = View.GONE
+                        Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                    }
+            }
+        }
+        binding.btnUpdate.setOnClickListener { checkUpdate() }
+        binding.btnHeroPlay.setOnClickListener {
+            UiSound.click(this, prefs)
+            heroSeries?.let { openSeries(it) }
+        }
+        binding.btnHeroInfo.setOnClickListener {
+            UiSound.click(this, prefs)
+            heroSeries?.let { openSeries(it) }
+        }
+
+        binding.tabLibrary.setOnClickListener { setMode(HomeMode.LIBRARY) }
+        binding.tabBrowse.setOnClickListener { setMode(HomeMode.BROWSE) }
+        binding.tabSearch.setOnClickListener { setMode(HomeMode.SEARCH) }
+        binding.btnKindSeries.setOnClickListener { setMediaKind(UserPrefs.KIND_SERIES) }
+        binding.btnKindMovies.setOnClickListener { setMediaKind(UserPrefs.KIND_MOVIE) }
+
+        binding.searchInput.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+                runSearch(binding.searchInput.text?.toString().orEmpty())
+                true
+            } else false
+        }
+        binding.searchInput.addTextChangedListener(SimpleTextWatcher { text ->
+            searchJob?.cancel()
+            searchJob = lifecycleScope.launch {
+                delay(220)
+                runSearch(text)
+            }
+        })
+
+        refreshChips()
+        styleKindButtons()
+        updateSearchHint()
+        setMode(HomeMode.LIBRARY)
+        refreshActiveProfile()
+    }
+
+    private fun setMediaKind(kind: String) {
+        if (prefs.mediaKind == kind) return
+        UiSound.click(this, prefs)
+        prefs.mediaKind = kind
+        prefs.browsePage = 0
+        styleKindButtons()
+        updateSearchHint()
+        when (mode) {
+            HomeMode.SEARCH -> runSearch(binding.searchInput.text?.toString().orEmpty())
+            else -> load(force = true)
+        }
+    }
+
+    private fun styleKindButtons() {
+        fun paint(btn: View, active: Boolean) {
+            btn.alpha = if (active) 1f else 0.55f
+            btn.animate().scaleX(if (active) 1.04f else 1f).scaleY(if (active) 1.04f else 1f)
+                .setDuration(140).start()
+        }
+        paint(binding.btnKindSeries, !prefs.isMovies)
+        paint(binding.btnKindMovies, prefs.isMovies)
+    }
+
+    private fun updateSearchHint() {
+        binding.searchInput.hint = getString(
+            if (prefs.isMovies) R.string.search_hint_movies else R.string.search_hint
+        )
+    }
+
+    private fun openProfiles() {
+        UiSound.click(this, prefs)
+        startActivity(Intent(this, ProfilesActivity::class.java))
+    }
+
+    private fun refreshActiveProfile() {
+        lifecycleScope.launch {
+            runCatching { (application as VerflixedApp).container.profiles.active() }
+                .onSuccess { p ->
+                    binding.profileNameLabel.text = p.name
+                    Glide.with(binding.profileAvatar)
+                        .load(p.avatarUrl)
+                        .placeholder(R.drawable.ic_verflixed_mark)
+                        .transform(CircleCrop())
+                        .into(binding.profileAvatar)
+                }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::binding.isInitialized) {
+            refreshActiveProfile()
+            load(force = false)
+        }
+    }
+
+    private fun setMode(newMode: HomeMode) {
+        mode = newMode
+        styleTabs()
+        UiSound.click(this, prefs)
+        val searchUi = mode == HomeMode.SEARCH
+        binding.searchInput.visibility = if (searchUi) View.VISIBLE else View.GONE
+        binding.filterChips.visibility =
+            if ((mode == HomeMode.SEARCH || mode == HomeMode.BROWSE) && !prefs.isMovies) {
+                View.VISIBLE
+            } else View.GONE
+        binding.heroContainer.visibility = if (searchUi) View.GONE else View.VISIBLE
+        binding.btnLoadMore.visibility = View.GONE
+        if (mode == HomeMode.SEARCH) {
+            updateSearchHint()
+            binding.searchInput.requestFocus()
+            runSearch(binding.searchInput.text?.toString().orEmpty())
+        } else {
+            load(force = false)
+        }
+    }
+
+    private fun styleTabs() {
+        fun paint(btn: View, active: Boolean) {
+            btn.alpha = if (active) 1f else 0.55f
+            btn.animate().scaleX(if (active) 1.04f else 1f).scaleY(if (active) 1.04f else 1f)
+                .setDuration(140).start()
+        }
+        paint(binding.tabLibrary, mode == HomeMode.LIBRARY)
+        paint(binding.tabBrowse, mode == HomeMode.BROWSE)
+        paint(binding.tabSearch, mode == HomeMode.SEARCH)
+    }
+
+    private fun refreshChips() {
+        val chips = CatalogFilters.ANTI_PATTERNS + CatalogFilters.GENRES
+        chipAdapter.submit(chips, prefs.includeGenres, prefs.excludeGenres)
+    }
+
+    private fun toggleChip(chip: GenreChip) {
+        UiSound.click(this, prefs)
+        if (chip.exclude) {
+            val next = prefs.excludeGenres.toMutableSet()
+            if (!next.add(chip.id)) next.remove(chip.id)
+            prefs.excludeGenres = next
+        } else {
+            val next = prefs.includeGenres.toMutableSet()
+            if (!next.add(chip.id)) next.remove(chip.id)
+            prefs.includeGenres = next
+        }
+        refreshChips()
+    }
+
+    private fun load(force: Boolean) {
+        if (mode == HomeMode.SEARCH) return
+        val repo = (application as VerflixedApp).container.catalog
+        binding.progress.visibility = View.VISIBLE
+        binding.emptyText.visibility = View.GONE
+        lifecycleScope.launch {
+            runCatching {
+                when (mode) {
+                    HomeMode.LIBRARY -> repo.getLibraryRows()
+                    HomeMode.BROWSE -> {
+                        if (force) repo.resetBrowsePage()
+                        repo.getBrowseRows(forceRefresh = force)
+                    }
+                    HomeMode.SEARCH -> emptyList()
+                }
+            }.onSuccess { rows ->
+                binding.progress.visibility = View.GONE
+                rowsAdapter.submit(rows)
+                val featured = rows.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
+                if (featured != null) updateHero(featured)
+                if (rows.all { it.items.isEmpty() }) {
+                    binding.emptyText.text = when (mode) {
+                        HomeMode.LIBRARY -> getString(R.string.library_empty)
+                        else -> if (prefs.isMovies) {
+                            "Keine Filme gefunden. [VF-102]"
+                        } else {
+                            "Keine Serien gefunden. [VF-102]"
+                        }
+                    }
+                    binding.emptyText.visibility = View.VISIBLE
+                }
+                updateLoadMore()
+            }.onFailure {
+                binding.progress.visibility = View.GONE
+                binding.emptyText.text = it.toVfMessage()
+                binding.emptyText.visibility = View.VISIBLE
+                Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun updateLoadMore() {
+        binding.btnLoadMore.visibility =
+            if (mode == HomeMode.BROWSE &&
+                (application as VerflixedApp).container.catalog.canLoadMoreBrowse()
+            ) View.VISIBLE else View.GONE
+    }
+
+    private fun runSearch(query: String) {
+        val repo = (application as VerflixedApp).container.catalog
+        binding.progress.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            runCatching { repo.searchGrouped(query) }
+                .onSuccess { rows ->
+                    binding.progress.visibility = View.GONE
+                    if (rows.isEmpty()) {
+                        rowsAdapter.submit(emptyList())
+                        binding.emptyText.text = getString(R.string.search_empty)
+                        binding.emptyText.visibility = View.VISIBLE
+                    } else {
+                        binding.emptyText.visibility = View.GONE
+                        rowsAdapter.submit(rows)
+                        rows.firstOrNull()?.items?.firstOrNull()?.let { updateHero(it) }
+                    }
+                }
+                .onFailure {
+                    binding.progress.visibility = View.GONE
+                    Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                }
+        }
+    }
+
+    private fun checkUpdate() {
+        val updates = (application as VerflixedApp).container.updates
+        Toast.makeText(this, "Prüfe Update…", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            runCatching { updates.check() }
+                .onSuccess { manifest ->
+                    if (manifest == null) {
+                        Toast.makeText(this@HomeActivity, "Kein Update verfügbar", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(
+                            this@HomeActivity,
+                            "Update ${manifest.versionName ?: manifest.versionCode} – Download startet",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(manifest.apkUrl)))
+                    }
+                }
+                .onFailure {
+                    Toast.makeText(this@HomeActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                }
+        }
+    }
+
+    private fun updateHero(series: Series) {
+        heroSeries = series
+        binding.heroTitle.text = series.title
+        binding.heroMeta.text = buildString {
+            series.year?.let { append(it) }
+            if (series.genres.isNotEmpty()) {
+                if (isNotEmpty()) append("  •  ")
+                append(series.genres.take(3).joinToString(" · "))
+            }
+            if (series.seasons.isNotEmpty() && !series.isMovie) {
+                if (isNotEmpty()) append("  •  ")
+                append("${series.seasons.size} Staffeln")
+            }
+            if (series.isMovie) {
+                if (isNotEmpty()) append("  •  ")
+                append("Film")
+            }
+            if (isEmpty()) append(if (mode == HomeMode.LIBRARY) "Meine Bibliothek" else "Browse")
+        }
+        binding.heroOverview.text = series.overview
+            ?: "Premium Fire-TV Bibliothek – Favoriten cachen Metadaten & Player-Links."
+        val art = series.backdropUrl ?: series.posterUrl
+        PosterLoader.loadHero(binding.heroBackdrop, art, browseMode = mode == HomeMode.BROWSE || mode == HomeMode.SEARCH)
+    }
+
+    private fun openSeries(series: Series) {
+        // Calendar cards may use slug ids; strip episode suffix titles when opening.
+        val id = series.id
+        startActivity(
+            Intent(this, SeriesDetailActivity::class.java)
+                .putExtra(SeriesDetailActivity.EXTRA_SERIES_ID, id)
+        )
+    }
+}
+
+private class SimpleTextWatcher(
+    private val onChanged: (String) -> Unit
+) : android.text.TextWatcher {
+    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+    override fun afterTextChanged(s: android.text.Editable?) {
+        onChanged(s?.toString().orEmpty())
+    }
+}
+
+private class ChipAdapter(
+    private val onClick: (GenreChip) -> Unit
+) : RecyclerView.Adapter<ChipAdapter.VH>() {
+    private val items = mutableListOf<GenreChip>()
+    private var include = emptySet<String>()
+    private var exclude = emptySet<String>()
+
+    fun submit(data: List<GenreChip>, includeGenres: Set<String>, excludeGenres: Set<String>) {
+        items.clear()
+        items.addAll(data)
+        include = includeGenres
+        exclude = excludeGenres
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_filter_chip, parent, false)
+        return VH(v as TextView)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val chip = items[position]
+        val active = if (chip.exclude) chip.id in exclude else chip.id in include
+        holder.label.text = chip.label
+        holder.label.alpha = if (active) 1f else 0.55f
+        holder.label.isSelected = active
+        holder.label.setOnClickListener { onClick(chip) }
+    }
+
+    class VH(val label: TextView) : RecyclerView.ViewHolder(label)
+}
+
+private class RowsAdapter(
+    private val onClick: (Series) -> Unit,
+    private val onFocused: (Series) -> Unit,
+    private val prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
+    private val browseModeProvider: () -> Boolean,
+    private val resolveArt: (Series, (Series) -> Unit) -> Unit
+) : RecyclerView.Adapter<RowsAdapter.RowVH>() {
+    private val rows = mutableListOf<HomeRow>()
+
+    fun submit(data: List<HomeRow>) {
+        rows.clear()
+        rows.addAll(data.filter { it.items.isNotEmpty() })
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RowVH {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_row, parent, false)
+        return RowVH(view, onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
+    }
+
+    override fun getItemCount(): Int = rows.size
+    override fun onBindViewHolder(holder: RowVH, position: Int) = holder.bind(rows[position])
+
+    class RowVH(
+        itemView: View,
+        onClick: (Series) -> Unit,
+        onFocused: (Series) -> Unit,
+        prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
+        browseModeProvider: () -> Boolean,
+        resolveArt: (Series, (Series) -> Unit) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
+        private val title: TextView = itemView.findViewById(R.id.rowTitle)
+        private val list: RecyclerView = itemView.findViewById(R.id.rowList)
+        private val posterAdapter = PosterAdapter(onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
+
+        init {
+            list.layoutManager = LinearLayoutManager(itemView.context, RecyclerView.HORIZONTAL, false)
+            list.adapter = posterAdapter
+            list.itemAnimator = null
+            list.clipChildren = false
+            list.isNestedScrollingEnabled = false
+            list.overScrollMode = View.OVER_SCROLL_NEVER
+        }
+
+        fun bind(row: HomeRow) {
+            title.text = row.title
+            posterAdapter.submit(row.items)
+        }
+    }
+}
+
+private class PosterAdapter(
+    private val onClick: (Series) -> Unit,
+    private val onFocused: (Series) -> Unit,
+    private val prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
+    private val browseModeProvider: () -> Boolean,
+    private val resolveArt: (Series, (Series) -> Unit) -> Unit
+) : RecyclerView.Adapter<PosterAdapter.PosterVH>() {
+    private val items = mutableListOf<Series>()
+
+    init {
+        setHasStableIds(true)
+    }
+
+    fun submit(data: List<Series>) {
+        items.clear()
+        items.addAll(data)
+        notifyDataSetChanged()
+    }
+
+    fun updateItem(series: Series) {
+        val idx = items.indexOfFirst { it.id == series.id }
+        if (idx >= 0) {
+            items[idx] = series
+            notifyItemChanged(idx)
+        }
+    }
+
+    override fun getItemId(position: Int): Long = items[position].id.hashCode().toLong()
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PosterVH {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_poster, parent, false)
+        return PosterVH(view)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: PosterVH, position: Int) {
+        val item = items[position]
+        holder.bind(item, browseModeProvider())
+        holder.itemView.setOnClickListener { onClick(items[holder.bindingAdapterPosition.coerceAtLeast(0)]) }
+        holder.itemView.setOnFocusChangeListener { v, hasFocus ->
+            val scale = if (hasFocus) 1.12f else 1f
+            v.animate().scaleX(scale).scaleY(scale).setDuration(160).start()
+            v.elevation = if (hasFocus) 16f else 0f
+            if (hasFocus) {
+                val pos = holder.bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    (holder.itemView.parent as? RecyclerView)?.smoothScrollToPosition(pos)
+                    // Scroll vertical parent row into view
+                    val row = (holder.itemView.parent as? View)?.parent as? View
+                    val rowsRv = row?.parent as? RecyclerView
+                    val rowHolder = row?.let { rowsRv?.getChildViewHolder(it) }
+                    rowHolder?.bindingAdapterPosition?.takeIf { it >= 0 }?.let { rowsRv?.smoothScrollToPosition(it) }
+                    UiSound.click(v.context, prefsProvider())
+                    onFocused(items[pos])
+                    resolveArt(items[pos]) { resolved -> updateItem(resolved) }
+                }
+            }
+        }
+        // Smart lazy: resolve missing covers primarily on focus (visible intent).
+        // Bind only kicks resolve if URL still empty — SeriesArtResolver caps concurrency.
+        if (item.posterUrl.isNullOrBlank() && item.backdropUrl.isNullOrBlank() && browseModeProvider()) {
+            resolveArt(item) { resolved -> updateItem(resolved) }
+        }
+    }
+
+    class PosterVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val poster: ImageView = itemView.findViewById(R.id.poster)
+        private val title: TextView = itemView.findViewById(R.id.title)
+
+        fun bind(series: Series, browseMode: Boolean) {
+            title.text = series.title
+            PosterLoader.loadSeries(poster, series.backdropUrl ?: series.posterUrl, browseMode = browseMode)
+        }
+    }
+}

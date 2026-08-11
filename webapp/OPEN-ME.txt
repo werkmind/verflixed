@@ -1,0 +1,17 @@
+Verflixed 1.5.0 – Multi-Device
+==============================
+
+macOS:   Start-macOS.command
+Windows: Start-Windows.bat
+iOS/iPadOS: Safari → Teilen → Zum Home-Bildschirm (PWA)
+Android TV / Fire TV: APK 1.5.0
+
+Features:
+- Profile mit eigener Favoritenliste + Watch-Progress
+- Stream-Cache pro Profil (APK)
+- Staffel-Cover/Backdrop (Site + TVMaze)
+- Auto VOE→HLS (kein Debug „Quelle öffnen“ / „Web-Player“)
+- TV-Controls: ±10s, Next, Auto-Next
+- Logo/Favicon/PWA-Manifest im Bundle
+
+Empfohlene Base-URL: https://aniworld.to

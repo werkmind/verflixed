@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07090f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Verflixed" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Verflixed</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="mark-img" src="icons/icon-128.png" alt="Verflixed" />
+        <div>
+          <div class="title">Verflixed</div>
+          <div class="subtitle" id="versionLabel">Desktop</div>
+        </div>
+      </div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="browse">Home</button>
+        <button class="tab" data-tab="search">Suche</button>
+        <button class="tab" data-tab="profiles">Profil</button>
+      </nav>
+      <div class="kind-row" id="kindRow">
+        <button type="button" class="kind-btn active" data-kind="series">Serien</button>
+        <button type="button" class="kind-btn" data-kind="movie">Filme</button>
+      </div>
+      <div class="base-row">
+        <button id="btnProfileChip" class="profile-chip" type="button" title="Profil">
+          <span id="profileChipName">Profil</span>
+        </button>
+        <input id="baseUrl" type="url" placeholder="Quellen-URL" />
+        <button id="btnSaveBase" class="btn primary">Aktualisieren</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="view-browse" class="view active">
+        <div id="browseStatus" class="status"></div>
+        <div id="rows" class="rows"></div>
+      </section>
+
+      <section id="view-search" class="view">
+        <div class="search-box">
+          <input id="searchInput" type="search" placeholder="Suchen…" autofocus />
+        </div>
+        <div id="searchResults" class="grid"></div>
+      </section>
+
+      <section id="view-profiles" class="view">
+        <div class="profiles-head">
+          <h2>Wer schaut?</h2>
+          <p class="muted">Eigene Favoriten & Fortschritt pro Profil</p>
+        </div>
+        <div id="profileGrid" class="profile-grid"></div>
+        <div class="profile-actions">
+          <button id="btnAddProfile" class="btn primary">Profil hinzufügen</button>
+        </div>
+        <div class="settings-card">
+          <label>Serien-Quellen-URL</label>
+          <div class="base-row tight">
+            <input id="seriesBaseUrl" type="url" placeholder="https://aniworld.to" />
+          </div>
+          <label style="margin-top:12px;display:block;">Filme-Quellen-URL</label>
+          <div class="base-row tight">
+            <input id="moviesBaseUrl" type="url" placeholder="https://filmpalast.to" />
+            <button id="btnSaveBase2" class="btn ghost">Speichern</button>
+          </div>
+          <p class="muted" style="margin-top:8px;font-size:0.85rem;">
+            Aktive Quelle folgt dem Serien/Filme-Schalter oben.
+          </p>
+        </div>
+      </section>
+
+      <section id="view-player" class="view">
+        <div class="player-shell" id="playerShell">
+          <video id="video" playsinline></video>
+          <div id="playerOverlay" class="player-overlay">
+            <div id="playerTitle">Kein Stream</div>
+            <div id="playerStatus">Wähle eine Episode</div>
+          </div>
+          <div id="tvControls" class="tv-controls hidden">
+            <button type="button" data-act="back" title="-10s">⏪ 10</button>
+            <button type="button" data-act="play" title="Play/Pause">⏯</button>
+            <button type="button" data-act="fwd" title="+10s">10 ⏩</button>
+            <button type="button" data-act="next" title="Nächste">⏭</button>
+            <div class="tv-scrub">
+              <input id="seekBar" type="range" min="0" max="1000" value="0" />
+              <div class="tv-times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-detail" class="view">
+        <div id="detailHero" class="detail-hero-bg">
+          <div class="detail-hero-scrim">
+            <button id="btnBack" class="btn ghost">← Zurück</button>
+            <div class="detail-hero">
+              <img id="detailPoster" alt="" />
+              <div class="detail-copy">
+                <h1 id="detailTitle"></h1>
+                <p id="detailMeta" class="detail-meta"></p>
+                <p id="detailOverview"></p>
+                <div class="detail-actions">
+                  <button id="btnPlayContinue" class="btn primary">Play</button>
+                  <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
+                </div>
+                <div id="seasonTabs" class="chips"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="episodeList" class="episode-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="hls.min.js"></script>
+  <script src="site-images.js"></script>
+  <script src="catalog-parser.js"></script>
+  <script src="film-parser.js"></script>
+  <script src="site-search.js"></script>
+  <script src="tvmaze.js"></script>
+  <script src="profiles-store.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

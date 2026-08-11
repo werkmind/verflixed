@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="sv_bg">#FF0B1220</color>
+    <color name="sv_bg_deep">#FF070B14</color>
+    <color name="sv_surface">#FF151D2E</color>
+    <color name="sv_surface_elevated">#FF1C2740</color>
+    <color name="sv_accent">#FF2F80FF</color>
+    <color name="sv_accent_hover">#FF5AA8FF</color>
+    <color name="sv_accent_soft">#402F80FF</color>
+    <color name="sv_plex">#FFE5A00D</color>
+    <color name="sv_text_primary">#FFFFFFFF</color>
+    <color name="sv_text_secondary">#FFB8C4D9</color>
+    <color name="sv_text_muted">#FF7E8BA3</color>
+    <color name="sv_focus">#FFFFFFFF</color>
+    <color name="sv_progress">#FF2F80FF</color>
+    <color name="sv_watched">#FF46D369</color>
+    <color name="sv_card_stroke">#22FFFFFF</color>
+    <color name="sv_scrim">#CC0B1220</color>
+    <color name="sv_scrim_strong">#E60B1220</color>
+    <color name="sv_hero_scrim_start">#000B1220</color>
+    <color name="sv_hero_scrim_end">#FF0B1220</color>
+    <color name="sv_button_primary_text">#FF0B1220</color>
+</resources>
