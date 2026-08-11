@@ -8,25 +8,55 @@ class UserPrefs(context: Context) {
     private val sp: SharedPreferences =
         context.getSharedPreferences("verflixed_prefs", Context.MODE_PRIVATE)
 
+    init {
+        // Seed defaults for first run / empty prefs (testing + Fire TV setup).
+        // Use SharedPreferences directly — property setters are not yet initialized.
+        sp.edit {
+            if (sp.getString(KEY_SERIES_BASE, null).isNullOrBlank() &&
+                sp.getString(KEY_BASE_URL, null).isNullOrBlank()
+            ) {
+                val normalized = normalizeUrl(DEFAULT_SERIES_BASE)
+                putString(KEY_SERIES_BASE, normalized)
+                putString(KEY_BASE_URL, normalized)
+            }
+            if (sp.getString(KEY_MOVIES_BASE, null).isNullOrBlank()) {
+                putString(KEY_MOVIES_BASE, normalizeUrl(DEFAULT_MOVIES_BASE))
+            }
+            // Always prefer system Fire TV nav sounds over in-app beeps.
+            if (!sp.contains(KEY_SOUNDS)) {
+                putBoolean(KEY_SOUNDS, false)
+            }
+            // Clear legacy antifilter selections.
+            if (sp.contains(KEY_INCLUDE) || sp.contains(KEY_EXCLUDE)) {
+                remove(KEY_INCLUDE)
+                remove(KEY_EXCLUDE)
+            }
+        }
+    }
+
     /** Series catalog base URL. Migrates from legacy [KEY_BASE_URL]. */
     var seriesBaseUrl: String
         get() {
             val series = sp.getString(KEY_SERIES_BASE, null)?.trim().orEmpty()
             if (series.isNotBlank()) return series
-            return sp.getString(KEY_BASE_URL, "")?.trim().orEmpty()
+            val legacy = sp.getString(KEY_BASE_URL, "")?.trim().orEmpty()
+            return legacy.ifBlank { DEFAULT_SERIES_BASE }
         }
         set(value) {
-            val normalized = value.trim().trimEnd('/')
+            val normalized = normalizeUrl(value).ifBlank { DEFAULT_SERIES_BASE }
             sp.edit {
                 putString(KEY_SERIES_BASE, normalized)
-                // Keep legacy key in sync for older code / updates.
                 putString(KEY_BASE_URL, normalized)
             }
         }
 
     var moviesBaseUrl: String
         get() = sp.getString(KEY_MOVIES_BASE, "")?.trim().orEmpty()
-        set(value) = sp.edit { putString(KEY_MOVIES_BASE, value.trim().trimEnd('/')) }
+            .ifBlank { DEFAULT_MOVIES_BASE }
+        set(value) {
+            val normalized = normalizeUrl(value).ifBlank { DEFAULT_MOVIES_BASE }
+            sp.edit { putString(KEY_MOVIES_BASE, normalized) }
+        }
 
     /** Active media kind: "series" or "movie". */
     var mediaKind: String
@@ -46,7 +76,6 @@ class UserPrefs(context: Context) {
             seriesBaseUrl = value
         }
 
-    /** Prefer series base; fall back to movies when only movies are configured. */
     fun activeBaseUrl(): String =
         if (isMovies) {
             moviesBaseUrl.ifBlank { seriesBaseUrl }
@@ -60,21 +89,21 @@ class UserPrefs(context: Context) {
 
     var updateManifestUrl: String
         get() = sp.getString(KEY_UPDATE, "")?.trim().orEmpty()
+            .ifBlank { DEFAULT_UPDATE_MANIFEST }
         set(value) = sp.edit { putString(KEY_UPDATE, value.trim()) }
 
     var uiSoundsEnabled: Boolean
-        get() = sp.getBoolean(KEY_SOUNDS, true)
+        get() = sp.getBoolean(KEY_SOUNDS, false)
         set(value) = sp.edit { putBoolean(KEY_SOUNDS, value) }
 
-    /** Active include genre ids for search/browse filters. */
+    /** Kept for ABI; antifilter UI removed — always empty. */
     var includeGenres: Set<String>
-        get() = sp.getStringSet(KEY_INCLUDE, emptySet())?.toSet().orEmpty()
-        set(value) = sp.edit { putStringSet(KEY_INCLUDE, value) }
+        get() = emptySet()
+        set(_) = sp.edit { remove(KEY_INCLUDE) }
 
-    /** Anti-pattern / exclude genre ids (e.g. anime, comedy). */
     var excludeGenres: Set<String>
-        get() = sp.getStringSet(KEY_EXCLUDE, emptySet())?.toSet().orEmpty()
-        set(value) = sp.edit { putStringSet(KEY_EXCLUDE, value) }
+        get() = emptySet()
+        set(_) = sp.edit { remove(KEY_EXCLUDE) }
 
     var browsePage: Int
         get() = sp.getInt(KEY_BROWSE_PAGE, 0)
@@ -86,14 +115,27 @@ class UserPrefs(context: Context) {
             if (value.isNullOrBlank()) remove(KEY_PROFILE) else putString(KEY_PROFILE, value.trim())
         }
 
+    var setupDone: Boolean
+        get() = sp.getBoolean(KEY_SETUP_DONE, false)
+        set(value) = sp.edit { putBoolean(KEY_SETUP_DONE, value) }
+
+    fun markSetupDone() {
+        setupDone = true
+    }
+
     val isConfigured: Boolean
-        get() = seriesBaseUrl.isNotBlank() || moviesBaseUrl.isNotBlank()
+        get() = setupDone || seriesBaseUrl.isNotBlank() || moviesBaseUrl.isNotBlank()
 
     fun clear() = sp.edit { clear() }
 
     companion object {
         const val KIND_SERIES = "series"
         const val KIND_MOVIE = "movie"
+
+        const val DEFAULT_SERIES_BASE = "https://serienstream.cx"
+        const val DEFAULT_MOVIES_BASE = "https://filmpalast.to"
+        /** Short update manifest URL (overwritten at release). */
+        var DEFAULT_UPDATE_MANIFEST: String = ""
 
         private const val KEY_BASE_URL = "base_url"
         private const val KEY_SERIES_BASE = "series_base_url"
@@ -106,6 +148,16 @@ class UserPrefs(context: Context) {
         private const val KEY_EXCLUDE = "exclude_genres"
         private const val KEY_BROWSE_PAGE = "browse_page"
         private const val KEY_PROFILE = "active_profile_id"
+        private const val KEY_SETUP_DONE = "setup_done"
         const val BROWSE_PAGE_SIZE = 24
+
+        fun normalizeUrl(raw: String): String {
+            var u = raw.trim().trimEnd('/')
+            if (u.isBlank()) return ""
+            if (!u.startsWith("http://") && !u.startsWith("https://")) {
+                u = "https://$u"
+            }
+            return u.trimEnd('/')
+        }
     }
 }
