@@ -53,6 +53,28 @@ button { color: inherit; }
 .title { font-weight: 800; font-size: 18px; letter-spacing: 0.02em; }
 .subtitle { color: var(--muted); font-size: 12px; }
 
+.kind-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: 4px;
+}
+.kind-btn {
+  background: #1a2030;
+  color: #9aa3b5;
+  border: 1px solid #2a3348;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.kind-btn.active {
+  background: var(--accent, #e50914);
+  border-color: var(--accent, #e50914);
+  color: #fff;
+  font-weight: 600;
+}
+
 .base-row {
   display: flex;
   gap: 8px;
@@ -61,7 +83,9 @@ button { color: inherit; }
 }
 .base-row.tight { margin-top: 8px; }
 #baseUrl,
-#baseUrlSettings {
+#baseUrlSettings,
+#seriesBaseUrl,
+#moviesBaseUrl {
   width: min(320px, 32vw);
   background: var(--bg2);
   color: var(--text);
@@ -71,7 +95,9 @@ button { color: inherit; }
   outline: none;
 }
 #baseUrl:focus,
-#baseUrlSettings:focus { border-color: var(--accent-soft); }
+#baseUrlSettings:focus,
+#seriesBaseUrl:focus,
+#moviesBaseUrl:focus { border-color: var(--accent-soft); }
 
 .profile-chip {
   border: 1px solid var(--line);

@@ -1,7 +1,7 @@
 {
   "name": "verflixed-webapp",
-  "version": "1.5.1",
-  "description": "Verflixed – multi-profile Netflix-style player (macOS/Windows/PWA)",
+  "version": "1.6.0",
+  "description": "Verflixed – Serien & Filme (multi-profile, macOS/Windows/PWA)",
   "main": "main.js",
   "author": "Verflixed",
   "license": "MIT",

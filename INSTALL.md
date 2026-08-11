@@ -2,9 +2,16 @@
 
 ## Datei
 
-- APK: `dist/Verflixed-FireTV.apk` (aktuell **1.5.1** / versionCode 14)
+- APK: `dist/Verflixed-FireTV.apk` (aktuell **1.6.0** / versionCode 15)
 - Silk-Ordner: `dist/silk/Verflixed-FireTV.apk`
 - Helper: `dist/serve-for-firetv.sh`
+
+### Neu in 1.6.0
+
+- **Serien + Filme**: getrennte Quellen-URLs, Serien/Filme-Schalter, Favoriten getrennt
+- **Filmpalast-kompatibel**: Katalog `/movies/new`, Suche `/search/title/…`, Detail `/stream/…`
+- **Hoster-Fallback**: VOE HD (Share-Redirect + Soft-Redirect) → Vidara `/api/stream` → weitere
+- Self-Tests: `node webapp/scripts/test-filmpalast-voe-bg.js`, `test-movie-search.js`
 
 ### Neu in 1.5.1
 
