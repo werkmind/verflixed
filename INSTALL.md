@@ -1,6 +1,6 @@
 # Verflixed – Installation
 
-## Downloads (1.6.9)
+## Downloads (1.7.0)
 
 | Datei | Kurzlink | Direct |
 |---|---|---|
@@ -10,9 +10,10 @@
 
 Lokal: `dist/Verflixed-FireTV.apk` · `dist/Verflixed-Webapp.zip`
 
-## Neu in 1.6.9
+## Neu in 1.7.0
 
-- Back hide-controls / double-back
-- DE/EN nur Detail wenn multi-lang
-- Film-Sprachseiten + sprachsicherer Cache
-- Update-Pfad über GitHub Releases
+- Splash: bassiger Netflix-BUM + animiertes V
+- Sidebar/Topbar + Kacheln/Cards **pro Profil**
+- Serien | Filme | Bibliothek | Suche getrennt
+- Globale Suche, Ready-Dots, Skeleton-Loader
+- Scroll-zur-Nav + Clipping-Fixes

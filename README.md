@@ -2,7 +2,7 @@
 
 Fire TV (Android) + Desktop Webapp für Serien & Filme.
 
-**Version 1.6.9** (versionCode 25)
+**Version 1.7.0** (versionCode 26)
 
 ## Persistent Downloads
 
@@ -28,11 +28,12 @@ Apps prüfen Updates über das GitHub-Manifest (kein Catbox-Ablauf).
 bash scripts/package-webapp.sh dist/Verflixed-Webapp.zip
 ```
 
-Release per Tag (`v1.6.9`) → GitHub Actions baut APK + Webapp.
+Release per Tag (`v1.7.0`) → GitHub Actions baut APK + Webapp.
 
-## Neu in 1.6.9
+## Neu in 1.7.0
 
-- Back: Controls ausblenden, dann Doppel-Zurück (Fire TV + Webapp)
-- DE/EN nur auf Detail, nur wenn ≥2 Sprachen
-- Filme: Filmpalast-Sprachseiten; sprachsicherer Cache
-- Updates über GitHub Releases
+- Splash: bassiger BUM-BUM + animiertes V-Logo
+- Sidebar (Standard) / Topbar pro Profil; Serien & Filme als eigene Seiten
+- Globale Suche mit Tab-Priorität; Library weniger Duplikate; Kacheln/Cards
+- Skeleton-Loader; Episode-Ready-Dots + Hintergrund-Stream-Warmup
+- Scroll zurück zur Nav; Clipping/Focus-Polish
