@@ -1,10 +1,1 @@
-versionName=1.6.9
-versionCode=25
-apk=https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk
-webapp=https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip
-update_manifest=https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json
-apk_short=https://clck.ru/3VBtLD
-webapp_short=https://clck.ru/3VBtLE
-update_short=https://clck.ru/3VBtLH
-repo=https://github.com/werkmind/verflixed
-releases=https://github.com/werkmind/verflixed/releases/latest
+https://github.com/werkmind/verflixed/releases/download/v1.7.5/Verflixed-FireTV.apk

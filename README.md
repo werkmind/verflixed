@@ -2,7 +2,7 @@
 
 Fire TV (Android) + Desktop Webapp für Serien & Filme.
 
-**Version 1.7.0** (versionCode 26)
+**Version 1.7.5** (versionCode 31)
 
 ## Persistent Downloads
 
