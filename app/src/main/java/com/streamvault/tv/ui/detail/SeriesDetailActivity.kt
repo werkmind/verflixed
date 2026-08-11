@@ -14,9 +14,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
+import com.streamvault.tv.data.catalog.StreamLanguage
 import com.streamvault.tv.data.db.WatchProgressEntity
 import com.streamvault.tv.data.model.Episode
 import com.streamvault.tv.data.model.Series
+import com.streamvault.tv.data.prefs.UserPrefs
 import com.streamvault.tv.databinding.ActivityDetailBinding
 import com.streamvault.tv.ui.player.PlayerActivity
 import com.streamvault.tv.ui.util.FocusFx
@@ -26,6 +28,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private object StreamLanguageLabel {
+    fun fromPrefs(prefs: UserPrefs): String =
+        StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))
+}
 class SeriesDetailActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDetailBinding
     private var series: Series? = null
@@ -53,12 +59,14 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.seasonTabs.adapter = seasonAdapter
         binding.episodeList.layoutManager = LinearLayoutManager(this)
         binding.episodeList.adapter = episodeAdapter
-        listOf(binding.btnPlay, binding.btnFavorite, binding.btnSeasonWatched).forEach {
+        listOf(binding.btnPlay, binding.btnFavorite, binding.btnSeasonWatched, binding.btnLanguage).forEach {
             FocusFx.bindScale(it, 1.08f)
         }
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
         binding.btnSeasonWatched.setOnClickListener { toggleSeasonWatched() }
+        paintLanguageButton()
+        binding.btnLanguage.setOnClickListener { toggleStreamLanguage() }
         binding.btnPlay.setOnClickListener {
             val s = series ?: return@setOnClickListener
             val target = (application as VerflixedApp).container.catalog
@@ -114,13 +122,26 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.title.text = s.title
         binding.meta.text = buildString {
             s.year?.let { append(it) }
-            if (!s.isMovie && s.seasons.isNotEmpty()) {
+            val langChip = s.genres.firstOrNull {
+                it.equals("Deutsch", true) || it.equals("Englisch", true)
+            } ?: run {
+                val app = application as VerflixedApp
+                StreamLanguageLabel.fromPrefs(app.container.prefs)
+            }
+            if (s.isMovie) {
                 if (isNotEmpty()) append("  •  ")
-                append("${s.seasons.size} Staffeln")
-                val eps = s.flatEpisodes().size
-                if (eps > 0) {
-                    if (isNotEmpty()) append("  •  ")
-                    append("$eps Episoden")
+                append(langChip)
+            } else {
+                if (isNotEmpty()) append("  •  ")
+                append("Ton: $langChip")
+                if (s.seasons.isNotEmpty()) {
+                    append("  •  ")
+                    append("${s.seasons.size} Staffeln")
+                    val eps = s.flatEpisodes().size
+                    if (eps > 0) {
+                        append("  •  ")
+                        append("$eps Episoden")
+                    }
                 }
             }
             val watched = progressMap.values.count { it.completed }
@@ -161,6 +182,33 @@ class SeriesDetailActivity : AppCompatActivity() {
             updateSeasonWatchedButton()
         }
         binding.btnPlay.requestFocus()
+    }
+
+    private fun paintLanguageButton() {
+        val prefs = (application as VerflixedApp).container.prefs
+        val code = StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
+        binding.btnLanguage.text = StreamLanguage.shortLabel(code)
+        binding.btnLanguage.contentDescription = "Ton: ${StreamLanguage.label(code)}"
+    }
+
+    private fun toggleStreamLanguage() {
+        val app = application as VerflixedApp
+        val prefs = app.container.prefs
+        val next = StreamLanguage.toggle(prefs.streamLanguage(prefs.activeProfileId))
+        lifecycleScope.launch {
+            app.container.catalog.setPreferredStreamLanguage(next)
+            // Drop cached streams for current title so next play uses new language.
+            series?.flatEpisodes()?.forEach { ep ->
+                runCatching { app.container.catalog.clearCachedStream(ep.id) }
+            }
+            paintLanguageButton()
+            series?.let { bindSeries(it, binding.btnFavorite.text.contains("entfernen", true)) }
+            Toast.makeText(
+                this@SeriesDetailActivity,
+                "Ton: ${StreamLanguage.label(next)} (Profil)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     private fun updateSeasonWatchedButton() {

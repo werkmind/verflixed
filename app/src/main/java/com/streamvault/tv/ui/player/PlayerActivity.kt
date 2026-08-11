@@ -30,6 +30,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.catalog.StreamKind
+import com.streamvault.tv.data.catalog.StreamLanguage
 import com.streamvault.tv.data.db.StreamCacheEntity
 import com.streamvault.tv.data.model.Episode
 import com.streamvault.tv.data.model.Series
@@ -115,8 +116,11 @@ class PlayerActivity : AppCompatActivity() {
 
         FocusFx.bindScale(binding.btnRetryHls, 1.06f)
         FocusFx.bindScale(binding.btnUseWebPlayer, 1.06f)
+        FocusFx.bindScale(binding.btnLangToggle, 1.06f)
         FocusFx.bindScale(binding.btnPlayNext, 1.06f)
 
+        paintLangToggle()
+        binding.btnLangToggle.setOnClickListener { togglePlaybackLanguage() }
         binding.btnPlayNext.setOnClickListener { playNext(auto = false) }
         binding.btnRetryHls.setOnClickListener {
             val hls = lastMediaUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }
@@ -147,6 +151,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerLoading.visibility = View.VISIBLE
         binding.playerError.visibility = View.GONE
         binding.playerErrorPanel.visibility = View.GONE
+        showModeBar(true)
 
         lifecycleScope.launch {
             val repo = (application as VerflixedApp).container.catalog
@@ -266,7 +271,7 @@ class PlayerActivity : AppCompatActivity() {
                 if (!url.isNullOrBlank() && (StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url))) {
                     maybeClaimVoe(url)
                 }
-                view?.evaluateJavascript(PLAYER_BOOTSTRAP_JS, null)
+                view?.evaluateJavascript(playerBootstrapJs(), null)
                 view?.evaluateJavascript(IFRAME_VOE_WATCH_JS, null)
                 view?.evaluateJavascript(
                     "(function(){try{return document.documentElement.outerHTML;}catch(e){return '';}})();",
@@ -755,10 +760,137 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showModeBar(visible: Boolean) {
-        // Debug-/Manual-Leiste standardmäßig aus; nur intern nutzbar.
-        binding.modeBar.visibility = View.GONE
+        // Debug-/Manual-Leiste standardmäßig aus; Sprach-Umschalter bleibt sichtbar.
+        binding.modeBar.visibility = View.VISIBLE
+        binding.btnLangToggle.visibility = View.VISIBLE
         binding.btnRetryHls.visibility = View.GONE
         binding.btnUseWebPlayer.visibility = View.GONE
+        paintLangToggle()
+    }
+
+    private fun currentPreferredLang(): String {
+        val prefs = (application as VerflixedApp).container.prefs
+        return StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
+    }
+
+    private fun paintLangToggle() {
+        val code = currentPreferredLang()
+        binding.btnLangToggle.text = StreamLanguage.shortLabel(code)
+        binding.btnLangToggle.contentDescription = "Ton: ${StreamLanguage.label(code)}"
+    }
+
+    private fun togglePlaybackLanguage() {
+        val app = application as VerflixedApp
+        val next = StreamLanguage.toggle(currentPreferredLang())
+        lifecycleScope.launch {
+            app.container.catalog.setPreferredStreamLanguage(next)
+            episode?.id?.let { app.container.catalog.clearCachedStream(it) }
+            paintLangToggle()
+            Toast.makeText(
+                this@PlayerActivity,
+                "Ton: ${StreamLanguage.label(next)} – lade neu…",
+                Toast.LENGTH_SHORT
+            ).show()
+            binding.playerLoading.visibility = View.VISIBLE
+            hideError()
+            handedOffToExo = false
+            allowEmbeddedFallback = false
+            lastMediaUrl = null
+            reResolveNative()
+        }
+    }
+
+    private fun playerBootstrapJs(): String {
+        val pref = currentPreferredLang()
+        val preferDe = pref == StreamLanguage.DE
+        return """
+(function(){
+  try {
+    var preferDe = ${if (preferDe) "true" else "false"};
+    var hide = ['.ads','.ad-banner','#cookie-consent','.cookie-consent','.cc-window','.fc-consent-root','.navbar','.top-nav'];
+    hide.forEach(function(s){
+      document.querySelectorAll(s).forEach(function(n){ try { n.style.display='none'; } catch(e){} });
+    });
+
+    function langScore(l){
+      l = (l||'').toLowerCase();
+      var isDe = l.indexOf('deutsch')>=0 || l.indexOf('german')>=0 || l==='de' || l==='1';
+      var isEn = l.indexOf('englisch')>=0 || l.indexOf('english')>=0 || l==='en' || l==='2';
+      if (preferDe) {
+        if (isDe) return 100;
+        if (isEn) return 5;
+      } else {
+        if (isEn) return 100;
+        if (isDe) return 5;
+      }
+      return 0;
+    }
+
+    function clickVoe(){
+      var buttons = Array.prototype.slice.call(document.querySelectorAll(
+        'button.link-box, .link-box, [data-play-url], [data-provider-name], a[data-play-url], .hosterSiteVideoButton'
+      ));
+      var scored = buttons.map(function(b){
+        var p = ((b.getAttribute('data-provider-name')||'') + ' ' + (b.textContent||'')).toLowerCase();
+        var l = ((b.getAttribute('data-language-label')||'') + ' ' + (b.getAttribute('data-language')||'') + ' ' +
+                 (b.getAttribute('data-language-id')||'') + ' ' + (b.getAttribute('data-lang-key')||'') + ' ' +
+                 (b.getAttribute('title')||''));
+        // inherit from nearest heading
+        try {
+          var n = b;
+          for (var i=0;i<6 && n;i++){
+            var h = n.querySelector && n.querySelector('h5,h4,h3');
+            if (!h && n.previousElementSibling) h = n.previousElementSibling;
+            if (h && (h.tagName||'').match(/^H[345]$/)) l += ' ' + (h.textContent||'');
+            n = n.parentElement;
+          }
+        } catch(e){}
+        var score = langScore(l);
+        if (p.indexOf('voe') >= 0) score += 50;
+        return {b:b, score:score};
+      }).filter(function(x){ return x.score > 0; })
+        .sort(function(a,b){ return b.score - a.score; });
+      if (scored.length) {
+        try { scored[0].b.focus(); scored[0].b.click(); } catch(e) {}
+        return true;
+      }
+      var play = document.querySelector('.hosterSiteVideo .play, .play-button, button[data-play-url], .vjs-big-play-button, button.play');
+      if (play) { try { play.click(); } catch(e) {} }
+      return false;
+    }
+
+    clickVoe();
+    setTimeout(clickVoe, 700);
+    setTimeout(clickVoe, 1800);
+    setTimeout(clickVoe, 3600);
+
+    function focusFrame(){
+      var frame = document.getElementById('player-iframe') || document.querySelector('iframe[src*="/r?t="], iframe[src*="voe"], iframe[src*="/e/"], iframe');
+      if (!frame) return;
+      try { frame.scrollIntoView({block:'center'}); } catch(e) {}
+      try {
+        var src = frame.src || '';
+        if (src && window.AndroidBridge && AndroidBridge.onVoeUrl) {
+          if (/voe|\/e\//i.test(src)) AndroidBridge.onVoeUrl(src);
+        }
+        var doc = frame.contentDocument || frame.contentWindow.document;
+        if (doc) {
+          var v = doc.querySelector('video');
+          if (v) { try { v.muted = true; v.play(); } catch(e) {}
+            if (v.currentSrc && AndroidBridge.onMediaUrl) AndroidBridge.onMediaUrl(v.currentSrc);
+          }
+          var pb = doc.querySelector('.vjs-big-play-button, button.play, .play-button');
+          if (pb) { try { pb.click(); } catch(e) {} }
+        }
+      } catch(e) {}
+    }
+    focusFrame();
+    setTimeout(focusFrame, 900);
+    setTimeout(focusFrame, 1400);
+    setTimeout(focusFrame, 3200);
+  } catch(e) {}
+})();
+""".trimIndent()
     }
 
     private fun playbackPageUrl(): String? {
@@ -983,72 +1115,6 @@ class PlayerActivity : AppCompatActivity() {
 
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 12; SHIELD Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-        /**
-         * Soft bootstrap: pick VOE DE, keep captcha/gate visible, nudge iframe play.
-         * Do NOT hide episode-redirect-gate / turnstile / altcha modals.
-         */
-        private const val PLAYER_BOOTSTRAP_JS = """
-(function(){
-  try {
-    var hide = ['.ads','.ad-banner','#cookie-consent','.cookie-consent','.cc-window','.fc-consent-root','.navbar','.top-nav'];
-    hide.forEach(function(s){
-      document.querySelectorAll(s).forEach(function(n){ try { n.style.display='none'; } catch(e){} });
-    });
-
-    function clickVoe(){
-      var buttons = Array.prototype.slice.call(document.querySelectorAll(
-        'button.link-box, .link-box, [data-play-url], [data-provider-name], a[data-play-url], .hosterSiteVideoButton'
-      ));
-      var scored = buttons.map(function(b){
-        var p = ((b.getAttribute('data-provider-name')||'') + ' ' + (b.textContent||'')).toLowerCase();
-        var l = ((b.getAttribute('data-language-label')||'') + ' ' + (b.getAttribute('data-lang-key')||'') + ' ' + (b.getAttribute('title')||'')).toLowerCase();
-        var score = 0;
-        if (p.indexOf('voe') >= 0) score += 50;
-        if (l.indexOf('deutsch') >= 0 || l.indexOf(' german') >= 0 || l === 'de' || l.indexOf('de') === 0) score += 30;
-        return {b:b, score:score};
-      }).filter(function(x){ return x.score > 0; })
-        .sort(function(a,b){ return b.score - a.score; });
-      if (scored.length) {
-        try { scored[0].b.focus(); scored[0].b.click(); } catch(e) {}
-        return true;
-      }
-      var play = document.querySelector('.hosterSiteVideo .play, .play-button, button[data-play-url], .vjs-big-play-button, button.play');
-      if (play) { try { play.click(); } catch(e) {} }
-      return false;
-    }
-
-    clickVoe();
-    setTimeout(clickVoe, 700);
-    setTimeout(clickVoe, 1800);
-    setTimeout(clickVoe, 3600);
-
-    function focusFrame(){
-      var frame = document.getElementById('player-iframe') || document.querySelector('iframe[src*="/r?t="], iframe[src*="voe"], iframe[src*="/e/"], iframe');
-      if (!frame) return;
-      try { frame.scrollIntoView({block:'center'}); } catch(e) {}
-      try {
-        var src = frame.src || '';
-        if (src && window.AndroidBridge && AndroidBridge.onVoeUrl) {
-          if (/voe|\/e\//i.test(src)) AndroidBridge.onVoeUrl(src);
-        }
-        var doc = frame.contentDocument || frame.contentWindow.document;
-        if (doc) {
-          var v = doc.querySelector('video');
-          if (v) { try { v.muted = true; v.play(); } catch(e) {}
-            if (v.currentSrc && AndroidBridge.onMediaUrl) AndroidBridge.onMediaUrl(v.currentSrc);
-          }
-          var pb = doc.querySelector('.vjs-big-play-button, button.play, .play-button');
-          if (pb) { try { pb.click(); } catch(e) {} }
-        }
-      } catch(e) {}
-    }
-    focusFrame();
-    setTimeout(focusFrame, 1400);
-    setTimeout(focusFrame, 3200);
-  } catch(e) {}
-})();
-"""
 
         /** Watch iframe.src mutations for VOE embeds after captcha unlock. */
         private const val IFRAME_VOE_WATCH_JS = """

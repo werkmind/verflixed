@@ -74,6 +74,18 @@
             android:visibility="gone">
 
             <Button
+                android:id="@+id/btnLangToggle"
+                style="@style/SvButton.Ghost"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:minHeight="40dp"
+                android:minWidth="72dp"
+                android:text="DE"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <Button
                 android:id="@+id/btnRetryHls"
                 style="@style/SvButton.Primary"
                 android:layout_width="wrap_content"

@@ -119,6 +119,30 @@ class UserPrefs(context: Context) {
         get() = sp.getBoolean(KEY_SETUP_DONE, false)
         set(value) = sp.edit { putBoolean(KEY_SETUP_DONE, value) }
 
+    /**
+     * Preferred stream audio language for a profile: "de" (default) or "en".
+     * Profile-scoped so each Fire TV profile can differ.
+     */
+    fun streamLanguage(profileId: String?): String {
+        val id = profileId?.trim().orEmpty()
+        if (id.isNotBlank()) {
+            val keyed = sp.getString("$KEY_STREAM_LANG_PREFIX$id", null)?.trim().orEmpty()
+            if (keyed.isNotBlank()) return StreamLanguageCompat.normalize(keyed)
+        }
+        val legacy = sp.getString(KEY_STREAM_LANG, null)?.trim().orEmpty()
+        return StreamLanguageCompat.normalize(legacy.ifBlank { LANG_DE })
+    }
+
+    fun setStreamLanguage(profileId: String?, code: String) {
+        val normalized = StreamLanguageCompat.normalize(code)
+        sp.edit {
+            val id = profileId?.trim().orEmpty()
+            if (id.isNotBlank()) putString("$KEY_STREAM_LANG_PREFIX$id", normalized)
+            // Keep a global fallback in sync with the active profile.
+            putString(KEY_STREAM_LANG, normalized)
+        }
+    }
+
     fun markSetupDone() {
         setupDone = true
     }
@@ -131,11 +155,13 @@ class UserPrefs(context: Context) {
     companion object {
         const val KIND_SERIES = "series"
         const val KIND_MOVIE = "movie"
+        const val LANG_DE = "de"
+        const val LANG_EN = "en"
 
         const val DEFAULT_SERIES_BASE = "https://serienstream.cx"
         const val DEFAULT_MOVIES_BASE = "https://filmpalast.to"
         /** Short update manifest URL. */
-        const val DEFAULT_UPDATE_MANIFEST: String = "https://clck.ru/3VBqjs"
+        const val DEFAULT_UPDATE_MANIFEST: String = "https://clck.ru/3VBrJc"
 
         private const val KEY_BASE_URL = "base_url"
         private const val KEY_SERIES_BASE = "series_base_url"
@@ -149,6 +175,8 @@ class UserPrefs(context: Context) {
         private const val KEY_BROWSE_PAGE = "browse_page"
         private const val KEY_PROFILE = "active_profile_id"
         private const val KEY_SETUP_DONE = "setup_done"
+        private const val KEY_STREAM_LANG = "stream_language"
+        private const val KEY_STREAM_LANG_PREFIX = "stream_language_"
         const val BROWSE_PAGE_SIZE = 24
 
         fun normalizeUrl(raw: String): String {
@@ -158,6 +186,18 @@ class UserPrefs(context: Context) {
                 u = "https://$u"
             }
             return u.trimEnd('/')
+        }
+    }
+}
+
+/** Tiny local normalizer so UserPrefs does not create a circular import at class-init time. */
+private object StreamLanguageCompat {
+    fun normalize(raw: String?): String {
+        val l = raw?.trim()?.lowercase().orEmpty()
+        return when {
+            l.isBlank() -> "de"
+            l == "en" || l.startsWith("en") || l.contains("englisch") || l.contains("english") -> "en"
+            else -> "de"
         }
     }
 }

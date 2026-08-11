@@ -141,7 +141,19 @@
             android:layout_marginStart="10dp"
             android:minHeight="38dp"
             android:nextFocusLeft="@id/btnFavorite"
+            android:nextFocusRight="@id/btnLanguage"
             android:text="@string/detail_mark_season_watched" />
+
+        <Button
+            android:id="@+id/btnLanguage"
+            style="@style/SvButton.Ghost"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginStart="10dp"
+            android:minHeight="38dp"
+            android:minWidth="88dp"
+            android:nextFocusLeft="@id/btnSeasonWatched"
+            android:text="DE" />
     </LinearLayout>
 
     <TextView

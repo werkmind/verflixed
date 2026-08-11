@@ -28,7 +28,8 @@ class SettingsActivity : AppCompatActivity() {
             "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\n" +
                 "Serien-URL:\n${prefs.seriesBaseUrl.ifBlank { "—" }}\n\n" +
                 "Filme-URL:\n${prefs.moviesBaseUrl.ifBlank { "—" }}\n\n" +
-                "Aktiv: ${if (prefs.isMovies) "Filme" else "Serien"}"
+                "Aktiv: ${if (prefs.isMovies) "Filme" else "Serien"}\n\n" +
+                "Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))}"
         binding.inputUpdateUrl.setText(prefs.updateManifestUrl)
 
         binding.btnSaveUpdateUrl.setOnClickListener {
@@ -84,6 +85,29 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(
                 this,
                 if (prefs.uiSoundsEnabled) "UI-Sounds an" else "UI-Sounds aus",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        fun paintLanguage() {
+            val code = prefs.streamLanguage(prefs.activeProfileId)
+            binding.btnToggleLanguage.text =
+                "Sprache: ${com.streamvault.tv.data.catalog.StreamLanguage.label(code)}"
+        }
+        paintLanguage()
+        binding.btnToggleLanguage.setOnClickListener {
+            val next = com.streamvault.tv.data.catalog.StreamLanguage.toggle(
+                prefs.streamLanguage(prefs.activeProfileId)
+            )
+            prefs.setStreamLanguage(prefs.activeProfileId, next)
+            paintLanguage()
+            lifecycleScope.launch {
+                // Clear stream cache for active profile so language switch takes effect.
+                runCatching { app.container.catalog.clearCache() }
+            }
+            Toast.makeText(
+                this,
+                "Standard-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(next)}",
                 Toast.LENGTH_SHORT
             ).show()
         }

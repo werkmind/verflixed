@@ -138,6 +138,9 @@ interface StreamCacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: StreamCacheEntity)
 
+    @Query("DELETE FROM stream_cache WHERE profileId = :profileId AND episodeId = :episodeId")
+    suspend fun delete(profileId: String, episodeId: String)
+
     @Query("DELETE FROM stream_cache WHERE profileId = :profileId AND seriesId = :seriesId")
     suspend fun deleteSeries(profileId: String, seriesId: String)
 

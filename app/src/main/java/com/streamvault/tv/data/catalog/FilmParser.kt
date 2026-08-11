@@ -32,6 +32,20 @@ object FilmParser {
     fun isEpisodeLike(title: String?, url: String?): Boolean =
         EP_RE.containsMatchIn(title.orEmpty()) || EP_RE.containsMatchIn(url.orEmpty())
 
+    /** Detect audio language from Filmpalast detail HTML / release title. */
+    fun detectPageLanguage(html: String, title: String = ""): String {
+        val release = Regex(
+            """id=["']release_text["'][^>]*>(.*?)</""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).find(html)?.groupValues?.get(1).orEmpty()
+        val fromMeta = Regex(
+            """itemprop=["']inLanguage["'][^>]*content=["']([^"']+)["']""",
+            RegexOption.IGNORE_CASE
+        ).find(html)?.groupValues?.get(1)
+        return StreamLanguage.detectFromText(release, title, fromMeta, html.take(4000))
+            ?: StreamLanguage.DE
+    }
+
     fun parseMovieList(
         html: String,
         baseUrl: String,
@@ -104,10 +118,17 @@ object FilmParser {
                 .find(html)?.value?.let { poster = abs(pageUrl, it) }
         }
 
+        val pageLang = detectPageLanguage(html, title)
         val genres = doc.select("#detail-content-list a[href*=/search/genre/]")
             .map { cleanTitle(it.text()) }
             .filter { it.isNotBlank() }
             .distinct()
+            .toMutableList()
+        // Surface audio language as a genre chip for detail UI (Deutsch / Englisch).
+        val langLabel = StreamLanguage.label(pageLang)
+        if (genres.none { it.equals(langLabel, true) || it.equals("Deutsch", true) || it.equals("Englisch", true) }) {
+            genres.add(0, langLabel)
+        }
 
         val id = idHint?.takeIf { it.isNotBlank() } ?: slugId(pageUrl, title)
         return Series(
@@ -144,7 +165,12 @@ object FilmParser {
         )
     }
 
-    fun scoreHoster(name: String, url: String = ""): Int {
+    fun scoreHoster(
+        name: String,
+        url: String = "",
+        language: String = "",
+        preferredLang: String = StreamLanguage.DE,
+    ): Int {
         val n = "$name $url".lowercase()
         var s = 0
         // Firestream first for Filmpalast: progressive CDN, fewer geo/encoding fails than VOE.
@@ -154,11 +180,23 @@ object FilmParser {
         if (n.contains("vidsonic")) s += 40
         if (n.contains("playmate")) s += 20
         if (Regex("""\bhd\b""").containsMatchIn(n)) s += 5
+        if (language.isNotBlank()) {
+            if (StreamLanguage.matchesPreferred(language, preferredLang)) s += 80
+            else s -= 40
+        }
         return s
     }
 
-    fun parseHosters(html: String, pageUrl: String): List<Hoster> {
+    fun parseHosters(
+        html: String,
+        pageUrl: String,
+        preferredLang: String = StreamLanguage.DE,
+    ): List<Hoster> {
         val doc = Jsoup.parse(html, pageUrl)
+        val pageLang = detectPageLanguage(
+            html,
+            doc.selectFirst("article.detail h2, h2.bgDark, h2")?.text().orEmpty()
+        )
         val hosters = mutableListOf<Hoster>()
         doc.select("ul.currentStreamLinks").forEach { ul ->
             val name = ul.selectFirst(".hostName")?.text()?.trim().orEmpty().ifBlank { "Hoster" }
@@ -174,12 +212,16 @@ object FilmParser {
             if (raw.isBlank() || raw == "#") return@forEach
             val url = abs(pageUrl, raw)
             if (url.isBlank()) return@forEach
-            val score = scoreHoster(name, url)
+            val hosterLang = a.attr("data-language-label").ifBlank { a.attr("data-language") }
+                .ifBlank { ul.attr("data-language") }
+                .ifBlank { pageLang }
+            val score = scoreHoster(name, url, hosterLang, preferredLang)
             hosters += Hoster(
                 provider = name,
                 name = name,
                 url = url,
                 score = score,
+                language = hosterLang,
             )
         }
         return hosters.sortedByDescending { it.score }

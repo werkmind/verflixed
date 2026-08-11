@@ -1,15 +1,15 @@
 # Verflixed – Installation auf Fire TV Stick
 
-## Downloads (1.6.6)
+## Downloads (1.6.7)
 
 | Datei | Link |
 |---|---|
-| **APK Fire TV (kurz)** | https://clck.ru/3VBqjp |
-| **Update-Manifest (kurz)** | https://clck.ru/3VBqjs |
-| APK Gofile | https://gofile.io/d/zzJJ8M |
-| APK Direkt (72h) | https://litter.catbox.moe/lidbf0.apk |
+| **APK Fire TV (kurz)** | https://clck.ru/3VBrJb |
+| **Update-Manifest (kurz)** | https://clck.ru/3VBrJc |
+| APK Gofile | https://gofile.io/d/bXsIOT |
+| APK Direkt (72h) | https://litter.catbox.moe/vtqpha.apk |
 
-Lokal: `dist/Verflixed-FireTV.apk` (versionCode **22** / **1.6.6**)
+Lokal: `dist/Verflixed-FireTV.apk` (versionCode **23** / **1.6.7**)
 
 ---
 
@@ -19,18 +19,15 @@ Lokal: `dist/Verflixed-FireTV.apk` (versionCode **22** / **1.6.6**)
 2. Unbekannte Quellen für Downloader erlauben  
 3. URL eingeben:
    ```text
-   https://clck.ru/3VBqjp
+   https://clck.ru/3VBrJb
    ```
 4. Installieren → **Verflixed** starten
 
-### Neu in 1.6.6
+### Neu in 1.6.7
 
-- **VOE Encoding/Geo**: springt automatisch zum nächsten Hoster (Firestream zuerst)
-- **Kein WebView-Leak** mehr bei Filmfehlern / iframe
-- **Home**: Hero scrollt mit (kein Overlay über Kacheln)
-- **Kategorien** für Serien *und* Filme (beide Plattformen)
-- **Serienkalender**: DEMNÄCHST + Release-Zeit (z. B. Silo E7)
-- **Splash**: animiertes Verflixed-Logo + Sound; Defaults laden ohne API-Key
+- **Ton DE/EN**: Standard Deutsch, profilabhängig umschaltbar (Detail, Player, Einstellungen)
+- Serien-Hosters: bevorzugt deutsche Streams; Englisch nur als Fallback
+- Filme: Sprache aus Release-Titel erkannt und angezeigt
 
 ### Defaults
 

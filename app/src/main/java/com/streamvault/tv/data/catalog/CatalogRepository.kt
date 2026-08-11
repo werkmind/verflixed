@@ -72,6 +72,23 @@ class CatalogRepository(
 
     private fun isMoviesMode(): Boolean = prefs.isMovies
 
+    /** Active profile stream language preference (default Deutsch). */
+    private fun preferredLang(): String =
+        StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
+
+    private fun cacheKind(url: String, language: String? = null): String {
+        val base = StreamKind.streamKindLabel(url)
+        val lang = StreamLanguage.normalize(language ?: preferredLang())
+        return "$base|$lang"
+    }
+
+    private fun cacheLangMatches(kind: String?, preferred: String): Boolean {
+        val k = kind.orEmpty()
+        val sep = k.lastIndexOf('|')
+        if (sep < 0) return true // legacy cache without language tag — allow once
+        return StreamLanguage.normalize(k.substring(sep + 1)) == StreamLanguage.normalize(preferred)
+    }
+
     suspend fun validateBaseUrl(url: String): Result<Catalog> = withContext(Dispatchers.IO) {
         runCatching {
             val normalized = url.trim().trimEnd('/')
@@ -702,13 +719,16 @@ class CatalogRepository(
     }
 
     suspend fun resolveStream(episode: Episode): String = withContext(Dispatchers.IO) {
+        val pref = preferredLang()
         // 1) Prefer already-known direct media (HLS/mp4) — never downgrade to HTML pages.
         episode.streamUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }?.let {
-            cacheStream(episode, it)
+            cacheStream(episode, it, pref)
             return@withContext it
         }
-        db.streams().get(pid(), episode.id)?.streamUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }?.let {
-            return@withContext it
+        db.streams().get(pid(), episode.id)?.takeIf {
+            StreamKind.isDirectMediaUrl(it.streamUrl) && cacheLangMatches(it.kind, pref)
+        }?.let {
+            return@withContext it.streamUrl
         }
 
         // Movie page: parse hosters → VOE / Vidara / Firestream → direct media only.
@@ -723,7 +743,8 @@ class CatalogRepository(
         }
 
         // 2) Cached VOE → claim m3u8 now (xstream-style); cached blobs → try cookie resolve.
-        db.streams().get(pid(), episode.id)?.streamUrl?.let { cached ->
+        db.streams().get(pid(), episode.id)?.takeIf { cacheLangMatches(it.kind, pref) }?.let { cachedRow ->
+            val cached = cachedRow.streamUrl
             when {
                 StreamKind.isVoePlayerUrl(cached) || StreamKind.isVoeEmbedPath(cached) -> {
                     claimVoeHls(cached, episode)?.let { return@withContext it }
@@ -817,7 +838,7 @@ class CatalogRepository(
             cacheStream(episode, it)
             return@withContext it
         }
-        parser.extractPlayBlob(body, page)?.let { blob ->
+        parser.extractPlayBlob(body, page, preferredLang = preferredLang())?.let { blob ->
             claimHlsDeep(blob, episode)?.let { return@withContext it }
         }
         if (StreamKind.isEpisodeWatchPage(page)) {
@@ -854,10 +875,19 @@ class CatalogRepository(
     private suspend fun resolveMovieStream(episode: Episode, pageUrl: String): String? {
         val body = runCatching { getText(pageUrl) }.getOrNull().orEmpty()
         if (body.isBlank()) return null
-        val hosters = FilmParser.parseHosters(body, pageUrl)
+        val pref = preferredLang()
+        val pageLang = FilmParser.detectPageLanguage(body)
+        val hosters = FilmParser.parseHosters(body, pageUrl, preferredLang = pref)
         if (hosters.isEmpty()) return null
 
-        for (hoster in hosters) {
+        // Prefer hosters matching preferred language; fall back to the rest.
+        val ordered = hosters.filter {
+            it.language.isBlank() || StreamLanguage.matchesPreferred(it.language, pref)
+        }.ifEmpty { hosters } + hosters.filterNot {
+            it.language.isBlank() || StreamLanguage.matchesPreferred(it.language, pref)
+        }.distinctBy { it.url }
+
+        for (hoster in ordered) {
             val url = hoster.url
             val got = runCatching {
                 when {
@@ -891,7 +921,8 @@ class CatalogRepository(
                 if (got.contains("/e/", true) && !StreamKind.isDirectMediaUrl(got) &&
                     !got.contains(".mp4", true) && !got.contains("md5=", true)
                 ) continue
-                cacheStream(episode, got)
+                val lang = hoster.language.ifBlank { pageLang }
+                cacheStream(episode, got, lang)
                 return got
             }
         }
@@ -955,8 +986,14 @@ class CatalogRepository(
             return it
         }
 
-        // Prefer VOE hoster blobs on episode pages — try several (DE first, then EN)
-        parser.extractPlayBlobs(body, startUrl).take(4).forEach { blob ->
+        // Prefer VOE hoster blobs on episode pages — preferred language first, then fallback.
+        val pref = preferredLang()
+        val blobs = parser.extractPlayBlobCandidates(body, startUrl, preferredLang = pref)
+        val preferredBlobs = blobs.filter {
+            it.language.isNotBlank() && StreamLanguage.matchesPreferred(it.language, pref)
+        }
+        val ordered = (preferredBlobs + blobs.filterNot { it in preferredBlobs }).map { it.url }.distinct()
+        ordered.take(6).forEach { blob ->
             if (blob != startUrl) claimHlsDeep(blob, episode, depth + 1)?.let { return it }
         }
 
@@ -1448,17 +1485,37 @@ class CatalogRepository(
         }
     }
 
-    private suspend fun cacheStream(episode: Episode, url: String) {
+    private suspend fun cacheStream(episode: Episode, url: String, language: String? = null) {
         db.streams().upsert(
             StreamCacheEntity(
                 profileId = pid(),
                 episodeId = episode.id,
                 seriesId = episode.seriesId,
                 streamUrl = url,
-                kind = StreamKind.streamKindLabel(url),
+                kind = cacheKind(url, language),
                 updatedAt = System.currentTimeMillis()
             )
         )
+    }
+
+    /** Drop cached stream for an episode (e.g. after DE/EN language switch). */
+    suspend fun clearCachedStream(episodeId: String) = withContext(Dispatchers.IO) {
+        db.streams().delete(pid(), episodeId)
+    }
+
+    suspend fun setPreferredStreamLanguage(code: String) = withContext(Dispatchers.IO) {
+        val lang = StreamLanguage.normalize(code)
+        prefs.setStreamLanguage(prefs.activeProfileId, lang)
+    }
+
+    fun preferredStreamLanguage(): String = preferredLang()
+
+    /** Detect / report movie page language for UI badges. */
+    suspend fun moviePageLanguage(pageUrl: String?): String? = withContext(Dispatchers.IO) {
+        if (pageUrl.isNullOrBlank()) return@withContext null
+        val body = runCatching { getText(pageUrl) }.getOrNull().orEmpty()
+        if (body.isBlank()) return@withContext null
+        FilmParser.detectPageLanguage(body)
     }
 
     /** Avatar candidates from current profile favorites (poster/backdrop art). */
