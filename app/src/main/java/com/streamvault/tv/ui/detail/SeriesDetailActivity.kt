@@ -129,7 +129,7 @@ class SeriesDetailActivity : AppCompatActivity() {
             }
         }
         binding.overview.text = s.overview ?: "Keine Beschreibung verfügbar."
-        PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false, rounded = 12)
+        PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false)
         PosterLoader.loadHero(binding.backdrop, s.backdropUrl ?: s.posterUrl, browseMode = false)
         binding.btnFavorite.text = if (favorite) {
             getString(R.string.detail_favorite_remove)
@@ -245,7 +245,7 @@ class SeriesDetailActivity : AppCompatActivity() {
         val season = s.seasons.find { it.number == selectedSeason }
         val poster = season?.posterUrl ?: s.posterUrl
         val backdrop = season?.backdropUrl ?: season?.posterUrl ?: s.backdropUrl ?: s.posterUrl
-        PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false, rounded = 12)
+        PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false)
         PosterLoader.loadHero(binding.backdrop, backdrop ?: poster, browseMode = false)
     }
 

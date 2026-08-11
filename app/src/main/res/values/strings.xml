@@ -26,6 +26,7 @@
     <string name="detail_favorite_add">Zu Favoriten</string>
     <string name="detail_favorite_remove">Aus Favoriten</string>
     <string name="detail_play">Abspielen</string>
+    <string name="detail_more_info">Details</string>
     <string name="detail_seasons">Staffeln</string>
     <string name="detail_episodes">Episoden</string>
     <string name="detail_mark_season_watched">Staffel gesehen</string>

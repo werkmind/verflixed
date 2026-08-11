@@ -15,20 +15,26 @@ import com.streamvault.tv.data.catalog.SiteImages
  * - Prefer high-res JPEG site URLs (2x-desktop)
  * - Browse/Search: **no Glide disk cache** (and no Room image/meta cache upstream)
  * - Library/Detail: normal disk cache OK (favorites persist metadata)
+ *
+ * Corner rounding always happens inside the bitmap transform so cards never need
+ * padding or a light-coloured container to fake the radius.
  */
 object PosterLoader {
-    fun loadSeries(view: ImageView, url: String?, browseMode: Boolean = false, rounded: Int = 16) {
+    /** Matches the radius of bg_poster_card / bg_poster_surface. */
+    private const val POSTER_RADIUS_DP = 10
+
+    fun loadSeries(view: ImageView, url: String?, browseMode: Boolean = false, roundedDp: Int = POSTER_RADIUS_DP) {
         val src = SiteImages.preferJpeg(url)
-        val opts = browseOptions(browseMode).centerCrop()
         val req = Glide.with(view)
             .load(src)
-            .apply(opts)
+            .apply(browseOptions(browseMode))
             .placeholder(R.drawable.poster_placeholder)
             .error(R.drawable.poster_placeholder)
-        if (rounded > 0) {
-            req.transform(CenterCrop(), RoundedCorners(rounded)).into(view)
+        val radiusPx = view.dp(roundedDp)
+        if (radiusPx > 0) {
+            req.transform(CenterCrop(), RoundedCorners(radiusPx)).into(view)
         } else {
-            req.into(view)
+            req.transform(CenterCrop()).into(view)
         }
     }
 
@@ -50,9 +56,12 @@ object PosterLoader {
             .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
             .placeholder(R.drawable.poster_placeholder)
             .error(R.drawable.poster_placeholder)
-            .transform(CenterCrop(), RoundedCorners(14))
+            .transform(CenterCrop(), RoundedCorners(view.dp(POSTER_RADIUS_DP)))
             .into(view)
     }
+
+    private fun ImageView.dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     private fun browseOptions(browseMode: Boolean): RequestOptions {
         return if (browseMode) {

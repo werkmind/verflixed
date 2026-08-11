@@ -4,13 +4,17 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/sv_bg"
-    android:clipChildren="false">
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
-    <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible -->
+    <!-- Compact top nav (scrollable) so Fire TV 720p keeps content visible.
+         clipChildren=false lets the focus scale breathe instead of slicing pills. -->
     <HorizontalScrollView
         android:id="@+id/navScroll"
         android:layout_width="0dp"
-        android:layout_height="52dp"
+        android:layout_height="50dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:focusable="false"
         android:focusableInTouchMode="false"
@@ -23,164 +27,154 @@
             android:id="@+id/navBar"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="28dp"
-            android:paddingEnd="20dp">
-
-            <ImageView
-                android:id="@+id/brandMark"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginEnd="8dp"
-                android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_verflixed_mark" />
+            android:paddingStart="36dp"
+            android:paddingEnd="28dp">
 
             <ImageView
                 android:id="@+id/profileAvatar"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginEnd="8dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_avatar_focus"
                 android:contentDescription="@string/profile_switcher"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:scaleType="centerCrop"
-                android:src="@drawable/ic_verflixed_mark" />
+                android:src="@drawable/ic_avatar_placeholder" />
 
             <TextView
                 android:id="@+id/profileNameLabel"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="34dp"
                 android:layout_marginEnd="14dp"
+                android:background="@drawable/bg_button_nav"
                 android:ellipsize="end"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:letterSpacing="0.04"
                 android:maxWidth="120dp"
                 android:maxLines="1"
-                android:textColor="@color/sv_text_secondary"
-                android:textSize="12sp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:textAllCaps="true"
+                android:textColor="@color/sv_text_muted"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <Button
                 android:id="@+id/tabLibrary"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="6dp"
-                android:minHeight="36dp"
-                android:text="@string/mode_library"
-                android:textSize="12sp" />
+                android:layout_height="34dp"
+                android:layout_marginEnd="4dp"
+                android:text="@string/mode_library" />
 
             <Button
                 android:id="@+id/tabBrowse"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="6dp"
-                android:minHeight="36dp"
-                android:text="@string/mode_browse"
-                android:textSize="12sp" />
+                android:layout_height="34dp"
+                android:layout_marginEnd="4dp"
+                android:text="@string/mode_browse" />
 
             <Button
                 android:id="@+id/tabSearch"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="10dp"
-                android:minHeight="36dp"
-                android:text="@string/mode_search"
-                android:textSize="12sp" />
+                android:layout_height="34dp"
+                android:layout_marginEnd="14dp"
+                android:text="@string/mode_search" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="18dp"
+                android:layout_marginEnd="14dp"
+                android:background="@color/sv_card_stroke" />
 
             <Button
                 android:id="@+id/btnKindSeries"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="34dp"
                 android:layout_marginEnd="4dp"
-                android:minHeight="36dp"
-                android:text="@string/kind_series"
-                android:textSize="12sp" />
+                android:text="@string/kind_series" />
 
             <Button
                 android:id="@+id/btnKindMovies"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="10dp"
-                android:minHeight="36dp"
-                android:text="@string/kind_movies"
-                android:textSize="12sp" />
+                android:layout_height="34dp"
+                android:layout_marginEnd="14dp"
+                android:text="@string/kind_movies" />
 
             <Button
                 android:id="@+id/btnLoadMore"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="6dp"
-                android:minHeight="36dp"
+                android:layout_height="34dp"
+                android:layout_marginEnd="4dp"
                 android:text="@string/browse_more"
-                android:textSize="12sp"
                 android:visibility="gone" />
 
             <Button
                 android:id="@+id/btnProfile"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="6dp"
+                android:layout_height="34dp"
+                android:layout_marginEnd="4dp"
                 android:focusable="true"
-                android:minHeight="36dp"
                 android:nextFocusRight="@id/btnUpdate"
-                android:text="@string/profile_switcher"
-                android:textSize="12sp" />
+                android:text="@string/profile_switcher" />
 
             <Button
                 android:id="@+id/btnUpdate"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="6dp"
+                android:layout_height="34dp"
+                android:layout_marginEnd="4dp"
                 android:focusable="true"
-                android:minHeight="36dp"
                 android:nextFocusLeft="@id/btnProfile"
                 android:nextFocusRight="@id/btnRefresh"
-                android:text="@string/check_update"
-                android:textSize="12sp" />
+                android:text="@string/check_update" />
 
             <Button
                 android:id="@+id/btnRefresh"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginEnd="6dp"
+                android:layout_height="34dp"
+                android:layout_marginEnd="4dp"
                 android:focusable="true"
-                android:minHeight="36dp"
                 android:nextFocusLeft="@id/btnUpdate"
                 android:nextFocusRight="@id/btnSettings"
-                android:text="@string/settings_refresh"
-                android:textSize="12sp" />
+                android:text="@string/settings_refresh" />
 
             <Button
                 android:id="@+id/btnSettings"
-                style="@style/SvButton.Ghost"
+                style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="34dp"
                 android:focusable="true"
-                android:minHeight="36dp"
                 android:nextFocusLeft="@id/btnRefresh"
-                android:text="@string/home_settings"
-                android:textSize="12sp" />
+                android:text="@string/home_settings" />
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- Hero: max ~34% screen so rows stay visible on 720p Fire TV -->
+    <!-- Hero: capped so rows stay visible on 720p Fire TV, but tall enough that the
+         focused CTA (scaled by FocusFx) is never cut off. -->
     <FrameLayout
         android:id="@+id/heroContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="true"
-        android:clipToPadding="true"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_max="150dp"
-        app:layout_constraintHeight_percent="0.22"
+        app:layout_constraintHeight_max="176dp"
+        app:layout_constraintHeight_percent="0.31"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/navScroll">
 
@@ -188,6 +182,7 @@
             android:id="@+id/heroBackdrop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="@color/sv_poster_bg"
             android:contentDescription="@null"
             android:scaleType="centerCrop"
             android:src="@drawable/poster_placeholder" />
@@ -206,10 +201,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:orientation="vertical"
-            android:paddingStart="40dp"
-            android:paddingEnd="24dp"
-            android:paddingBottom="12dp">
+            android:paddingStart="36dp"
+            android:paddingEnd="36dp"
+            android:paddingBottom="14dp">
 
             <TextView
                 android:id="@+id/heroTitle"
@@ -217,54 +214,59 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:maxLines="2"
+                android:maxLines="1"
                 android:text="Verflixed"
-                android:textSize="18sp" />
+                android:textSize="19sp" />
 
             <TextView
                 android:id="@+id/heroMeta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="3dp"
                 android:ellipsize="end"
+                android:letterSpacing="0.02"
                 android:maxLines="1"
-                android:textColor="@color/sv_text_secondary"
-                android:textSize="11sp" />
+                android:textColor="@color/sv_text_muted"
+                android:textSize="11sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/heroOverview"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="3dp"
                 android:ellipsize="end"
-                android:maxLines="1"
+                android:maxLines="2"
+                android:maxWidth="620dp"
                 android:textColor="@color/sv_text_secondary"
                 android:textSize="11sp" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="10dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:orientation="horizontal">
 
                 <Button
                     android:id="@+id/btnHeroPlay"
                     style="@style/SvButton.Primary"
                     android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:minHeight="40dp"
-                    android:minWidth="120dp"
-                    android:text="@string/detail_play"
-                    android:textColor="@color/sv_primary_btn_text" />
+                    android:layout_height="38dp"
+                    android:minHeight="38dp"
+                    android:minWidth="132dp"
+                    android:text="@string/detail_play" />
 
                 <Button
                     android:id="@+id/btnHeroInfo"
                     style="@style/SvButton.Ghost"
                     android:layout_width="wrap_content"
-                    android:layout_height="40dp"
+                    android:layout_height="38dp"
                     android:layout_marginStart="10dp"
-                    android:minHeight="40dp"
-                    android:text="Details" />
+                    android:minHeight="38dp"
+                    android:minWidth="104dp"
+                    android:text="@string/detail_more_info" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
@@ -304,7 +306,7 @@
         android:clipChildren="false"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
-        android:paddingTop="2dp"
+        android:paddingTop="6dp"
         android:paddingBottom="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -313,8 +315,8 @@
 
     <ProgressBar
         android:id="@+id/progress"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:indeterminateTint="@color/sv_accent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -328,7 +330,7 @@
         android:gravity="center"
         android:padding="24dp"
         android:textColor="@color/sv_text_secondary"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

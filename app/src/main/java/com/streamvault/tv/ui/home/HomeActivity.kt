@@ -323,13 +323,17 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun styleKindButtons() {
-        fun paint(btn: View, active: Boolean) {
-            btn.alpha = if (active) 1f else 0.55f
-            btn.animate().scaleX(if (active) 1.04f else 1f).scaleY(if (active) 1.04f else 1f)
-                .setDuration(140).start()
-        }
-        paint(binding.btnKindSeries, !prefs.isMovies)
-        paint(binding.btnKindMovies, prefs.isMovies)
+        paintNavPill(binding.btnKindSeries, !prefs.isMovies)
+        paintNavPill(binding.btnKindMovies, prefs.isMovies)
+    }
+
+    /**
+     * Active nav item = filled pill + full-strength label. Selection is a drawable state,
+     * never a persistent scale, so it cannot fight the focus animation.
+     */
+    private fun paintNavPill(btn: View, active: Boolean) {
+        btn.isSelected = active
+        btn.alpha = if (active) 1f else 0.7f
     }
 
     private fun updateSearchHint() {
@@ -350,7 +354,8 @@ class HomeActivity : AppCompatActivity() {
                     binding.profileNameLabel.text = p.name
                     Glide.with(binding.profileAvatar)
                         .load(p.avatarUrl)
-                        .placeholder(R.drawable.ic_verflixed_mark)
+                        .placeholder(R.drawable.ic_avatar_placeholder)
+                        .error(R.drawable.ic_avatar_placeholder)
                         .transform(CircleCrop())
                         .into(binding.profileAvatar)
                 }
@@ -393,14 +398,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun styleTabs() {
-        fun paint(btn: View, active: Boolean) {
-            btn.alpha = if (active) 1f else 0.55f
-            btn.animate().scaleX(if (active) 1.04f else 1f).scaleY(if (active) 1.04f else 1f)
-                .setDuration(140).start()
-        }
-        paint(binding.tabLibrary, mode == HomeMode.LIBRARY)
-        paint(binding.tabBrowse, mode == HomeMode.BROWSE)
-        paint(binding.tabSearch, mode == HomeMode.SEARCH)
+        paintNavPill(binding.tabLibrary, mode == HomeMode.LIBRARY)
+        paintNavPill(binding.tabBrowse, mode == HomeMode.BROWSE)
+        paintNavPill(binding.tabSearch, mode == HomeMode.SEARCH)
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -612,20 +612,22 @@ class HomeActivity : AppCompatActivity() {
     private fun updateHero(series: Series) {
         heroSeries = series
         binding.heroTitle.text = series.title
-        binding.heroMeta.text = buildString {
+        val meta = buildString {
             series.year?.let { append(it) }
             if (series.genres.isNotEmpty()) {
-                if (isNotEmpty()) append("  •  ")
-                append(series.genres.take(3).joinToString(" · "))
+                if (isNotEmpty()) append("  ·  ")
+                append(series.genres.take(2).joinToString(" · "))
             }
             if (series.seasons.isNotEmpty() && !series.isMovie) {
-                if (isNotEmpty()) append("  •  ")
+                if (isNotEmpty()) append("  ·  ")
                 append("${series.seasons.size} Staffeln")
             }
-            if (isEmpty()) append(if (mode == HomeMode.LIBRARY) "Meine Bibliothek" else "Browse")
         }
-        binding.heroOverview.text = series.overview
-            ?: "Premium Fire-TV Bibliothek – Favoriten cachen Metadaten & Player-Links."
+        binding.heroMeta.text = meta
+        binding.heroMeta.visibility = if (meta.isBlank()) View.GONE else View.VISIBLE
+        val overview = series.overview?.trim().orEmpty()
+        binding.heroOverview.text = overview
+        binding.heroOverview.visibility = if (overview.isBlank()) View.GONE else View.VISIBLE
         val art = series.backdropUrl ?: series.posterUrl
         PosterLoader.loadHero(binding.heroBackdrop, art, browseMode = mode == HomeMode.BROWSE || mode == HomeMode.SEARCH)
     }
