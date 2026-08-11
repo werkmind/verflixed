@@ -1,6 +1,7 @@
 {
   "versionCode": 25,
   "versionName": "1.6.9",
-  "apkUrl": "https://litter.catbox.moe/7zro6e.apk",
-  "changelog": "1.6.9: Back in allen Playern; DE/EN nur Detail wenn multi-lang; Film-Sprachseiten + sprachsicherer Cache; weniger Clipping"
+  "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
+  "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
+  "changelog": "1.6.9: Back in allen Playern; DE/EN nur Detail wenn multi-lang; Film-Sprachseiten + sprachsicherer Cache; Updates via GitHub Releases"
 }

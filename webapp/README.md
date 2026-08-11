@@ -1,15 +1,27 @@
 # Verflixed Desktop Webapp
 
-Lokale Desktop-App (Electron) für **macOS** und **Windows** – an den Stand der Fire-TV-APK angeglichen (**1.6.0**).
+Lokale Desktop-App (Electron) für **macOS** und **Windows** – Stand **1.6.9** (parity mit Fire-TV-APK).
 
 ## Features
 
 - **Serien / Filme**-Schalter mit getrennten Quellen-URLs
-- Browse / Genre-Regale / **Live-Suche** (SerienStream · AniWorld · Filmpalast)
-- Favoriten & Fortschritt **pro Profil** (Serien und Filme getrennt)
-- **Cover** von der Seite + TVMaze-Fallback
-- Episode/Film → Hoster → **VOE → m3u8** (Share-Redirect, Hidden Window) + **Vidara-Fallback**
-- **SerienStream `/r?t=`**: Background-Capture, Captcha nur wenn nötig
+- Browse / Genre-Regale / **Live-Suche**
+- Favoriten & Fortschritt **pro Profil**
+- **DE/EN** nur auf Detail, und nur wenn mehrere Sprachen existieren
+- Film-Sprachseiten (Filmpalast Sibling) + sprachsicherer Stream-Cache
+- Player: Escape/Zurück blendet Controls aus, zweites Zurück beendet
+- **Update-Check** über GitHub Releases (`werkmind/verflixed`)
+- Cover von der Seite + TVMaze-Fallback
+- VOE → m3u8 + Vidara/Firestream-Fallback
+
+## Download (persistent)
+
+| | Link |
+|---|---|
+| **Latest Webapp** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip |
+| **Latest Fire TV APK** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk |
+| **Update-Manifest** | https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json |
+| Releases | https://github.com/werkmind/verflixed/releases/latest |
 
 ## Schnellstart
 
@@ -31,14 +43,3 @@ npm start
 Empfohlen:
 - Serien: `https://aniworld.to` oder `https://serienstream.cx`
 - Filme: `https://filmpalast.to`
-
-## Self-Tests
-
-```bash
-cd webapp
-node scripts/test-site-search.js
-node scripts/test-movie-search.js
-node scripts/test-filmpalast-voe-bg.js
-npx electron scripts/test-filmpalast-voe-bg.js --bg
-node scripts/test-catalog-parity.js
-```

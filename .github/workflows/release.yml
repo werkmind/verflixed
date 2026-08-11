@@ -1,0 +1,87 @@
+name: Release Verflixed
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version name (e.g. 1.6.9)"
+        required: true
+        default: "1.6.9"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          # versionCode: major*10000 + minor*100 + patch
+          IFS=. read -r A B C <<< "$V"
+          CODE=$((10#$A * 10000 + 10#$B * 100 + 10#$C))
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build Android APK
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug
+          mkdir -p dist/release
+          cp app/build/outputs/apk/debug/app-debug.apk dist/release/Verflixed-FireTV.apk
+
+      - name: Package Webapp
+        run: |
+          cd webapp
+          npm ci || npm install
+          cd ..
+          bash scripts/package-webapp.sh dist/release/Verflixed-Webapp.zip
+
+      - name: Write update manifest
+        run: |
+          cat > dist/release/verflixed-update.json <<EOF
+          {
+            "versionCode": ${{ steps.ver.outputs.code }},
+            "versionName": "${{ steps.ver.outputs.version }}",
+            "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
+            "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
+            "changelog": "Verflixed ${{ steps.ver.outputs.version }} (Fire TV + Desktop Webapp)"
+          }
+          EOF
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Verflixed ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/release/Verflixed-FireTV.apk
+            dist/release/Verflixed-Webapp.zip
+            dist/release/verflixed-update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

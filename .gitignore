@@ -21,7 +21,10 @@ webapp/*.log
 # Dist binaries (large)
 dist/*.apk
 dist/*.idsig
+dist/*.zip
 dist/webapp/
+dist/release/
+
 
 # OS
 .DS_Store

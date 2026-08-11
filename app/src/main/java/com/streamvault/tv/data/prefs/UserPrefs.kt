@@ -160,8 +160,9 @@ class UserPrefs(context: Context) {
 
         const val DEFAULT_SERIES_BASE = "https://serienstream.cx"
         const val DEFAULT_MOVIES_BASE = "https://filmpalast.to"
-        /** Short update manifest URL. */
-        const val DEFAULT_UPDATE_MANIFEST: String = "https://clck.ru/3VBs9k"
+        /** Persistent GitHub latest-download URL (no catbox expiry). */
+        const val DEFAULT_UPDATE_MANIFEST: String =
+            "https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json"
 
         private const val KEY_BASE_URL = "base_url"
         private const val KEY_SERIES_BASE = "series_base_url"

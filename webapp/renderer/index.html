@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
+  <meta name="vf-version" content="1.6.9" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -76,6 +77,12 @@
           <p class="muted" style="margin-top:8px;font-size:0.85rem;">
             Aktive Quelle folgt dem Serien/Filme-Schalter oben.
           </p>
+          <label style="margin-top:14px;display:block;">Standard-Ton</label>
+          <button id="btnToggleLanguagePref" class="btn ghost" type="button">Standard-Ton: Deutsch</button>
+          <div class="base-row tight" style="margin-top:12px;">
+            <button id="btnCheckUpdate" class="btn primary" type="button">Update prüfen</button>
+          </div>
+          <p id="updateStatus" class="muted" style="margin-top:8px;font-size:0.85rem;"></p>
         </div>
       </section>
 
@@ -87,7 +94,8 @@
             <div id="playerStatus">Wähle eine Episode</div>
           </div>
           <div id="tvControls" class="tv-controls hidden">
-            <button type="button" data-act="back" title="-10s">⏪ 10</button>
+            <button type="button" data-act="exit" title="Zurück">← Zurück</button>
+            <button type="button" data-act="rew" title="-10s">⏪ 10</button>
             <button type="button" data-act="play" title="Play/Pause">⏯</button>
             <button type="button" data-act="fwd" title="+10s">10 ⏩</button>
             <button type="button" data-act="next" title="Nächste">⏭</button>
@@ -112,6 +120,7 @@
                 <div class="detail-actions">
                   <button id="btnPlayContinue" class="btn primary">Play</button>
                   <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
+                  <button id="btnLanguage" class="btn ghost" type="button" hidden>DE</button>
                 </div>
                 <div id="seasonTabs" class="chips"></div>
               </div>
@@ -124,12 +133,14 @@
   </div>
 
   <script src="hls.min.js"></script>
+  <script src="stream-language.js"></script>
   <script src="site-images.js"></script>
   <script src="catalog-parser.js"></script>
   <script src="film-parser.js"></script>
   <script src="site-search.js"></script>
   <script src="tvmaze.js"></script>
   <script src="profiles-store.js"></script>
+  <script src="vf-updates.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

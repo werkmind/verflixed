@@ -17,7 +17,7 @@ android {
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
-            "\"https://clck.ru/3VBseW\""
+            "\"https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json\""
         )
     }
 

@@ -2,6 +2,7 @@
 window.FilmParser = (() => {
   const EP_RE = /\bS\d{1,2}E\d{1,3}\b/i;
   const STREAM_RE = /\/stream\/[^/?#]+/i;
+  const SL = () => window.StreamLanguage;
 
   function abs(base, href) {
     if (!href) return "";
@@ -47,9 +48,91 @@ window.FilmParser = (() => {
     return /filmpalast|movie|film/.test(h);
   }
 
-  /** Browse paths for movie catalogs on filmpalast-like sites. */
   function browsePaths() {
     return ["/movies/new", "/movies/top", "/"];
+  }
+
+  function detectPageLanguage(html, title = "", pageUrl = "") {
+    const releaseMatch = String(html || "").match(
+      /id=["']release_text["'][^>]*>([\s\S]*?)</i,
+    );
+    const release = (releaseMatch?.[1] || "").replace(/<[^>]+>/g, " ");
+    const metaMatch = String(html || "").match(
+      /itemprop=["']inLanguage["'][^>]*content=["']([^"']+)["']/i,
+    );
+    return (
+      SL()?.detectFromText?.(pageUrl, title, release, metaMatch?.[1]) ||
+      SL()?.DE ||
+      "de"
+    );
+  }
+
+  /** Suggest sibling Filmpalast URLs for the other language (DE↔EN). */
+  function siblingLanguageUrls(pageUrl, currentLang, html = "") {
+    let uri;
+    try {
+      uri = new URL(pageUrl);
+    } catch {
+      return [];
+    }
+    const path = uri.pathname || "";
+    const m = path.match(/^(.*?\/stream\/)([^/?#]+)\/?$/i);
+    if (!m) return [];
+    const prefix = m[1];
+    const slug = m[2];
+    const candidates = new Set();
+    const lang = SL()?.normalize?.(currentLang) || "de";
+    const pageNorm = pageUrl.replace(/\/$/, "");
+
+    if (html) {
+      const wantEn = lang !== "en";
+      const re = /(?:href|src)=["']?(?:\/\/filmpalast\.to)?(\/stream\/[a-z0-9\-]+)/gi;
+      let hit;
+      while ((hit = re.exec(html))) {
+        const absUrl = abs(pageUrl, hit[1]).replace(/\/$/, "");
+        if (!absUrl || absUrl === pageNorm) continue;
+        const looksEn = /-english|-eng/i.test(absUrl);
+        if (wantEn === looksEn) candidates.add(absUrl);
+      }
+    }
+
+    const origin = `${uri.protocol}//${uri.host}`;
+    const mk = (s) => `${origin}${prefix}${s}`.replace(/\/$/, "");
+    if (lang === "en") {
+      const stripped = slug
+        .replace(/-english$/i, "")
+        .replace(/-eng$/i, "")
+        .replace(/-ovo$/i, "");
+      if (stripped && stripped !== slug) candidates.add(mk(stripped));
+      const singular = stripped.replace(/s$/, "");
+      if (singular && singular !== stripped) candidates.add(mk(singular));
+    } else {
+      candidates.add(mk(`${slug}-english`));
+      candidates.add(mk(`${slug}s-english`));
+      candidates.add(mk(`${slug}-eng`));
+      if (slug.endsWith("s")) candidates.add(mk(`${slug.slice(0, -1)}-english`));
+    }
+    return [...candidates].filter((u) => u !== pageNorm);
+  }
+
+  function languageFromMovieHit(title, url) {
+    return detectPageLanguage("", title, url);
+  }
+
+  function scoreHoster(name, url = "", language = "", preferredLang = "de") {
+    const n = `${name} ${url}`.toLowerCase();
+    let s = 0;
+    if (n.includes("firestream")) s += 120;
+    if (/\bvoe\b/.test(n) || n.includes("voe.sx")) s += 100;
+    if (/vidara|vidnest/.test(n)) s += 70;
+    if (n.includes("vidsonic")) s += 40;
+    if (n.includes("playmate")) s += 20;
+    if (/\bhd\b/.test(n)) s += 5;
+    if (language) {
+      if (SL()?.matchesPreferred?.(language, preferredLang)) s += 80;
+      else s -= 40;
+    }
+    return s;
   }
 
   function parseMovieList(html, baseUrl, { moviesOnly = true } = {}) {
@@ -85,10 +168,11 @@ window.FilmParser = (() => {
         year: null,
         genres: [],
         seasons: [],
+        availableLanguages: [],
+        languagePages: {},
       });
     });
 
-    // Fallback: naked stream anchors
     if (!out.length) {
       doc.querySelectorAll('a[href*="/stream/"]').forEach((a) => {
         const href = abs(baseUrl, a.getAttribute("href") || "");
@@ -108,6 +192,8 @@ window.FilmParser = (() => {
           year: null,
           genres: [],
           seasons: [],
+          availableLanguages: [],
+          languagePages: {},
         });
       });
     }
@@ -132,7 +218,7 @@ window.FilmParser = (() => {
         : null;
 
     const posterEl =
-      doc.querySelector("img.cover2, img#img__" + (doc.querySelector("#viewID")?.getAttribute("data-id") || ""),) ||
+      doc.querySelector("img.cover2") ||
       doc.querySelector('img[itemprop="image"], img[src*="/files/movies/"]');
     let poster = posterEl
       ? abs(pageUrl, posterEl.getAttribute("src") || posterEl.getAttribute("content") || "")
@@ -142,15 +228,23 @@ window.FilmParser = (() => {
       if (m) poster = abs(pageUrl, m[0]);
     }
 
+    const pageLang = detectPageLanguage(html, title, pageUrl);
     const genres = [];
     doc.querySelectorAll('#detail-content-list a[href*="/search/genre/"]').forEach((a) => {
       const g = cleanTitle(a.textContent);
       if (g && !genres.includes(g)) genres.push(g);
     });
+    const langLabel = SL()?.label?.(pageLang) || "Deutsch";
+    if (!genres.some((g) => /deutsch|englisch/i.test(g))) {
+      genres.unshift(langLabel);
+    }
 
-    const hosters = parseHosters(html, pageUrl);
+    const preferred = SL()?.normalize?.(
+      window.VfProfiles?.streamLanguage?.() || "de",
+    ) || "de";
+    const hosters = parseHosters(html, pageUrl, preferred);
     const id = idHint || slugId(pageUrl, title);
-    const movie = {
+    return {
       id,
       title,
       overview,
@@ -162,6 +256,8 @@ window.FilmParser = (() => {
       mediaKind: "movie",
       genres,
       hosters,
+      availableLanguages: [pageLang],
+      languagePages: { [pageLang]: pageUrl },
       seasons: [
         {
           number: 1,
@@ -184,31 +280,39 @@ window.FilmParser = (() => {
         },
       ],
     };
-    return movie;
   }
 
-  function parseHosters(html, pageUrl) {
+  function parseHosters(html, pageUrl, preferredLang = "de") {
     const doc = new DOMParser().parseFromString(html, "text/html");
+    const pageLang = detectPageLanguage(
+      html,
+      cleanTitle(doc.querySelector("article.detail h2, h2.bgDark, h2")?.textContent),
+      pageUrl,
+    );
     const hosters = [];
     doc.querySelectorAll("ul.currentStreamLinks").forEach((ul) => {
       const name = ul.querySelector(".hostName")?.textContent?.trim() || "Hoster";
       const a =
-        ul.querySelector("a[data-player-url]") ||
-        ul.querySelector("a.iconPlay[href], a.button[href]");
+        [...ul.querySelectorAll("a[data-player-url]")].find((x) =>
+          (x.getAttribute("data-player-url") || "").trim(),
+        ) ||
+        [...ul.querySelectorAll("a.iconPlay[href], a.button.iconPlay[href], a.button[href]")].find(
+          (x) => {
+            const h = x.getAttribute("href") || "";
+            return h && h !== "#" && !/javascript:/i.test(h);
+          },
+        );
       if (!a) return;
       const raw = a.getAttribute("data-player-url") || a.getAttribute("href") || "";
       if (!raw || raw === "#") return;
       const url = abs(pageUrl, raw);
-      const score =
-        (window.SiteSearch?.scoreHosterName
-          ? 0
-          : 0) +
-        (/voe/i.test(name) || /voe\.sx/i.test(url) ? 100 : 0) +
-        (/vidara|vidnest/i.test(name) ? 70 : 0) +
-        (/vidsonic/i.test(name) ? 40 : 0) +
-        (/firestream/i.test(name) ? 30 : 0) +
-        (/\bhd\b/i.test(name) ? 5 : 0);
-      hosters.push({ provider: name, name, url, score, language: "" });
+      const hosterLang =
+        a.getAttribute("data-language-label") ||
+        a.getAttribute("data-language") ||
+        ul.getAttribute("data-language") ||
+        pageLang;
+      const score = scoreHoster(name, url, hosterLang, preferredLang);
+      hosters.push({ provider: name, name, url, score, language: hosterLang });
     });
     hosters.sort((a, b) => b.score - a.score);
     return hosters;
@@ -224,5 +328,9 @@ window.FilmParser = (() => {
     cleanTitle,
     slugId,
     abs,
+    detectPageLanguage,
+    siblingLanguageUrls,
+    languageFromMovieHit,
+    scoreHoster,
   };
 })();

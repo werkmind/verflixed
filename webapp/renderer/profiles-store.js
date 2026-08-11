@@ -230,6 +230,73 @@ window.VfProfiles = (() => {
     return load().artCache[seriesId] || null;
   }
 
+  function streamLanguage(profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const p = s.profiles.find((x) => x.id === id);
+    const fromProfile = p?.streamLanguage;
+    const fromMap = s.streamLanguages?.[id];
+    return window.StreamLanguage?.normalize?.(fromProfile || fromMap || "de") || "de";
+  }
+
+  function setStreamLanguage(code, profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const norm = window.StreamLanguage?.normalize?.(code) || "de";
+    const p = s.profiles.find((x) => x.id === id);
+    if (p) p.streamLanguage = norm;
+    if (!s.streamLanguages) s.streamLanguages = {};
+    s.streamLanguages[id] = norm;
+    save(s);
+    return norm;
+  }
+
+  function streamCacheMap() {
+    const s = load();
+    if (!s.streamCache) s.streamCache = {};
+    const id = s.activeProfileId;
+    if (!s.streamCache[id]) s.streamCache[id] = {};
+    return { state: s, map: s.streamCache[id] };
+  }
+
+  function cacheStream(episodeId, seriesId, streamUrl, language) {
+    const { state: s, map } = streamCacheMap();
+    const lang = window.StreamLanguage?.normalize?.(language || streamLanguage()) || "de";
+    const kindBase = /\.m3u8/i.test(streamUrl) ? "m3u8" : /\.mp4/i.test(streamUrl) ? "mp4" : "media";
+    map[episodeId] = {
+      episodeId,
+      seriesId,
+      streamUrl,
+      kind: `${kindBase}|${lang}`,
+      updatedAt: Date.now(),
+    };
+    save(s);
+  }
+
+  function getCachedStream(episodeId, preferredLang) {
+    const { map } = streamCacheMap();
+    const hit = map[episodeId];
+    if (!hit?.streamUrl) return null;
+    const pref = window.StreamLanguage?.normalize?.(preferredLang || streamLanguage()) || "de";
+    const sep = String(hit.kind || "").lastIndexOf("|");
+    if (sep < 0) return null; // legacy without lang — ignore
+    const lang = window.StreamLanguage?.normalize?.(hit.kind.slice(sep + 1)) || "de";
+    if (lang !== pref) return null;
+    return hit.streamUrl;
+  }
+
+  function clearCachedStream(episodeId) {
+    const { state: s, map } = streamCacheMap();
+    delete map[episodeId];
+    save(s);
+  }
+
+  function clearAllCachedStreams() {
+    const s = load();
+    if (s.streamCache) delete s.streamCache[s.activeProfileId];
+    save(s);
+  }
+
   return {
     activeProfile,
     listProfiles,
@@ -248,5 +315,11 @@ window.VfProfiles = (() => {
     progressMap,
     cacheArt,
     cachedArt,
+    streamLanguage,
+    setStreamLanguage,
+    cacheStream,
+    getCachedStream,
+    clearCachedStream,
+    clearAllCachedStreams,
   };
 })();

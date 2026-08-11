@@ -196,7 +196,7 @@ main {
 }
 .card:hover .card-media,
 .card:focus-visible .card-media {
-  transform: scale(1.045);
+  transform: scale(1.03);
   border-color: var(--accent);
   outline: none;
 }
@@ -378,9 +378,19 @@ main {
 }
 .detail-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   margin: 16px 0 4px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 6px 4px 10px 0;
+  -webkit-overflow-scrolling: touch;
+}
+.detail-actions .btn {
+  flex: 0 0 auto;
+}
+#btnLanguage[hidden] {
+  display: none !important;
 }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .chip {

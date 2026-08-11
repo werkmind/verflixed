@@ -22,6 +22,10 @@
     artInflight: new Map(),
     progressTimer: null,
     playerReady: false,
+    languagePages: {},
+    activePageLang: "de",
+    controlsVisible: false,
+    lastBackExitAt: 0,
   };
   state.baseUrl =
     state.mediaKind === "movie" ? state.moviesBaseUrl : state.seriesBaseUrl;
@@ -47,6 +51,242 @@
       const node = $(`view-${v}`);
       if (node) node.classList.toggle("active", v === name);
     });
+    if (name !== "player") {
+      state.controlsVisible = false;
+      state.lastBackExitAt = 0;
+    }
+  }
+
+  function preferredLang() {
+    return window.StreamLanguage?.normalize?.(window.VfProfiles?.streamLanguage?.()) || "de";
+  }
+
+  function paintLanguagePrefButton() {
+    const btn = $("btnToggleLanguagePref");
+    if (!btn) return;
+    btn.textContent = `Standard-Ton: ${window.StreamLanguage?.label?.(preferredLang()) || "Deutsch"}`;
+  }
+
+  function paintLanguageButton() {
+    const btn = $("btnLanguage");
+    if (!btn) return;
+    const pages = state.languagePages || {};
+    const keys = Object.keys(pages).filter((k) => pages[k]);
+    if (keys.length < 2) {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    btn.textContent = window.StreamLanguage?.shortLabel?.(state.activePageLang) || "DE";
+    btn.title = `Ton: ${window.StreamLanguage?.label?.(state.activePageLang) || ""}`;
+  }
+
+  async function discoverTitleLanguages(series, html, pageUrl) {
+    const pages = {};
+    if (isMovieItem(series) || isMovieItem({ detailPath: pageUrl })) {
+      const title = series.title || "";
+      const current = window.FilmParser.detectPageLanguage(html, title, pageUrl);
+      pages[current] = pageUrl;
+      for (const want of ["de", "en"]) {
+        if (pages[want]) continue;
+        const alt = await findMovieLanguagePage(pageUrl, html, title, want);
+        if (alt) pages[want] = alt;
+      }
+      return pages;
+    }
+    // Series: labeled hosters / headings on episode page
+    const hosters = parseEpisodeHosters(html, pageUrl);
+    const langs = new Set();
+    hosters.forEach((h) => {
+      if (h.language) langs.add(window.StreamLanguage.normalize(h.language));
+    });
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc
+      .querySelectorAll("h3, h4, h5, .hosterSiteTitle, .language, [data-language-label]")
+      .forEach((el) => {
+        const t = `${el.textContent || ""} ${el.getAttribute("data-language-label") || ""}`.toLowerCase();
+        if (t.includes("deutsch") || t.includes("german")) langs.add("de");
+        if (t.includes("englisch") || t.includes("english")) langs.add("en");
+      });
+    [...langs].forEach((l) => {
+      pages[l] = pageUrl;
+    });
+    return pages;
+  }
+
+  async function findMovieLanguagePage(pageUrl, html, title, wantedLang) {
+    const want = window.StreamLanguage.normalize(wantedLang);
+    const current = window.FilmParser.detectPageLanguage(html, title, pageUrl);
+    if (current === want) return pageUrl;
+    for (const cand of window.FilmParser.siblingLanguageUrls(pageUrl, current, html)) {
+      try {
+        const { text, finalUrl } = await getText(cand);
+        if (!text || text.length < 2000) continue;
+        const url = finalUrl || cand;
+        const lang = window.FilmParser.detectPageLanguage(
+          text,
+          window.FilmParser.cleanTitle(
+            new DOMParser()
+              .parseFromString(text, "text/html")
+              .querySelector("article.detail h2, h2.bgDark, h2")?.textContent || "",
+          ),
+          url,
+        );
+        const hosters = window.FilmParser.parseHosters(text, url, want);
+        if (lang === want && hosters.length) return url;
+      } catch (_) {}
+    }
+    const cleaned = window.StreamLanguage.cleanTitleForSearch(title) || title;
+    const queries = [
+      cleaned,
+      cleaned.replace(/&/g, " ").replace(/\s+/g, " ").trim(),
+      cleaned.split(/\s+/).slice(0, 2).join(" "),
+      cleaned.split(/\s+/)[0],
+    ].filter((q) => q && q.length >= 2);
+    const base = state.moviesBaseUrl || activeBase();
+    for (const query of queries) {
+      try {
+        const hits =
+          (await window.SiteSearch?.searchSite?.(
+            { getText },
+            base,
+            query,
+            { mediaKind: "movie" },
+          )) || [];
+        for (const hit of hits) {
+          const hitUrl = hit.detailPath;
+          if (!hitUrl) continue;
+          const hitLang = window.FilmParser.languageFromMovieHit(hit.title, hitUrl);
+          if (hitLang !== want) continue;
+          const a = window.StreamLanguage.cleanTitleForSearch(hit.title).toLowerCase();
+          const b = cleaned.toLowerCase();
+          const close =
+            a.includes(b.slice(0, 8)) ||
+            b.includes(a.slice(0, 8)) ||
+            a === b ||
+            a.split(/\s+/)[0] === b.split(/\s+/)[0];
+          if (!close) continue;
+          const { text, finalUrl } = await getText(hitUrl);
+          const url = finalUrl || hitUrl;
+          if (text && window.FilmParser.parseHosters(text, url, want).length) return url;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  async function refreshAvailableLanguages(series, html, pageUrl) {
+    state.languagePages = {};
+    paintLanguageButton();
+    try {
+      const pages = await discoverTitleLanguages(series, html, pageUrl);
+      state.languagePages = pages;
+      const pref = preferredLang();
+      state.activePageLang =
+        (pref in pages && pref) ||
+        Object.keys(pages).find((k) => pages[k] === pageUrl) ||
+        Object.keys(pages)[0] ||
+        "de";
+      paintLanguageButton();
+      if (series) {
+        series.availableLanguages = Object.keys(pages);
+        series.languagePages = pages;
+      }
+    } catch (_) {
+      paintLanguageButton();
+    }
+  }
+
+  async function toggleStreamLanguage() {
+    const pages = state.languagePages || {};
+    const keys = Object.keys(pages).filter((k) => pages[k]);
+    if (keys.length < 2) {
+      paintLanguageButton();
+      return;
+    }
+    const next =
+      keys.find((k) => k !== state.activePageLang) ||
+      window.StreamLanguage.toggle(state.activePageLang);
+    const nextPage = pages[next];
+    window.VfProfiles.setStreamLanguage(next);
+    paintLanguagePrefButton();
+    const s = state.current;
+    if (s?.seasons) {
+      s.seasons.forEach((season) =>
+        (season.episodes || []).forEach((ep) =>
+          window.VfProfiles.clearCachedStream(ep.id),
+        ),
+      );
+    }
+    state.activePageLang = next;
+    paintLanguageButton();
+    if (isMovieItem(s) && nextPage) {
+      setStatus($("detailMeta"), `Ton: ${window.StreamLanguage.label(next)} – lade Version…`);
+      await openDetail({
+        ...s,
+        detailPath: nextPage,
+        mediaKind: "movie",
+        languagePages: pages,
+      });
+    } else {
+      setStatus(
+        $("detailMeta"),
+        [
+          s?.year || null,
+          `Ton: ${window.StreamLanguage.label(next)}`,
+          s?.seasons?.length ? `${s.seasons.length} Staffeln` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
+    }
+  }
+
+  function leavePlayer() {
+    stopProgressTimer();
+    stopHls();
+    const video = $("video");
+    if (video) {
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      } catch (_) {}
+    }
+    state.playerReady = false;
+    state.controlsVisible = false;
+    state.lastBackExitAt = 0;
+    showTvControls(false);
+    if (state.current) showTab("detail");
+    else showTab("browse");
+  }
+
+  /** First Back hides controls; second within 2s leaves the player. */
+  function handlePlaybackBack() {
+    if (!$("view-player")?.classList.contains("active")) return false;
+    const tc = $("tvControls");
+    if (state.controlsVisible || (tc && !tc.classList.contains("hidden"))) {
+      showTvControls(false);
+      state.controlsVisible = false;
+      return true;
+    }
+    const now = Date.now();
+    if (now - state.lastBackExitAt < 2000) {
+      leavePlayer();
+      return true;
+    }
+    state.lastBackExitAt = now;
+    if ($("playerStatus")) {
+      $("playerStatus").textContent = "Nochmal Zurück zum Beenden";
+      $("playerOverlay")?.classList.remove("hidden");
+      setTimeout(() => {
+        if (Date.now() - state.lastBackExitAt >= 1900) {
+          $("playerOverlay")?.classList.add("hidden");
+          if ($("playerStatus")) $("playerStatus").textContent = "";
+        }
+      }, 2000);
+    }
+    return true;
   }
 
   function activeBase() {
@@ -455,12 +695,43 @@
       const pageUrl = finalUrl || seriesLight.detailPath;
 
       if (isMovieItem(seriesLight) || isMovieItem({ detailPath: pageUrl })) {
+        let workingHtml = text;
+        let workingUrl = pageUrl;
+        const pref = preferredLang();
+        let pageLang = window.FilmParser.detectPageLanguage(
+          workingHtml,
+          seriesLight.title || "",
+          workingUrl,
+        );
+        if (pageLang !== pref) {
+          const alt = await findMovieLanguagePage(
+            workingUrl,
+            workingHtml,
+            seriesLight.title || "",
+            pref,
+          );
+          if (alt && alt !== workingUrl) {
+            try {
+              const altRes = await getText(alt);
+              if (altRes?.text && window.FilmParser.parseHosters(altRes.text, alt, pref).length) {
+                workingHtml = altRes.text;
+                workingUrl = altRes.finalUrl || alt;
+                pageLang = window.FilmParser.detectPageLanguage(
+                  workingHtml,
+                  seriesLight.title || "",
+                  workingUrl,
+                );
+              }
+            } catch (_) {}
+          }
+        }
+
         let detailed = window.FilmParser.parseMovieDetail(
-          text,
-          pageUrl,
+          workingHtml,
+          workingUrl,
           seriesLight.id,
         );
-        detailed.detailPath = pageUrl;
+        detailed.detailPath = workingUrl;
         detailed.posterUrl = detailed.posterUrl || seriesLight.posterUrl;
         detailed.backdropUrl = detailed.backdropUrl || seriesLight.backdropUrl;
         detailed.mediaKind = "movie";
@@ -475,11 +746,15 @@
 
         state.current = detailed;
         state.season = 1;
+        state.activePageLang = pageLang;
         $("detailTitle").textContent = detailed.title;
         $("detailMeta").textContent = [
           detailed.year || null,
           detailed.runtime || null,
-          detailed.genres?.length ? detailed.genres.slice(0, 3).join(", ") : "Film",
+          window.StreamLanguage?.label?.(pageLang) || null,
+          detailed.genres?.length
+            ? detailed.genres.filter((g) => !/deutsch|englisch/i.test(g)).slice(0, 2).join(", ")
+            : "Film",
         ]
           .filter(Boolean)
           .join(" · ");
@@ -490,6 +765,7 @@
         updateDetailFavButton();
         updatePlayContinueButton();
         renderEpisodes();
+        await refreshAvailableLanguages(detailed, workingHtml, workingUrl);
         return;
       }
 
@@ -520,6 +796,7 @@
       const epCount = detailed.seasons.reduce((n, s) => n + s.episodes.length, 0);
       $("detailMeta").textContent = [
         detailed.year || null,
+        `Ton: ${window.StreamLanguage?.label?.(preferredLang()) || "Deutsch"}`,
         detailed.seasons.length ? `${detailed.seasons.length} Staffeln` : null,
         epCount ? `${epCount} Episoden` : null,
       ]
@@ -532,6 +809,18 @@
       updatePlayContinueButton();
       renderSeasons();
       renderEpisodes();
+      const firstEp = detailed.seasons[0]?.episodes?.[0];
+      const probeUrl = firstEp?.streamPageUrl || detailed.detailPath;
+      if (probeUrl) {
+        try {
+          const probe = probeUrl === pageUrl ? { text, finalUrl: pageUrl } : await getText(probeUrl);
+          await refreshAvailableLanguages(detailed, probe.text || text, probe.finalUrl || probeUrl);
+        } catch (_) {
+          paintLanguageButton();
+        }
+      } else {
+        paintLanguageButton();
+      }
     } catch (e) {
       $("detailMeta").textContent = `Fehler: ${e.message || e}`;
     }
@@ -714,6 +1003,7 @@
 
   function showTvControls(show) {
     const tc = $("tvControls");
+    state.controlsVisible = !!show;
     if (tc) tc.classList.toggle("hidden", !show);
   }
 
@@ -758,7 +1048,9 @@
         if (act === "play") {
           if (video.paused) video.play().catch(() => {});
           else video.pause();
-        } else if (act === "back") {
+        } else if (act === "exit") {
+          handlePlaybackBack();
+        } else if (act === "rew" || act === "back") {
           video.currentTime = Math.max(0, video.currentTime - SEEK_STEP_S);
         } else if (act === "fwd") {
           if (dur) video.currentTime = Math.min(dur, video.currentTime + SEEK_STEP_S);
@@ -774,17 +1066,25 @@
       if (!$("view-player")?.classList.contains("active")) return;
       const tag = (e.target?.tagName || "").toLowerCase();
       if (tag === "input" || tag === "textarea") return;
+      if (e.key === "Escape" || e.key === "BrowserBack" || e.code === "BrowserBack") {
+        e.preventDefault();
+        handlePlaybackBack();
+        return;
+      }
       if (e.code === "Space") {
         e.preventDefault();
         if (video.paused) video.play().catch(() => {});
         else video.pause();
+        showTvControls(true);
       } else if (e.code === "ArrowLeft") {
         e.preventDefault();
         video.currentTime = Math.max(0, video.currentTime - SEEK_STEP_S);
+        showTvControls(true);
       } else if (e.code === "ArrowRight") {
         e.preventDefault();
         const dur = video.duration;
         if (dur) video.currentTime = Math.min(dur, video.currentTime + SEEK_STEP_S);
+        showTvControls(true);
       } else if (e.key === "n" || e.key === "N") {
         const next = state.lastPlay?.ep ? nextEpisodeAfter(state.lastPlay.ep) : null;
         if (next) playEpisode(next);
@@ -814,10 +1114,17 @@
       const page = ep.streamPageUrl;
       if (!page) throw new Error(movieMode ? "Keine Film-URL" : "Keine Episode-URL");
 
+      const cached = window.VfProfiles.getCachedStream(ep.id, preferredLang());
+      if (cached) {
+        $("playerStatus").textContent = "Wiedergabe startet…";
+        await playHls(cached, page);
+        return;
+      }
+
       const { text, finalUrl } = await getText(page);
       const episodePage = finalUrl || page;
       const hosters = movieMode
-        ? window.FilmParser?.parseHosters?.(text, episodePage) || []
+        ? window.FilmParser?.parseHosters?.(text, episodePage, preferredLang()) || []
         : parseEpisodeHosters(text, episodePage);
 
       if (window.verflixed?.resolveHostersToHls && hosters.length) {
@@ -828,6 +1135,12 @@
         );
         if (resolved?.ok && resolved.hlsUrl) {
           $("playerStatus").textContent = "Wiedergabe startet…";
+          window.VfProfiles.cacheStream(
+            ep.id,
+            ep.seriesId,
+            resolved.hlsUrl,
+            preferredLang(),
+          );
           await playHls(resolved.hlsUrl, episodePage);
           return;
         }
@@ -951,7 +1264,12 @@
         url: absUrl(pageUrl, playUrl),
         score:
           (/voe/i.test(provider) ? 50 : 0) +
-          (/deutsch|german|^de$/i.test(lang) ? 30 : 0),
+          (/firestream/i.test(provider) ? 40 : 0) +
+          (window.StreamLanguage?.matchesPreferred?.(lang, preferredLang())
+            ? 80
+            : lang
+              ? -20
+              : 0),
       });
     }
     hosters.sort((a, b) => b.score - a.score);
@@ -1409,23 +1727,72 @@
       };
     }
 
+    if ($("btnLanguage")) {
+      $("btnLanguage").onclick = () => toggleStreamLanguage();
+    }
+
+    if ($("btnToggleLanguagePref")) {
+      paintLanguagePrefButton();
+      $("btnToggleLanguagePref").onclick = () => {
+        const next = window.StreamLanguage.toggle(preferredLang());
+        window.VfProfiles.setStreamLanguage(next);
+        window.VfProfiles.clearAllCachedStreams();
+        paintLanguagePrefButton();
+        if (state.current) {
+          openDetail({
+            ...state.current,
+            detailPath: state.current.detailPath,
+          });
+        }
+      };
+    }
+
+    if ($("btnCheckUpdate")) {
+      $("btnCheckUpdate").onclick = async () => {
+        const status = $("updateStatus");
+        if (status) status.textContent = "Prüfe GitHub Releases…";
+        try {
+          const m = await window.VfUpdates.check();
+          if (!m) {
+            if (status) status.textContent = "Kein Update-Manifest gefunden.";
+            return;
+          }
+          const newer = window.VfUpdates.isNewer(m);
+          if (!newer) {
+            if (status) {
+              status.textContent = `Aktuell (${window.VfUpdates.currentVersion()}). Latest: ${m.versionName}`;
+            }
+            return;
+          }
+          if (status) {
+            status.innerHTML = `Update ${escapeHtml(m.versionName)} verfügbar · <a href="${escapeHtml(m.webappUrl || m.htmlUrl)}" target="_blank" rel="noopener">Webapp</a> · <a href="${escapeHtml(m.apkUrl || m.htmlUrl)}" target="_blank" rel="noopener">Fire TV APK</a>`;
+          }
+        } catch (e) {
+          if (status) status.textContent = `Update-Check fehlgeschlagen: ${e.message || e}`;
+        }
+      };
+    }
+
     bindPlayerUi();
   }
 
+  localStorage.setItem("vf_app_version", "1.6.9");
+  localStorage.setItem("vf_version_code", "25");
   syncBaseUrlInputs();
   updateKindButtons();
   updateSearchPlaceholder();
   syncProfileChip();
   renderProfileGrid();
+  paintLanguagePrefButton();
   wireEvents();
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.6.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.6.9";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.6.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.6.9";
     }
     refreshCatalog();
   })();
