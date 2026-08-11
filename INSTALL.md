@@ -1,25 +1,17 @@
 # Verflixed – Installation
 
-## Fire TV APK (1.7.1) – empfohlen für Downloader
+## Fire TV APK (1.7.2)
 
-Der alte clck.ru-Kurzlink geht über **Yandex → GitHub** (mehrere Redirects). Viele Fire-TV-Downloader laden dann eine **kaputte Datei** → Meldung **„App nicht installiert“**.
-
-### Direkter Download (1 Hop, funktioniert)
+### Direkter Download (empfohlen für Downloader)
 | | Link |
 |---|---|
-| **Direkt (Litterbox, 72h)** | https://litter.catbox.moe/evp2et.apk |
-| **Kurz** | https://tinyurl.com/2xwhy87a |
-| **GitHub Release** | https://github.com/werkmind/verflixed/releases/download/v1.7.1/Verflixed-FireTV.apk |
+| **Direkt (Litterbox)** | https://litter.catbox.moe/8ke39l.apk |
+| **Kurz** | https://tinyurl.com/29lp4k6m |
+| **GitHub** | https://github.com/werkmind/verflixed/releases/download/v1.7.2/Verflixed-FireTV.apk |
 
-### Persistent (kann auf Fire TV scheitern)
-| | Link |
-|---|---|
-| clck.ru | https://clck.ru/3VBtLD → zeigt auf GitHub latest (viele Redirects) |
+> Hinweis: `https://clck.ru/3VBtLD` geht über Yandex→GitHub (viele Redirects) und liefert auf Fire TV oft eine kaputte Datei → „App nicht installiert“.
 
-### Tipps
-1. In **Downloader** die **direkte** Litterbox-/TinyURL-Adresse nutzen  
-2. Falls Update scheitert: alte Verflixed-App **deinstallieren**, dann neu installieren  
-3. Nach Download prüfen: Dateigröße ca. **11 MB** (nicht ein paar KB HTML)
+### Kachel / Banner (16:9)
+Fire TV cached Icons stark. Nach Update ggf. **App deinstallieren → neu installieren** oder Fire TV neu starten, damit die landscape-Kachel erscheint (nicht das 1:1-Icon).
 
-Webapp: https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip  
-Release: https://github.com/werkmind/verflixed/releases/tag/v1.7.1
+Release: https://github.com/werkmind/verflixed/releases/tag/v1.7.2
