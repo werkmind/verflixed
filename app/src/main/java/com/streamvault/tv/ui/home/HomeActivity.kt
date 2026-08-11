@@ -3,22 +3,22 @@ package com.streamvault.tv.ui.home
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
-import com.streamvault.tv.data.model.CatalogFilters
 import com.streamvault.tv.data.model.GenreChip
 import com.streamvault.tv.data.model.HomeRow
 import com.streamvault.tv.data.model.Series
@@ -42,6 +42,11 @@ class HomeActivity : AppCompatActivity() {
     private var heroSeries: Series? = null
     private var mode = HomeMode.LIBRARY
     private var searchJob: Job? = null
+    private var searchQuery = ""
+    private lateinit var searchPanel: View
+    private lateinit var searchQueryLabel: TextView
+    private lateinit var searchKeyboard: RecyclerView
+    private lateinit var searchResultsList: RecyclerView
     private val prefs by lazy { (application as VerflixedApp).container.prefs }
 
     private val rowsAdapter = RowsAdapter(
@@ -69,24 +74,46 @@ class HomeActivity : AppCompatActivity() {
         }
     )
 
-    private val chipAdapter = ChipAdapter { chip ->
-        toggleChip(chip)
-        when (mode) {
-            HomeMode.SEARCH -> runSearch(binding.searchInput.text?.toString().orEmpty())
-            HomeMode.BROWSE -> {
-                lifecycleScope.launch {
-                    (application as VerflixedApp).container.catalog.resetBrowsePage()
-                    load(force = false)
+    private val searchResultsAdapter = RowsAdapter(
+        onClick = {
+            UiSound.click(this, prefs)
+            openSeries(it)
+        },
+        onFocused = { updateHero(it) },
+        prefsProvider = { prefs },
+        browseModeProvider = { true },
+        resolveArt = { series, onResolved ->
+            if (!series.posterUrl.isNullOrBlank() || !series.backdropUrl.isNullOrBlank()) return@RowsAdapter
+            lifecycleScope.launch {
+                runCatching {
+                    (application as VerflixedApp).container.catalog.resolveBrowseArt(series)
+                }.onSuccess { resolved ->
+                    if (!resolved.posterUrl.isNullOrBlank() || !resolved.backdropUrl.isNullOrBlank()) {
+                        onResolved(resolved)
+                        if (heroSeries?.id == resolved.id) updateHero(resolved)
+                    }
                 }
             }
-            else -> Unit
         }
+    )
+
+    private val chipAdapter = ChipAdapter { chip ->
+        toggleChip(chip)
+    }
+
+    private val searchKeyAdapter = SearchKeyAdapter { key ->
+        onSearchKey(key)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        searchPanel = findViewById(R.id.searchPanel)
+        searchQueryLabel = findViewById(R.id.searchQueryLabel)
+        searchKeyboard = findViewById(R.id.searchKeyboard)
+        searchResultsList = findViewById(R.id.searchResults)
 
         binding.rows.layoutManager = LinearLayoutManager(this)
         binding.rows.adapter = rowsAdapter
@@ -102,6 +129,18 @@ class HomeActivity : AppCompatActivity() {
             override fun onChildViewAttachedToWindow(view: View) = Unit
             override fun onChildViewDetachedFromWindow(view: View) = Unit
         })
+
+        searchKeyboard.layoutManager = GridLayoutManager(this, 6)
+        searchKeyboard.adapter = searchKeyAdapter
+        searchKeyboard.itemAnimator = null
+        searchResultsList.layoutManager = LinearLayoutManager(this)
+        searchResultsList.adapter = searchResultsAdapter
+        searchResultsList.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
+            addDuration = 180
+            removeDuration = 140
+            changeDuration = 120
+        }
+        updateSearchQueryLabel()
 
         binding.profileNameLabel.isFocusable = true
         binding.profileNameLabel.isFocusableInTouchMode = true
@@ -143,6 +182,7 @@ class HomeActivity : AppCompatActivity() {
         binding.filterChips.layoutManager =
             LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.filterChips.adapter = chipAdapter
+        binding.filterChips.visibility = View.GONE
 
         listOf(
             binding.tabLibrary, binding.tabBrowse, binding.tabSearch,
@@ -199,25 +239,41 @@ class HomeActivity : AppCompatActivity() {
         binding.btnKindSeries.setOnClickListener { setMediaKind(UserPrefs.KIND_SERIES) }
         binding.btnKindMovies.setOnClickListener { setMediaKind(UserPrefs.KIND_MOVIE) }
 
-        binding.searchInput.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                runSearch(binding.searchInput.text?.toString().orEmpty())
-                true
-            } else false
-        }
-        binding.searchInput.addTextChangedListener(SimpleTextWatcher { text ->
-            searchJob?.cancel()
-            searchJob = lifecycleScope.launch {
-                delay(220)
-                runSearch(text)
-            }
-        })
+        // Legacy EditText stays gone — custom keyboard only (no system IME)
+        binding.searchInput.visibility = View.GONE
 
-        refreshChips()
         styleKindButtons()
         updateSearchHint()
         setMode(HomeMode.LIBRARY)
         refreshActiveProfile()
+    }
+
+    private fun onSearchKey(key: String) {
+        UiSound.click(this, prefs)
+        when (key) {
+            "␣" -> searchQuery += " "
+            "⌫" -> if (searchQuery.isNotEmpty()) searchQuery = searchQuery.dropLast(1)
+            "CLR" -> searchQuery = ""
+            else -> searchQuery += key
+        }
+        updateSearchQueryLabel()
+        searchJob?.cancel()
+        searchJob = lifecycleScope.launch {
+            delay(180)
+            runSearch(searchQuery)
+        }
+    }
+
+    private fun updateSearchQueryLabel() {
+        searchQueryLabel.text = if (searchQuery.isEmpty()) "Suche…" else searchQuery
+    }
+
+    private fun focusFirstSearchKey() {
+        searchKeyboard.post {
+            val holder = searchKeyboard.findViewHolderForAdapterPosition(0)
+            holder?.itemView?.requestFocus()
+                ?: searchKeyboard.getChildAt(0)?.requestFocus()
+        }
     }
 
     private fun setMediaKind(kind: String) {
@@ -228,7 +284,7 @@ class HomeActivity : AppCompatActivity() {
         styleKindButtons()
         updateSearchHint()
         when (mode) {
-            HomeMode.SEARCH -> runSearch(binding.searchInput.text?.toString().orEmpty())
+            HomeMode.SEARCH -> runSearch(searchQuery)
             else -> load(force = true)
         }
     }
@@ -280,20 +336,26 @@ class HomeActivity : AppCompatActivity() {
         mode = newMode
         styleTabs()
         UiSound.click(this, prefs)
-        val searchUi = mode == HomeMode.SEARCH
-        binding.searchInput.visibility = if (searchUi) View.VISIBLE else View.GONE
-        binding.filterChips.visibility =
-            if ((mode == HomeMode.SEARCH || mode == HomeMode.BROWSE) && !prefs.isMovies) {
-                View.VISIBLE
-            } else View.GONE
-        binding.heroContainer.visibility = if (searchUi) View.GONE else View.VISIBLE
+        binding.searchInput.visibility = View.GONE
+        binding.filterChips.visibility = View.GONE
         binding.btnLoadMore.visibility = View.GONE
-        if (mode == HomeMode.SEARCH) {
-            updateSearchHint()
-            binding.searchInput.requestFocus()
-            runSearch(binding.searchInput.text?.toString().orEmpty())
-        } else {
-            load(force = false)
+        when (mode) {
+            HomeMode.SEARCH -> {
+                binding.heroContainer.visibility = View.GONE
+                binding.rows.visibility = View.GONE
+                searchPanel.visibility = View.VISIBLE
+                binding.tabSearch.nextFocusDownId = R.id.searchKeyboard
+                updateSearchQueryLabel()
+                focusFirstSearchKey()
+                runSearch(searchQuery)
+            }
+            HomeMode.LIBRARY, HomeMode.BROWSE -> {
+                searchPanel.visibility = View.GONE
+                binding.rows.visibility = View.VISIBLE
+                binding.heroContainer.visibility = View.VISIBLE
+                binding.tabSearch.nextFocusDownId = R.id.btnHeroPlay
+                load(force = false)
+            }
         }
     }
 
@@ -308,24 +370,11 @@ class HomeActivity : AppCompatActivity() {
         paint(binding.tabSearch, mode == HomeMode.SEARCH)
     }
 
-    private fun refreshChips() {
-        val chips = CatalogFilters.ANTI_PATTERNS + CatalogFilters.GENRES
-        chipAdapter.submit(chips, prefs.includeGenres, prefs.excludeGenres)
-    }
+    @Suppress("UNUSED_PARAMETER")
+    private fun refreshChips() = Unit
 
-    private fun toggleChip(chip: GenreChip) {
-        UiSound.click(this, prefs)
-        if (chip.exclude) {
-            val next = prefs.excludeGenres.toMutableSet()
-            if (!next.add(chip.id)) next.remove(chip.id)
-            prefs.excludeGenres = next
-        } else {
-            val next = prefs.includeGenres.toMutableSet()
-            if (!next.add(chip.id)) next.remove(chip.id)
-            prefs.includeGenres = next
-        }
-        refreshChips()
-    }
+    @Suppress("UNUSED_PARAMETER")
+    private fun toggleChip(chip: GenreChip) = Unit
 
     private fun load(force: Boolean) {
         if (mode == HomeMode.SEARCH) return
@@ -382,13 +431,13 @@ class HomeActivity : AppCompatActivity() {
             runCatching { repo.searchGrouped(query) }
                 .onSuccess { rows ->
                     binding.progress.visibility = View.GONE
-                    if (rows.isEmpty()) {
-                        rowsAdapter.submit(emptyList())
+                    if (rows.isEmpty() || rows.all { it.items.isEmpty() }) {
+                        searchResultsAdapter.submit(emptyList())
                         binding.emptyText.text = getString(R.string.search_empty)
                         binding.emptyText.visibility = View.VISIBLE
                     } else {
                         binding.emptyText.visibility = View.GONE
-                        rowsAdapter.submit(rows)
+                        searchResultsAdapter.submit(rows)
                         rows.firstOrNull()?.items?.firstOrNull()?.let { updateHero(it) }
                     }
                 }
@@ -448,23 +497,43 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun openSeries(series: Series) {
-        // Calendar cards may use slug ids; strip episode suffix titles when opening.
+        (application as VerflixedApp).container.catalog.rememberSeriesHit(series)
         val id = series.id
         startActivity(
             Intent(this, SeriesDetailActivity::class.java)
                 .putExtra(SeriesDetailActivity.EXTRA_SERIES_ID, id)
+                .putExtra(SeriesDetailActivity.EXTRA_DETAIL_PATH, series.detailPath)
+                .putExtra(SeriesDetailActivity.EXTRA_TITLE, series.title)
+                .putExtra(SeriesDetailActivity.EXTRA_MEDIA_KIND, series.mediaKind)
         )
     }
 }
 
-private class SimpleTextWatcher(
-    private val onChanged: (String) -> Unit
-) : android.text.TextWatcher {
-    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-    override fun afterTextChanged(s: android.text.Editable?) {
-        onChanged(s?.toString().orEmpty())
+private class SearchKeyAdapter(
+    private val onKey: (String) -> Unit
+) : RecyclerView.Adapter<SearchKeyAdapter.VH>() {
+    private val keys: List<String> = buildList {
+        addAll(('A'..'Z').map { it.toString() })
+        addAll(('0'..'9').map { it.toString() })
+        add("␣")
+        add("⌫")
+        add("CLR")
     }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_search_key, parent, false)
+        return VH(v as Button)
+    }
+
+    override fun getItemCount(): Int = keys.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val key = keys[position]
+        holder.btn.text = key
+        holder.btn.setOnClickListener { onKey(key) }
+    }
+
+    class VH(val btn: Button) : RecyclerView.ViewHolder(btn)
 }
 
 private class ChipAdapter(
