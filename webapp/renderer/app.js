@@ -835,16 +835,17 @@
 
       if (!movieMode && window.verflixed?.resolveVoeFromEpisode) {
         $("playerStatus").textContent = "Stream wird vorbereitet…";
-        const resolved = await window.verflixed.resolveVoeFromEpisode(page, {
-          timeoutMs: 120000,
-          allowShowForCaptcha: true,
-        });
-        if (!resolved?.ok || !resolved.voeUrl) {
-          throw new Error(resolved?.error || "Stream konnte nicht geladen werden");
-        }
-        $("playerStatus").textContent = "Wiedergabe startet…";
-        await playVoe(resolved.voeUrl, resolved.episodeUrl || page);
-        return;
+        try {
+          const resolved = await window.verflixed.resolveVoeFromEpisode(page, {
+            timeoutMs: 120000,
+            allowShowForCaptcha: true,
+          });
+          if (resolved?.ok && resolved.voeUrl) {
+            $("playerStatus").textContent = "Wiedergabe startet…";
+            await playVoe(resolved.voeUrl, resolved.episodeUrl || page);
+            return;
+          }
+        } catch (_) {}
       }
 
       // Manual VOE / Vidara fallback
