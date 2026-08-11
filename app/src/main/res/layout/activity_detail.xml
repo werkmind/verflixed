@@ -112,9 +112,10 @@
             android:id="@+id/btnPlay"
             style="@style/SvButton.Primary"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:minHeight="40dp"
-            android:minWidth="130dp"
+            android:layout_height="36dp"
+            android:minHeight="36dp"
+            android:minWidth="110dp"
+            android:nextFocusRight="@id/btnFavorite"
             android:text="@string/detail_play"
             android:textColor="@color/sv_primary_btn_text" />
 
@@ -122,18 +123,21 @@
             android:id="@+id/btnFavorite"
             style="@style/SvButton.Ghost"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_marginStart="10dp"
-            android:minHeight="40dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:minHeight="36dp"
+            android:nextFocusLeft="@id/btnPlay"
+            android:nextFocusRight="@id/btnSeasonWatched"
             android:text="@string/detail_favorite_add" />
 
         <Button
             android:id="@+id/btnSeasonWatched"
             style="@style/SvButton.Ghost"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_marginStart="10dp"
-            android:minHeight="40dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:minHeight="36dp"
+            android:nextFocusLeft="@id/btnFavorite"
             android:text="@string/detail_mark_season_watched" />
     </LinearLayout>
 

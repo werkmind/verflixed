@@ -69,15 +69,29 @@ class SeriesDetailActivity : AppCompatActivity() {
         val id = intent.getStringExtra(EXTRA_SERIES_ID) ?: run {
             finish(); return
         }
-        load(id)
+        val detailPath = intent.getStringExtra(EXTRA_DETAIL_PATH)
+        val titleHint = intent.getStringExtra(EXTRA_TITLE)
+        val mediaKind = intent.getStringExtra(EXTRA_MEDIA_KIND)
+        load(id, detailPath, titleHint, mediaKind)
     }
 
-    private fun load(id: String) {
+    private fun load(
+        id: String,
+        detailPath: String? = null,
+        titleHint: String? = null,
+        mediaKind: String? = null,
+    ) {
         val repo = (application as VerflixedApp).container.catalog
         binding.progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             runCatching {
-                val s = repo.getSeries(id, enrich = true)
+                val s = repo.getSeries(
+                    id,
+                    enrich = true,
+                    detailPathHint = detailPath,
+                    titleHint = titleHint,
+                    mediaKindHint = mediaKind,
+                )
                 val p = repo.progressForSeries(id)
                 val fav = repo.isFavorite(id)
                 val cache = repo.favoriteCacheState(id)
@@ -274,7 +288,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                     if (nowFav) "Favorit gespeichert – alle Player-Links werden gesammelt" else "Favorit entfernt",
                     Toast.LENGTH_SHORT
                 ).show()
-                load(s.id)
+                load(s.id, s.detailPath, s.title, s.mediaKind)
             }.onFailure {
                 binding.btnFavorite.isEnabled = true
                 Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
@@ -293,6 +307,9 @@ class SeriesDetailActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SERIES_ID = "series_id"
+        const val EXTRA_DETAIL_PATH = "detail_path"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_MEDIA_KIND = "media_kind"
     }
 }
 
@@ -374,6 +391,10 @@ private class EpisodeAdapter(
             p?.completed == true -> "✓ Gesehen"
             else -> "○ Markieren"
         }
+        holder.badge.isFocusable = true
+        holder.itemView.isFocusable = true
+        holder.itemView.nextFocusRightId = R.id.watchedBadge
+        holder.badge.nextFocusLeftId = holder.itemView.id
         holder.badge.setOnClickListener { onToggleWatched(ep) }
         holder.badge.setOnLongClickListener {
             onToggleWatched(ep)

@@ -54,9 +54,18 @@ class CatalogRepository(
     private val seriesAdapter get() = moshi.adapter(Series::class.java)
     private val genreMembers = mutableMapOf<String, Set<String>>()
     private val genreSeriesCache = mutableMapOf<String, List<Series>>()
+    /** Live-search / deep-link hits that are not in the home catalog slice. */
+    private val searchHitCache = java.util.concurrent.ConcurrentHashMap<String, Series>()
 
     private suspend fun pid(): String = profiles.activeId()
 
+    fun rememberSeriesHit(series: Series) {
+        if (series.id.isNotBlank()) searchHitCache[series.id] = series
+    }
+
+    fun rememberSeriesHits(hits: List<Series>) {
+        hits.forEach { rememberSeriesHit(it) }
+    }
     private fun activeBase(): String = prefs.activeBaseUrl().trimEnd('/')
 
     private fun isMoviesMode(): Boolean = prefs.isMovies
@@ -309,37 +318,18 @@ class CatalogRepository(
                 )
             }
         }
-        byId.values.toList()
+        byId.values.toList().also { rememberSeriesHits(it) }
     }
 
     suspend fun searchGrouped(query: String): List<HomeRow> = withContext(Dispatchers.IO) {
         val hits = search(query).map { hydrateBrowseArt(it) }
         if (hits.isEmpty()) return@withContext emptyList()
-        val rows = mutableListOf(HomeRow(if (query.isBlank()) "Empfohlen" else "Live-Treffer", hits.take(48)))
-        if (!isMoviesMode()) {
-            // Category buckets among hits
-            CatalogFilters.GENRES.forEach { genre ->
-                val ids = runCatching { seriesIdsForGenre(genre.id) }.getOrDefault(emptySet())
-                val bucket = hits.filter { it.id in ids || genre.id in it.genres }.take(16)
-                if (bucket.isNotEmpty()) rows += HomeRow(genre.label, bucket)
-            }
-        }
-        rows
+        listOf(HomeRow(if (query.isBlank()) "Empfohlen" else "Live-Treffer", hits.take(48)))
     }
 
     private suspend fun applyGenreFilters(series: List<Series>): List<Series> {
-        var list = series
-        val include = prefs.includeGenres
-        val exclude = prefs.excludeGenres
-        if (include.isNotEmpty()) {
-            val allowed = include.flatMap { runCatching { seriesIdsForGenre(it) }.getOrDefault(emptySet()) }.toSet()
-            list = list.filter { it.id in allowed || it.genres.any { g -> g in include } }
-        }
-        if (exclude.isNotEmpty()) {
-            val blocked = exclude.flatMap { runCatching { seriesIdsForGenre(it) }.getOrDefault(emptySet()) }.toSet()
-            list = list.filterNot { it.id in blocked || it.genres.any { g -> g in exclude } }
-        }
-        return list
+        // Antifilter UI removed — never filter by include/exclude genres.
+        return series
     }
 
     private suspend fun seriesIdsForGenre(genreId: String): Set<String> =
@@ -370,16 +360,35 @@ class CatalogRepository(
         return withArt
     }
 
-    suspend fun getSeries(seriesId: String, enrich: Boolean = false): Series = withContext(Dispatchers.IO) {
+    suspend fun getSeries(
+        seriesId: String,
+        enrich: Boolean = false,
+        detailPathHint: String? = null,
+        titleHint: String? = null,
+        mediaKindHint: String? = null,
+    ): Series = withContext(Dispatchers.IO) {
         val catalog = runCatching { loadCatalog(false) }.getOrNull()
+        val fromCache = searchHitCache[seriesId]
+        val fromFav = db.favorites().all(pid()).firstOrNull { it.seriesId == seriesId }?.let {
+            seriesAdapter.fromJson(it.cachedJson)
+        }
         val light = catalog?.series?.find { it.id == seriesId }
-            ?: db.favorites().all(pid()).firstOrNull { it.seriesId == seriesId }?.let {
-                seriesAdapter.fromJson(it.cachedJson)
+            ?: fromFav
+            ?: fromCache
+            ?: detailPathHint?.takeIf { it.isNotBlank() }?.let { path ->
+                Series(
+                    id = seriesId,
+                    title = titleHint?.ifBlank { seriesId } ?: seriesId,
+                    detailPath = path,
+                    mediaKind = if (mediaKindHint == "movie") "movie" else "series",
+                )
             }
             ?: throw VfException.of(VfCodes.SERIES_NOT_FOUND, "Serie nicht gefunden: $seriesId")
 
+        rememberSeriesHit(light)
+
         val detailed = try {
-            if (light.isMovie || looksLikeMovie(light)) {
+            if (light.isMovie || looksLikeMovie(light) || mediaKindHint == "movie") {
                 loadMovieDetail(light)
             } else {
                 loadAllSeasons(light)
@@ -390,7 +399,6 @@ class CatalogRepository(
         }
 
         val withCachedStreams = applyStreamCache(detailed)
-        // Enrich for UI; persist metadata only when favorited. Skip TVMaze for movies.
         val enriched = if (withCachedStreams.isMovie) {
             withCachedStreams
         } else {
@@ -399,6 +407,7 @@ class CatalogRepository(
         if (db.favorites().isFavorite(pid(), seriesId)) {
             persistFavoriteJson(enriched)
         }
+        rememberSeriesHit(enriched)
         enriched
     }
 

@@ -1,45 +1,34 @@
 # Verflixed (Fire TV + Desktop Webapp)
 
-Android-TV-/Fire-TV-Client und **Desktop-Webapp** (macOS/Windows) – **1.6.0**.
+Android-TV-/Fire-TV-Client und **Desktop-Webapp** (macOS/Windows) – **1.6.1**.
 
 - Plex-/Netflix-ähnliche Browse-UI
-- **Serien + Filme** (getrennte Quellen-URLs, Tabs, Favoriten)
-- Live-Site-Suche · VOE→m3u8 · Vidara-Fallback
+- **Serien + Filme** (Defaults: serienstream.cx + filmpalast.to)
+- Netflix-Style Such-Keyboard · Live-Site-Suche · VOE→m3u8 · Vidara-Fallback
 - Multi-Profil (Favoriten / Fortschritt / Cache)
 
 ## Downloads
 
 | | Link |
 |---|---|
-| **APK Fire TV** | https://gofile.io/d/Y6ykVA |
-| APK Spiegel (72h) | https://litter.catbox.moe/cndwtx.apk |
-| **Webapp macOS/Windows** | https://gofile.io/d/03TBCj |
-| Webapp Spiegel | https://tmpfiles.org/wFwJOH8p8Lif/verflixed-webapp-macos-windows.zip |
+| **APK Fire TV (kurz)** | https://clck.ru/3VBfVg |
+| **Update (kurz)** | https://clck.ru/3VBfTs |
+| APK Gofile | https://gofile.io/d/w1RrZe |
+| APK Direkt (72h) | https://litter.catbox.moe/e3csn1.apk |
 
-**Fire-TV-Installation:** siehe [`INSTALL.md`](INSTALL.md) (Downloader-App empfohlen).
+**Fire-TV-Installation:** siehe [`INSTALL.md`](INSTALL.md).
 
 ## Lokal
 
-- APK: `dist/Verflixed-FireTV.apk` (versionCode **15**)
+- APK: `dist/Verflixed-FireTV.apk` (versionCode **17** / **1.6.1**)
 - Webapp: `dist/webapp/Verflixed-Webapp-macOS-Windows.zip`
-- Start Webapp: `Start-macOS.command` / `Start-Windows.bat`
 
 ```bash
 cd webapp && npm start
-# Tests:
-node scripts/test-site-search.js
-node scripts/test-movie-search.js
-node scripts/test-filmpalast-voe-bg.js
-```
-
-## Quellen (Beispiel)
-
-- Serien: `https://aniworld.to` oder `https://serienstream.cx`
-- Filme: `https://filmpalast.to`
-
-## Build Android
-
-```bash
-export ANDROID_HOME=~/android-sdk
 ./gradlew :app:assembleRelease
 ```
+
+## Quellen (Default)
+
+- Serien: `https://serienstream.cx`
+- Filme: `https://filmpalast.to`

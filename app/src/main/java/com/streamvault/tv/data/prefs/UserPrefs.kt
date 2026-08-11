@@ -134,8 +134,8 @@ class UserPrefs(context: Context) {
 
         const val DEFAULT_SERIES_BASE = "https://serienstream.cx"
         const val DEFAULT_MOVIES_BASE = "https://filmpalast.to"
-        /** Short update manifest URL (overwritten at release). */
-        var DEFAULT_UPDATE_MANIFEST: String = ""
+        /** Short update manifest URL. */
+        const val DEFAULT_UPDATE_MANIFEST: String = "https://clck.ru/3VBfTs"
 
         private const val KEY_BASE_URL = "base_url"
         private const val KEY_SERIES_BASE = "series_base_url"

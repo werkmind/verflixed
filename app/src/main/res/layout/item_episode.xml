@@ -2,37 +2,42 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
+    android:layout_marginBottom="6dp"
     android:background="@drawable/bg_episode_card"
-    android:clipChildren="true"
-    android:clipToPadding="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:descendantFocusability="afterDescendants"
     android:focusable="true"
     android:gravity="center_vertical"
+    android:nextFocusRight="@id/watchedBadge"
     android:orientation="horizontal"
-    android:padding="8dp">
+    android:padding="6dp">
 
     <ImageView
         android:id="@+id/episodeStill"
-        android:layout_width="160dp"
-        android:layout_height="90dp"
+        android:layout_width="120dp"
+        android:layout_height="68dp"
         android:adjustViewBounds="false"
         android:contentDescription="@null"
+        android:focusable="false"
         android:scaleType="centerCrop"
         android:src="@drawable/poster_placeholder" />
 
     <TextView
         android:id="@+id/episodeNumber"
-        android:layout_width="52dp"
+        android:layout_width="44dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="8dp"
+        android:focusable="false"
         android:textColor="@color/sv_accent"
-        android:textSize="15sp"
+        android:textSize="13sp"
         android:textStyle="bold" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:focusable="false"
         android:orientation="vertical">
 
         <TextView
@@ -40,9 +45,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
+            android:focusable="false"
             android:maxLines="1"
             android:textColor="@color/sv_text_primary"
-            android:textSize="15sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
         <TextView
@@ -51,23 +57,25 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
+            android:focusable="false"
             android:maxLines="2"
             android:textColor="@color/sv_text_muted"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/watchedBadge"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="8dp"
         android:background="@drawable/bg_season_chip"
         android:focusable="true"
+        android:nextFocusLeft="@id/episodeStill"
         android:paddingStart="10dp"
-        android:paddingTop="6dp"
+        android:paddingTop="8dp"
         android:paddingEnd="10dp"
-        android:paddingBottom="6dp"
+        android:paddingBottom="8dp"
         android:textColor="@color/sv_watched"
-        android:textSize="13sp"
+        android:textSize="12sp"
         android:textStyle="bold" />
 </LinearLayout>

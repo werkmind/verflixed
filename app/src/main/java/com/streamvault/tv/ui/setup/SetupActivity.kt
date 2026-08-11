@@ -19,7 +19,7 @@ class SetupActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val prefs = (application as VerflixedApp).container.prefs
         val force = intent.getBooleanExtra(EXTRA_FORCE, false)
-        if (prefs.isConfigured && !force) {
+        if (prefs.setupDone && !force) {
             startActivity(Intent(this, HomeActivity::class.java))
             finish()
             return
@@ -28,12 +28,8 @@ class SetupActivity : AppCompatActivity() {
         binding = ActivitySetupBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        if (prefs.seriesBaseUrl.isNotBlank()) {
-            binding.inputBaseUrl.setText(prefs.seriesBaseUrl)
-        }
-        if (prefs.moviesBaseUrl.isNotBlank()) {
-            binding.inputMoviesBaseUrl.setText(prefs.moviesBaseUrl)
-        }
+        binding.inputBaseUrl.setText(prefs.seriesBaseUrl.ifBlank { UserPrefs.DEFAULT_SERIES_BASE })
+        binding.inputMoviesBaseUrl.setText(prefs.moviesBaseUrl.ifBlank { UserPrefs.DEFAULT_MOVIES_BASE })
         if (prefs.tmdbApiKey.isNotBlank()) {
             binding.inputTmdbKey.setText(prefs.tmdbApiKey)
         }
@@ -43,54 +39,48 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun submit() {
-        val seriesUrl = binding.inputBaseUrl.text?.toString().orEmpty().trim()
-        val moviesUrl = binding.inputMoviesBaseUrl.text?.toString().orEmpty().trim()
-        if (seriesUrl.isBlank() && moviesUrl.isBlank()) {
-            showError(getString(com.streamvault.tv.R.string.setup_error_empty))
-            return
-        }
+        val seriesUrl = UserPrefs.normalizeUrl(
+            binding.inputBaseUrl.text?.toString().orEmpty()
+                .ifBlank { UserPrefs.DEFAULT_SERIES_BASE },
+        )
+        val moviesUrl = UserPrefs.normalizeUrl(
+            binding.inputMoviesBaseUrl.text?.toString().orEmpty()
+                .ifBlank { UserPrefs.DEFAULT_MOVIES_BASE },
+        )
         val app = application as VerflixedApp
         binding.progress.visibility = View.VISIBLE
         binding.btnContinue.isEnabled = false
         binding.errorText.visibility = View.GONE
 
         lifecycleScope.launch {
-            var lastError: Throwable? = null
-            var ok = false
+            // Persist BOTH urls always (do not drop movies when validate fails).
+            app.container.prefs.seriesBaseUrl = seriesUrl
+            app.container.prefs.moviesBaseUrl = moviesUrl
+            app.container.prefs.mediaKind = UserPrefs.KIND_SERIES
+            app.container.prefs.tmdbApiKey = binding.inputTmdbKey.text?.toString().orEmpty()
+            app.container.prefs.markSetupDone()
 
-            if (seriesUrl.isNotBlank()) {
-                val result = app.container.catalog.validateBaseUrl(seriesUrl)
-                result.onSuccess {
-                    app.container.prefs.seriesBaseUrl = seriesUrl
-                    ok = true
-                }.onFailure { lastError = it }
-            }
-            if (moviesUrl.isNotBlank()) {
-                val result = app.container.catalog.validateBaseUrl(moviesUrl)
-                result.onSuccess {
-                    app.container.prefs.moviesBaseUrl = moviesUrl
-                    ok = true
-                }.onFailure { lastError = it }
-            }
+            val seriesOk = runCatching { app.container.catalog.validateBaseUrl(seriesUrl).getOrThrow() }.isSuccess
+            val moviesOk = runCatching { app.container.catalog.validateBaseUrl(moviesUrl).getOrThrow() }.isSuccess
 
             binding.progress.visibility = View.GONE
             binding.btnContinue.isEnabled = true
 
-            if (ok) {
-                // Prefer series when both set; otherwise use whatever is available.
-                app.container.prefs.mediaKind = when {
-                    seriesUrl.isNotBlank() -> UserPrefs.KIND_SERIES
-                    else -> UserPrefs.KIND_MOVIE
-                }
-                app.container.prefs.tmdbApiKey = binding.inputTmdbKey.text?.toString().orEmpty()
-                startActivity(Intent(this@SetupActivity, HomeActivity::class.java))
-                finish()
-            } else {
-                val msg = lastError?.message
-                    ?: getString(com.streamvault.tv.R.string.setup_error_unreachable)
+            if (!seriesOk && !moviesOk) {
+                val msg = getString(com.streamvault.tv.R.string.setup_error_unreachable)
                 showError(msg)
                 Toast.makeText(this@SetupActivity, msg, Toast.LENGTH_LONG).show()
+                return@launch
             }
+            if (!moviesOk) {
+                Toast.makeText(
+                    this@SetupActivity,
+                    "Filme-URL gespeichert (Check warnte) – App startet trotzdem.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+            startActivity(Intent(this@SetupActivity, HomeActivity::class.java))
+            finish()
         }
     }
 
