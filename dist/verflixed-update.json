@@ -4,5 +4,5 @@
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
   "sha256": "b86a8fe8af9373644b20c5e825df6b4c600c5f5375aa2841e94c072ac97de193",
-  "changelog": "1.7.5: Doppel-Zurück zum Beenden; Favoriten bulk-cachen HLS/MP4; Kontextmenü Stream neu laden; Nächste-Folge Overlay (60s/10s)"
+  "changelog": "1.7.5: Desktop-Webapp Design/Features = APK (Blau-UI, Bulk-Cache, Next-Ep Overlay, Resume-Dialog). PS4 ohne Homebrew nicht möglich. Samsung: Fire-Stick empfohlen (Tizen ≠ APK)."
 }

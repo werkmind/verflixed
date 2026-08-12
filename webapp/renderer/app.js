@@ -32,8 +32,13 @@
     activePageLang: "de",
     controlsVisible: false,
     lastBackExitAt: 0,
+    lastAppBackAt: 0,
     warmingStreams: false,
     warmToken: 0,
+    nextPromptVisible: false,
+    nextPromptDismissed: false,
+    nextAutoAtMs: 0,
+    advancingToNext: false,
     seriesLoading: false,
     moviesLoading: false,
     seriesLoadPromise: null,
@@ -374,6 +379,7 @@
     state.playerReady = false;
     state.controlsVisible = false;
     state.lastBackExitAt = 0;
+    hideNextPrompt();
     showTvControls(false);
     if (state.current) showView("detail");
     else setHomeMode(state.lastContentMode || "library");
@@ -1157,6 +1163,7 @@
 
       const row = document.createElement("div");
       row.className = "episode" + (watched ? " watched" : "");
+      row.dataset.epid = ep.id;
       row.innerHTML = `
         <button type="button" class="ep-play" aria-label="Play">
           <img alt="" />
@@ -1190,61 +1197,107 @@
     }
   }
 
-  /** Best-effort: warm a few episode pages / stream URLs in the background. */
-  async function warmEpisodeStreamsLight(series) {
-    if (!series || state.warmingStreams) return;
-    const token = state.warmToken;
-    const movieMode = isMovieItem(series);
-    const eps = (series.seasons || [])
-      .flatMap((s) => s.episodes || [])
-      .filter((ep) => ep?.streamPageUrl && !window.VfProfiles.getCachedStream(ep.id, preferredLang()))
-      .slice(0, movieMode ? 1 : 8);
-    if (!eps.length) return;
+  function renderCacheStatus(cached, total, status, label) {
+    const el = $("cacheStatus");
+    if (!el) return;
+    if (!total && status !== "caching") {
+      el.textContent = "";
+      return;
+    }
+    const bit = label ? ` · ${label}` : "";
+    if (status === "caching") {
+      el.textContent = `Streams cachen (HLS/MP4): ${cached}/${total}${bit}`;
+    } else if (status === "ready") {
+      el.textContent = `Streams bereit: ${cached}/${total}`;
+    } else if (status === "partial") {
+      el.textContent = `Streams teilweise: ${cached}/${total}`;
+    } else {
+      el.textContent = "";
+    }
+  }
+
+  /** Resolve episode streams to direct HLS/MP4 and cache them (favorite / context refresh). */
+  async function warmEpisodeStreams(series, opts = {}) {
+    if (!series) return;
+    const forceRefresh = !!opts.forceRefresh;
+    const seasonNumber = opts.seasonNumber ?? null;
+    const episodeId = opts.episodeId ?? null;
+    if (state.warmingStreams && !forceRefresh && !episodeId && seasonNumber == null) return;
+    const token = ++state.warmToken;
     state.warmingStreams = true;
+    const movieMode = isMovieItem(series);
+    const all = (series.seasons || []).flatMap((s) => s.episodes || []);
+    let targets = all.filter((ep) => ep?.streamPageUrl);
+    if (episodeId) targets = targets.filter((ep) => ep.id === episodeId);
+    else if (seasonNumber != null) targets = targets.filter((ep) => ep.seasonNumber === seasonNumber);
+    if (!forceRefresh && !episodeId && seasonNumber == null) {
+      targets = targets.filter((ep) => !window.VfProfiles.getCachedStream(ep.id, preferredLang()));
+    }
+    if (forceRefresh) {
+      if (episodeId) window.VfProfiles.clearCachedStream(episodeId);
+      else if (seasonNumber != null) {
+        targets.forEach((ep) => window.VfProfiles.clearCachedStream(ep.id));
+      } else {
+        window.VfProfiles.clearSeriesStreams(series.id);
+      }
+    }
+    const total = Math.max(targets.length, 1);
+    let cached = window.VfProfiles.cachedEpisodeIds?.(series.id, preferredLang())?.length || 0;
+    renderCacheStatus(cached, all.length || total, "caching");
     try {
-      for (const ep of eps) {
+      for (const ep of targets) {
         if (token !== state.warmToken) break;
-        if (state.current?.id !== series.id) break;
+        if (state.current?.id !== series.id && !opts.background) break;
+        const label = `S${ep.seasonNumber}E${ep.number}`;
+        renderCacheStatus(cached, all.length || total, "caching", label);
         try {
           const { text, finalUrl } = await getText(ep.streamPageUrl);
           const page = finalUrl || ep.streamPageUrl;
           const hosters = movieMode
             ? window.FilmParser?.parseHosters?.(text, page, preferredLang()) || []
             : parseEpisodeHosters(text, page);
-          let cached = false;
+          let got = null;
           if (window.verflixed?.resolveHostersToHls && hosters.length) {
             const resolved = await window.verflixed.resolveHostersToHls(hosters, page);
-            if (resolved?.ok && resolved.hlsUrl) {
-              window.VfProfiles.cacheStream(ep.id, ep.seriesId, resolved.hlsUrl, preferredLang());
-              cached = true;
-            }
+            if (resolved?.ok && resolved.hlsUrl) got = resolved.hlsUrl;
           }
-          if (!cached) {
+          if (!got) {
             const voe =
               hosters.find((h) => /voe/i.test(h.provider || h.name || "") || /\/e\//.test(h.url || ""))?.url ||
               (text.match(/https?:\/\/[^'"\s]+\/e\/[a-zA-Z0-9]+/) || [])[0];
             if (voe) {
               try {
                 const extracted = await extractVoeHls(voe, page);
-                const hls =
+                got =
                   typeof extracted === "string"
                     ? extracted
                     : extracted?.hls || extracted?.hlsUrl || extracted?.url || null;
-                if (hls) {
-                  window.VfProfiles.cacheStream(ep.id, ep.seriesId, hls, preferredLang());
-                  cached = true;
-                }
               } catch (_) {}
             }
           }
-          if (cached && state.current?.id === series.id && token === state.warmToken) {
-            renderEpisodes();
+          if (got && /\.m3u8|\.mp4/i.test(got)) {
+            window.VfProfiles.cacheStream(ep.id, ep.seriesId || series.id, got, preferredLang());
+            cached = window.VfProfiles.cachedEpisodeIds?.(series.id, preferredLang())?.length || cached + 1;
+            if (state.current?.id === series.id && token === state.warmToken) renderEpisodes();
           }
         } catch (_) {}
       }
     } finally {
       if (token === state.warmToken) state.warmingStreams = false;
+      const ready = window.VfProfiles.cachedEpisodeIds?.(series.id, preferredLang())?.length || 0;
+      const tot = all.length || total;
+      renderCacheStatus(
+        ready,
+        tot,
+        ready >= tot && tot > 0 ? "ready" : ready > 0 ? "partial" : "partial",
+      );
+      if (state.current?.id === series.id) renderEpisodes();
     }
+  }
+
+  /** @deprecated light warm kept as alias */
+  async function warmEpisodeStreamsLight(series) {
+    return warmEpisodeStreams(series, { forceRefresh: false });
   }
 
   function allEpisodesOrdered() {
@@ -1311,21 +1364,28 @@
     if (!video) return;
 
     video.controls = false;
-    video.addEventListener("timeupdate", updateSeekUi);
+    video.addEventListener("timeupdate", () => {
+      updateSeekUi();
+      maybeShowNext();
+    });
     video.addEventListener("loadedmetadata", updateSeekUi);
     video.addEventListener("play", () => showTvControls(true));
     video.addEventListener("pause", () => updateSeekUi());
     video.addEventListener("ended", () => {
       saveCurrentProgress(true);
       stopProgressTimer();
+      hideNextPrompt();
       const next = state.lastPlay?.ep ? nextEpisodeAfter(state.lastPlay.ep) : null;
       if (next) {
-        playEpisode(next);
+        playNextEpisode(true);
       } else {
         $("playerStatus").textContent = "Fertig";
         showTvControls(true);
       }
     });
+
+    $("btnPlayNext")?.addEventListener("click", () => playNextEpisode(false));
+    $("btnSkipNext")?.addEventListener("click", () => dismissNextPrompt(true));
 
     const bar = $("seekBar");
     if (bar) {
@@ -1354,27 +1414,72 @@
         } else if (act === "fwd") {
           if (dur) video.currentTime = Math.min(dur, video.currentTime + SEEK_STEP_S);
         } else if (act === "next") {
-          const next = state.lastPlay?.ep ? nextEpisodeAfter(state.lastPlay.ep) : null;
-          if (next) playEpisode(next);
+          playNextEpisode(false);
         }
         updateSeekUi();
       });
     }
 
     document.addEventListener("keydown", (e) => {
-      if (!$("view-player")?.classList.contains("active")) return;
       const tag = (e.target?.tagName || "").toLowerCase();
       if (tag === "input" || tag === "textarea") return;
+
+      // Home / detail: double Escape / Back to quit app (Electron)
+      if (!$("view-player")?.classList.contains("active")) {
+        if (e.key === "Escape" || e.key === "BrowserBack" || e.code === "BrowserBack") {
+          if ($("view-detail")?.classList.contains("active")) {
+            e.preventDefault();
+            setHomeMode(state.lastContentMode || "library");
+            return;
+          }
+          if ($("view-search")?.classList.contains("active") && state.homeMode === "search") {
+            e.preventDefault();
+            setHomeMode(state.lastContentMode || "library");
+            return;
+          }
+          e.preventDefault();
+          const now = Date.now();
+          if (now - state.lastAppBackAt < 2000) {
+            if (window.verflixed?.quit) window.verflixed.quit();
+            else window.close?.();
+            return;
+          }
+          state.lastAppBackAt = now;
+          const st =
+            $("libraryStatus") || $("seriesStatus") || $("moviesStatus");
+          if (st) {
+            const prev = st.textContent;
+            st.textContent = "Nochmal Zurück zum Beenden";
+            setTimeout(() => {
+              if (st.textContent === "Nochmal Zurück zum Beenden") st.textContent = prev || "";
+            }, 2000);
+          }
+          return;
+        }
+        return;
+      }
+
       if (e.key === "Escape" || e.key === "BrowserBack" || e.code === "BrowserBack") {
         e.preventDefault();
+        if (state.nextPromptVisible) {
+          dismissNextPrompt(true);
+          return;
+        }
         handlePlaybackBack();
         return;
       }
-      if (e.code === "Space") {
-        e.preventDefault();
-        if (video.paused) video.play().catch(() => {});
-        else video.pause();
-        showTvControls(true);
+      if (e.code === "Space" || e.key === "Enter") {
+        if (state.nextPromptVisible && document.activeElement === $("btnPlayNext")) {
+          e.preventDefault();
+          playNextEpisode(false);
+          return;
+        }
+        if (e.code === "Space") {
+          e.preventDefault();
+          if (video.paused) video.play().catch(() => {});
+          else video.pause();
+          showTvControls(true);
+        }
       } else if (e.code === "ArrowLeft") {
         e.preventDefault();
         video.currentTime = Math.max(0, video.currentTime - SEEK_STEP_S);
@@ -1385,8 +1490,7 @@
         if (dur) video.currentTime = Math.min(dur, video.currentTime + SEEK_STEP_S);
         showTvControls(true);
       } else if (e.key === "n" || e.key === "N") {
-        const next = state.lastPlay?.ep ? nextEpisodeAfter(state.lastPlay.ep) : null;
-        if (next) playEpisode(next);
+        playNextEpisode(false);
       }
       updateSeekUi();
     });
@@ -1397,6 +1501,8 @@
     stopHls();
     stopProgressTimer();
     state.playerReady = false;
+    state.nextPromptDismissed = false;
+    hideNextPrompt();
     showTvControls(false);
     $("playerOverlay").classList.remove("hidden");
     const movieMode =
@@ -1595,12 +1701,130 @@
     }
   }
 
+  function hideNextPrompt() {
+    state.nextPromptVisible = false;
+    state.nextAutoAtMs = 0;
+    $("nextEpBanner")?.classList.add("hidden");
+  }
+
+  function dismissNextPrompt(keepPlaying) {
+    state.nextPromptDismissed = true;
+    hideNextPrompt();
+    if (keepPlaying && $("playerStatus")) {
+      $("playerStatus").textContent = "Läuft bis zum Schluss";
+      $("playerOverlay")?.classList.remove("hidden");
+      setTimeout(() => {
+        if (state.nextPromptDismissed) {
+          $("playerOverlay")?.classList.add("hidden");
+          if ($("playerStatus")) $("playerStatus").textContent = "";
+        }
+      }, 1600);
+    }
+  }
+
+  function showNextPrompt(next) {
+    if (!state.nextPromptVisible) {
+      state.nextPromptVisible = true;
+      state.nextAutoAtMs = Date.now() + 10_000;
+      const banner = $("nextEpBanner");
+      banner?.classList.remove("hidden");
+      if ($("nextEpTitle")) {
+        $("nextEpTitle").textContent =
+          `Als Nächstes: S${next.seasonNumber}E${next.number} · ${next.title || ""}`;
+      }
+      $("btnPlayNext")?.focus?.();
+    }
+    const remainSec = Math.max(0, Math.min(10, Math.ceil((state.nextAutoAtMs - Date.now()) / 1000)));
+    if ($("nextEpCountdown")) {
+      $("nextEpCountdown").textContent = `Automatisch in ${remainSec}s`;
+    }
+    if (remainSec <= 0 && !state.advancingToNext) {
+      playNextEpisode(true);
+    }
+  }
+
+  function maybeShowNext() {
+    const video = $("video");
+    const ep = state.lastPlay?.ep;
+    if (!video || !ep || isMovieItem(state.current) || String(ep.id || "").endsWith("-movie")) {
+      hideNextPrompt();
+      return;
+    }
+    const dur = video.duration;
+    if (!dur || !Number.isFinite(dur) || video.paused) return;
+    const leftMs = (dur - video.currentTime) * 1000;
+    const next = nextEpisodeAfter(ep);
+    if (!next) {
+      hideNextPrompt();
+      return;
+    }
+    if (state.nextPromptDismissed) {
+      if (leftMs > 60_000) state.nextPromptDismissed = false;
+      return;
+    }
+    if (leftMs > 0 && leftMs <= 60_000) showNextPrompt(next);
+    else if (leftMs > 60_000) hideNextPrompt();
+  }
+
+  async function playNextEpisode(auto) {
+    if (state.advancingToNext) return;
+    const ep = state.lastPlay?.ep;
+    const next = ep ? nextEpisodeAfter(ep) : null;
+    if (!next) {
+      if (!auto && $("playerStatus")) $("playerStatus").textContent = "Keine nächste Episode";
+      hideNextPrompt();
+      return;
+    }
+    state.advancingToNext = true;
+    saveCurrentProgress(true);
+    hideNextPrompt();
+    state.nextPromptDismissed = false;
+    try {
+      await playEpisode(next);
+    } finally {
+      state.advancingToNext = false;
+    }
+  }
+
+  function askResumeChoice(ep) {
+    return new Promise((resolve) => {
+      const prog = window.VfProfiles.getProgress(ep.id);
+      if (!prog || prog.completed || !(prog.positionMs > 5000) || !(prog.durationMs > 0)) {
+        resolve("start");
+        return;
+      }
+      const modal = $("resumeModal");
+      const msg = $("resumeMessage");
+      const t = formatTime(prog.positionMs / 1000);
+      if (msg) {
+        msg.textContent = `Fortschritt bei ${t}. Weiterschauen oder von vorn starten?`;
+      }
+      modal?.classList.remove("hidden");
+      const cleanup = (choice) => {
+        modal?.classList.add("hidden");
+        $("btnResumeContinue")?.removeEventListener("click", onContinue);
+        $("btnResumeRestart")?.removeEventListener("click", onRestart);
+        resolve(choice);
+      };
+      const onContinue = () => cleanup("continue");
+      const onRestart = () => cleanup("start");
+      $("btnResumeContinue")?.addEventListener("click", onContinue);
+      $("btnResumeRestart")?.addEventListener("click", onRestart);
+      $("btnResumeContinue")?.focus?.();
+    });
+  }
+
   async function resumeFromProgress(video, ep) {
+    if (!ep || !video) return;
+    const choice = await askResumeChoice(ep);
     const prog = window.VfProfiles.getProgress(ep.id);
-    if (prog && !prog.completed && prog.positionMs > 5000 && prog.durationMs > 0) {
-      const t = prog.positionMs / 1000;
+    if (choice === "continue" && prog && prog.positionMs > 5000) {
       try {
-        video.currentTime = t;
+        video.currentTime = prog.positionMs / 1000;
+      } catch (_) {}
+    } else {
+      try {
+        video.currentTime = 0;
       } catch (_) {}
     }
   }
@@ -2097,6 +2321,66 @@
       .replace(/>/g, "&gt;");
   }
 
+  function hideCtxMenu() {
+    $("ctxMenu")?.classList.add("hidden");
+  }
+
+  function showDetailContextMenu(x, y, focusedEp) {
+    const menu = $("ctxMenu");
+    const s = state.current;
+    if (!menu || !s) return;
+    const items = [];
+    const fav = window.VfProfiles.isFavorite(s.id);
+    items.push({
+      label: fav ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen",
+      run: () => {
+        const nowFav = window.VfProfiles.toggleFavorite(s);
+        updateDetailFavButton();
+        refreshBrowseFromState();
+        if (nowFav) warmEpisodeStreams(s, { forceRefresh: false });
+      },
+    });
+    if (focusedEp) {
+      items.push({
+        label: "Stream-Link Episode neu laden",
+        run: () => {
+          renderCacheStatus(0, 1, "caching", `S${focusedEp.seasonNumber}E${focusedEp.number}`);
+          warmEpisodeStreams(s, { forceRefresh: true, episodeId: focusedEp.id });
+        },
+      });
+    }
+    items.push({
+      label: "Stream-Links Staffel neu laden",
+      run: () => {
+        warmEpisodeStreams(s, { forceRefresh: true, seasonNumber: state.season });
+      },
+    });
+    items.push({
+      label: "Stream-Links Serie neu laden (HLS/MP4)",
+      run: () => {
+        warmEpisodeStreams(s, { forceRefresh: true });
+      },
+    });
+    menu.innerHTML = "";
+    items.forEach((it) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.label;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        hideCtxMenu();
+        it.run();
+      };
+      menu.appendChild(b);
+    });
+    menu.classList.remove("hidden");
+    const pad = 8;
+    const w = menu.offsetWidth || 220;
+    const h = menu.offsetHeight || 160;
+    menu.style.left = `${Math.min(window.innerWidth - w - pad, Math.max(pad, x))}px`;
+    menu.style.top = `${Math.min(window.innerHeight - h - pad, Math.max(pad, y))}px`;
+  }
+
   function wireEvents() {
     document.querySelectorAll("[data-nav]").forEach((el) => {
       el.addEventListener("click", () => {
@@ -2161,11 +2445,38 @@
         if (!state.current.mediaKind) {
           state.current.mediaKind = isMovieItem(state.current) ? "movie" : "series";
         }
-        window.VfProfiles.toggleFavorite(state.current);
+        const nowFav = window.VfProfiles.toggleFavorite(state.current);
         updateDetailFavButton();
         refreshBrowseFromState();
+        if (nowFav) {
+          renderCacheStatus(0, (state.current.seasons || []).flatMap((s) => s.episodes || []).length, "caching");
+          warmEpisodeStreams(state.current, { forceRefresh: false });
+        } else if ($("cacheStatus")) {
+          $("cacheStatus").textContent = "";
+        }
       };
     }
+
+    if ($("btnMore")) {
+      $("btnMore").onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showDetailContextMenu(e.clientX || 80, e.clientY || 120);
+      };
+    }
+
+    document.addEventListener("click", (e) => {
+      if (e.target.closest?.("#ctxMenu") || e.target.closest?.("#btnMore")) return;
+      hideCtxMenu();
+    });
+    document.addEventListener("contextmenu", (e) => {
+      const row = e.target.closest?.(".episode");
+      if (!row || !state.current) return;
+      e.preventDefault();
+      const epId = row.dataset.epid;
+      const ep = allEpisodesOrdered().find((x) => x.id === epId);
+      showDetailContextMenu(e.clientX, e.clientY, ep);
+    });
 
     if ($("btnLanguage")) {
       $("btnLanguage").onclick = () => toggleStreamLanguage();
@@ -2258,8 +2569,8 @@
     setTimeout(hideSplash, 1600);
   }
 
-  localStorage.setItem("vf_app_version", "1.7.0");
-  localStorage.setItem("vf_version_code", "26");
+  localStorage.setItem("vf_app_version", "1.7.5");
+  localStorage.setItem("vf_version_code", "31");
   applyChromePrefs();
   syncBaseUrlInputs();
   updateSearchPlaceholder();
@@ -2271,11 +2582,11 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.7.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.7.5";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.7.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.7.5";
     }
     setHomeMode("library");
     // Prefetch catalogs in background so search/library resolve better

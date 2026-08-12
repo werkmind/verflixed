@@ -10,7 +10,7 @@ window.VfUpdates = (() => {
     return (
       document.querySelector('meta[name="vf-version"]')?.content ||
       localStorage.getItem("vf_app_version") ||
-      "1.7.0"
+      "1.7.5"
     );
   }
 
@@ -97,7 +97,12 @@ window.VfUpdates = (() => {
     const localCode =
       Number(localStorage.getItem("vf_version_code") || "0") ||
       parseVersionCode(currentVersion());
-    return Number(manifest?.versionCode || 0) > localCode;
+    // Prefer explicit meta versionCode when present
+    const metaCode = Number(
+      document.querySelector('meta[name="vf-version-code"]')?.content || "0",
+    );
+    const code = metaCode || localCode;
+    return Number(manifest?.versionCode || 0) > code;
   }
 
   return {

@@ -1,18 +1,24 @@
 :root {
-  --bg: #07090f;
-  --bg2: #12151d;
-  --card: #171c28;
-  --text: #f3f5f9;
-  --muted: #9aa3b5;
-  --accent: #e50914;
-  --accent2: #b20710;
-  --accent-soft: #4da3ff;
-  --line: #2a3142;
+  /* Match Android 1.7.x (Fire TV) tokens */
+  --bg: #080b12;
+  --bg-deep: #04060a;
+  --bg2: #141a26;
+  --card: #1d2536;
+  --text: #ffffff;
+  --muted: #b8c4d9;
+  --muted2: #7e8ba3;
+  --accent: #2f80ff;
+  --accent2: #1f63d6;
+  --accent-hover: #5aa8ff;
+  --accent-soft: #5aa8ff;
+  --plex: #e5a00d;
+  --line: rgba(255, 255, 255, 0.1);
   --radius: 14px;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   --pad: clamp(12px, 2.2vw, 28px);
   --tile-w: clamp(160px, 18vw, 240px);
   --side-w: 72px;
+  --primary-btn-text: #06101f;
   font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -21,8 +27,8 @@ html, body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(1200px 600px at 8% -12%, #1a1020 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #2a0f18 0%, transparent 45%),
+    radial-gradient(1200px 600px at 8% -12%, #122038 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #0d1a2e 0%, transparent 45%),
     var(--bg);
   color: var(--text);
 }
@@ -53,7 +59,7 @@ button { color: inherit; }
 .splash-logo {
   width: 120px;
   height: 120px;
-  filter: drop-shadow(0 0 18px rgba(229, 9, 20, 0.35));
+  filter: drop-shadow(0 0 18px rgba(47, 128, 255, 0.45));
 }
 .splash-v-stroke {
   stroke-dasharray: 100;
@@ -268,6 +274,7 @@ button { color: inherit; }
 }
 .btn:hover { transform: translateY(-1px); }
 .btn.primary {
+  color: var(--primary-btn-text);
   background: linear-gradient(135deg, var(--accent), var(--accent2));
   font-weight: 700;
 }
@@ -801,9 +808,10 @@ main {
 }
 .tv-controls button[data-act="play"] {
   min-width: 64px;
-  background: rgba(229, 9, 20, 0.85);
+  background: rgba(47, 128, 255, 0.9);
+  color: var(--primary-btn-text);
 }
-.tv-controls button[data-act="play"]:hover { background: var(--accent); }
+.tv-controls button[data-act="play"]:hover { background: var(--accent-hover); }
 .tv-scrub {
   flex: 1;
   min-width: 120px;
@@ -887,4 +895,113 @@ main {
     min-height: 44px;
     font-size: 13px;
   }
+}
+
+/* ===== Cache status (detail) ===== */
+.cache-status {
+  margin: 8px 0 4px;
+  color: var(--plex);
+  font-size: 13px;
+  min-height: 1.2em;
+}
+.cache-status:empty { display: none; }
+
+/* ===== Next-episode overlay ===== */
+.next-ep-banner {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 88px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(20, 26, 38, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+.next-ep-banner.hidden { display: none; }
+.next-ep-title {
+  font-weight: 800;
+  font-size: 16px;
+}
+.next-ep-countdown {
+  color: var(--muted);
+  font-size: 13px;
+}
+.next-ep-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.next-ep-actions .btn.primary {
+  min-width: 160px;
+}
+
+/* ===== Resume / generic modal ===== */
+.vf-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 10, 0.72);
+  padding: 24px;
+}
+.vf-modal.hidden { display: none; }
+.vf-modal-card {
+  width: min(440px, 100%);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+.vf-modal-card h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.vf-modal-card p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.vf-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Context menu */
+.vf-ctx {
+  position: fixed;
+  z-index: 1300;
+  min-width: 220px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: var(--shadow);
+}
+.vf-ctx.hidden { display: none; }
+.vf-ctx button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.vf-ctx button:hover,
+.vf-ctx button:focus {
+  background: rgba(47, 128, 255, 0.22);
+  outline: none;
 }

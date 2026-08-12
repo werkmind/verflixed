@@ -1,1 +1,3 @@
 https://github.com/werkmind/verflixed/releases/download/v1.7.5/Verflixed-FireTV.apk
+versionName=1.7.5
+versionCode=31

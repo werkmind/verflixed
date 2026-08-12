@@ -1,0 +1,6 @@
+{
+  "appName": "Verflixed",
+  "packageId": "com.verflixed.tv.tizen",
+  "version": "1.7.5",
+  "notes": "Experimental Tizen web widget scaffold. Not a Store release. Prefer Fire TV Stick + Android APK on Samsung TVs."
+}

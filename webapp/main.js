@@ -126,3 +126,7 @@ ipcMain.handle("voe:captureFromEpisode", async (_evt, episodeUrl, timeoutMs) => 
 
 ipcMain.handle("app:getVersion", async () => app.getVersion());
 ipcMain.handle("app:getPlatform", async () => process.platform);
+ipcMain.handle("app:quit", async () => {
+  app.quit();
+  return true;
+});

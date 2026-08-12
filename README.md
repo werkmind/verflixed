@@ -2,7 +2,9 @@
 
 Fire TV (Android) + Desktop Webapp für Serien & Filme.
 
-**Version 1.7.5** (versionCode 31)
+**Version 1.7.5** (versionCode 31) – Fire TV APK + Desktop-Webapp Parity
+
+Plattform-Hinweise (PS4 / Samsung): [docs/PLATFORMS.md](docs/PLATFORMS.md)
 
 ## Persistent Downloads
 

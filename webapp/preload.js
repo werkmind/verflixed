@@ -19,4 +19,5 @@ contextBridge.exposeInMainWorld("verflixed", {
     ipcRenderer.invoke("voe:captureFromEpisode", episodeUrl, timeoutMs || 120000),
   getVersion: () => ipcRenderer.invoke("app:getVersion"),
   getPlatform: () => ipcRenderer.invoke("app:getPlatform"),
+  quit: () => ipcRenderer.invoke("app:quit"),
 });

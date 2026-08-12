@@ -343,10 +343,39 @@ window.VfProfiles = (() => {
     save(s);
   }
 
+  function clearSeriesStreams(seriesId) {
+    const { state: s, map } = streamCacheMap();
+    Object.keys(map).forEach((epId) => {
+      if (map[epId]?.seriesId === seriesId) delete map[epId];
+    });
+    save(s);
+  }
+
+  function clearSeasonStreams(seriesId, seasonNumber) {
+    // Episode ids are opaque; callers should pass episode ids when needed.
+    // Kept for API symmetry — clear by episode list via clearCachedStream.
+    void seriesId;
+    void seasonNumber;
+  }
+
   function clearAllCachedStreams() {
     const s = load();
     if (s.streamCache) delete s.streamCache[s.activeProfileId];
     save(s);
+  }
+
+  function cachedEpisodeIds(seriesId, preferredLang) {
+    const { map } = streamCacheMap();
+    const pref = window.StreamLanguage?.normalize?.(preferredLang || streamLanguage()) || "de";
+    return Object.keys(map).filter((epId) => {
+      const hit = map[epId];
+      if (!hit?.streamUrl) return false;
+      if (seriesId && hit.seriesId !== seriesId) return false;
+      const sep = String(hit.kind || "").lastIndexOf("|");
+      if (sep < 0) return false;
+      const lang = window.StreamLanguage?.normalize?.(hit.kind.slice(sep + 1)) || "de";
+      return lang === pref;
+    });
   }
 
   return {
@@ -376,6 +405,9 @@ window.VfProfiles = (() => {
     cacheStream,
     getCachedStream,
     clearCachedStream,
+    clearSeriesStreams,
+    clearSeasonStreams,
     clearAllCachedStreams,
+    cachedEpisodeIds,
   };
 })();

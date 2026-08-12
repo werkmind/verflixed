@@ -1,38 +1,27 @@
 # Verflixed Desktop Webapp
 
-Lokale Desktop-App (Electron) für **macOS** und **Windows** – Stand **1.6.9** (parity mit Fire-TV-APK).
+Lokale Desktop-App (Electron) für **macOS**, **Windows** und **Linux** – Stand **1.7.5** (Parity mit Fire-TV-APK).
 
-## Features
+## Features (1.7.5)
 
-- **Serien / Filme**-Schalter mit getrennten Quellen-URLs
-- Browse / Genre-Regale / **Live-Suche**
-- Favoriten & Fortschritt **pro Profil**
-- **DE/EN** nur auf Detail, und nur wenn mehrere Sprachen existieren
-- Film-Sprachseiten (Filmpalast Sibling) + sprachsicherer Stream-Cache
-- Player: Escape/Zurück blendet Controls aus, zweites Zurück beendet
-- **Update-Check** über GitHub Releases (`werkmind/verflixed`)
-- Cover von der Seite + TVMaze-Fallback
-- VOE → m3u8 + Vidara/Firestream-Fallback
+- Design-Tokens wie Android (Blau `#2F80FF` / Plex-Gold Status)
+- Sidebar / Topbar, Bibliothek Kacheln/Cards, Serien/Filme/Suche
+- Favoriten: Streams bulk bis HLS/MP4 cachen + Statuszeile
+- Detail ⋯ / Rechtsklick: Episode-, Staffel- oder Serien-Streams neu laden
+- Player: in den letzten 60s Overlay **Nächste Folge** / **Überspringen** (10s Timer)
+- Weiterschauen / Von vorn Dialog
+- Doppel-Escape zum Beenden (wie Doppel-Zurück auf Home)
+- Profile, DE/EN, Update-Check über GitHub Releases
 
-## Download (persistent)
+## Download
 
 | | Link |
 |---|---|
 | **Latest Webapp** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip |
 | **Latest Fire TV APK** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk |
-| **Update-Manifest** | https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json |
-| Releases | https://github.com/werkmind/verflixed/releases/latest |
+| Plattformen | [docs/PLATFORMS.md](../docs/PLATFORMS.md) |
 
 ## Schnellstart
-
-### Variante A – Starter im Bundle
-
-1. Zip entpacken
-2. **macOS:** `Start-macOS.command` doppelklicken  
-3. **Windows:** `Start-Windows.bat` doppelklicken
-4. Beim ersten Start wird Electron via npm geladen (Node.js: https://nodejs.org)
-
-### Variante B – manuell
 
 ```bash
 cd webapp
@@ -40,6 +29,4 @@ npm install
 npm start
 ```
 
-Empfohlen:
-- Serien: `https://aniworld.to` oder `https://serienstream.cx`
-- Filme: `https://filmpalast.to`
+Oder Zip entpacken und `Start-macOS.command` / `Start-Windows.bat` nutzen.

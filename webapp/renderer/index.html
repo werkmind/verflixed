@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#07090f" />
+  <meta name="theme-color" content="#080b12" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.7.0" />
+  <meta name="vf-version" content="1.7.5" />
+  <meta name="vf-version-code" content="31" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -20,8 +21,8 @@
       <svg id="splashLogo" class="splash-logo" viewBox="0 0 120 120" aria-label="Verflixed">
         <defs>
           <linearGradient id="splashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#e50914"/>
-            <stop offset="100%" stop-color="#b20710"/>
+            <stop offset="0%" stop-color="#5aa8ff"/>
+            <stop offset="100%" stop-color="#2f80ff"/>
           </linearGradient>
         </defs>
         <path id="splashVPath" class="splash-v-stroke" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
@@ -168,6 +169,14 @@
                 <div class="tv-times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
               </div>
             </div>
+            <div id="nextEpBanner" class="next-ep-banner hidden" role="dialog" aria-label="Nächste Folge">
+              <div id="nextEpTitle" class="next-ep-title">Als Nächstes</div>
+              <div id="nextEpCountdown" class="next-ep-countdown">Automatisch in 10s</div>
+              <div class="next-ep-actions">
+                <button type="button" id="btnSkipNext" class="btn ghost">Überspringen</button>
+                <button type="button" id="btnPlayNext" class="btn primary">Nächste Folge</button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -185,7 +194,9 @@
                     <button id="btnPlayContinue" class="btn primary">Play</button>
                     <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
                     <button id="btnLanguage" class="btn ghost" type="button" hidden>DE</button>
+                    <button id="btnMore" class="btn ghost" type="button" title="Mehr Optionen">⋯</button>
                   </div>
+                  <div id="cacheStatus" class="cache-status" aria-live="polite"></div>
                   <div id="seasonTabs" class="chips"></div>
                 </div>
               </div>
@@ -196,6 +207,19 @@
       </main>
     </div>
   </div>
+
+  <div id="resumeModal" class="vf-modal hidden" role="dialog" aria-modal="true" aria-labelledby="resumeTitle">
+    <div class="vf-modal-card">
+      <h2 id="resumeTitle">Weiterschauen?</h2>
+      <p id="resumeMessage">Fortschritt vorhanden. Weiterschauen oder von vorn starten?</p>
+      <div class="vf-modal-actions">
+        <button type="button" id="btnResumeRestart" class="btn ghost">Von vorn</button>
+        <button type="button" id="btnResumeContinue" class="btn primary">Weiterschauen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ctxMenu" class="vf-ctx hidden" role="menu"></div>
 
   <script src="hls.min.js"></script>
   <script src="stream-language.js"></script>
