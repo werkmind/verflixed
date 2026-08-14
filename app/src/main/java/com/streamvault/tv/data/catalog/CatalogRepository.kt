@@ -174,6 +174,12 @@ class CatalogRepository(
             }
         }
 
+        // Movies page 0: real NEW RELEASES first (TMDb release year), not platform-added order.
+        if (isMoviesMode() && page == 0) {
+            val fresh = runCatching { freshMovieReleases(filtered) }.getOrDefault(emptyList())
+            if (fresh.isNotEmpty()) rows.add(0, HomeRow("Neu erschienen", fresh))
+        }
+
         if (slice.isNotEmpty()) {
             val allLabel = if (isMoviesMode()) "Alle Filme" else "Alle Serien"
             val label = if (filtered.size > size) {
@@ -182,7 +188,11 @@ class CatalogRepository(
                 allLabel
             }
             // Avoid duplicating Neu items in the first alle-slice
-            val neuIds = rows.firstOrNull { it.title == "Neu" }?.items?.map { it.id }?.toSet().orEmpty()
+            val neuIds = rows
+                .filter { it.title == "Neu" || it.title == "Neu erschienen" }
+                .flatMap { it.items }
+                .map { it.id }
+                .toSet()
             val deduped = if (neuIds.isEmpty()) slice else slice.filterNot { it.id in neuIds }
             if (deduped.isNotEmpty()) rows += HomeRow(label, deduped)
         }
@@ -221,6 +231,35 @@ class CatalogRepository(
             if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
         }
         rows
+    }
+
+    /**
+     * "Neu erschienen": rank the newest platform additions by REAL release year
+     * (TMDb, cached) and keep only current/last-year titles, newest first.
+     */
+    private suspend fun freshMovieReleases(candidatesIn: List<Series>): List<Series> {
+        val candidates = candidatesIn.take(44)
+        if (candidates.isEmpty()) return emptyList()
+        val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        val gate = Semaphore(6)
+        val dated = coroutineScope {
+            candidates.map { movie ->
+                async {
+                    val year = movie.year ?: gate.withPermit {
+                        runCatching { tmdb.movieReleaseYear(movie.title) }.getOrNull()
+                    }
+                    movie to year
+                }
+            }.awaitAll()
+        }
+        return dated
+            .filter { (_, year) -> year != null && year >= nowYear - 1 }
+            .sortedWith(
+                compareByDescending<Pair<Series, Int?>> { it.second }
+                    .thenBy { p -> candidatesIn.indexOfFirst { it.id == p.first.id } }
+            )
+            .map { (movie, year) -> if (movie.year == null) movie.copy(year = year) else movie }
+            .take(16)
     }
 
     /** In-memory cover hydrate for Browse — never writes Room. */
@@ -1571,11 +1610,16 @@ class CatalogRepository(
             .groupingBy { it }
             .eachCount()
         if (seedGenres.isEmpty()) return emptyList()
+        val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
         return catalog
             .asSequence()
             .filter { it.id !in excludeIds }
             .map { s ->
-                val score = s.genres.sumOf { g -> seedGenres[g.lowercase()] ?: 0 }
+                var score = s.genres.sumOf { g -> seedGenres[g.lowercase()] ?: 0 }
+                // Recency boost: fresh titles float up, without drowning genre fit.
+                s.year?.let { y ->
+                    if (y >= nowYear - 1) score += 2 else if (y >= nowYear - 4) score += 1
+                }
                 s to score
             }
             .filter { it.second > 0 }
@@ -1667,15 +1711,48 @@ class CatalogRepository(
         return flat[idx + 1]
     }
 
-    /** Resume unfinished episode, else first unwatched, else first episode. */
+    /**
+     * Netflix-style continue pick:
+     * 1. Most recently touched unfinished episode (resume where you left off)
+     * 2. Else the first unwatched episode AFTER the most recently watched one
+     *    (marking S1E3 as gesehen moves Play to S1E4, not back to an old gap)
+     * 3. Else first unwatched from the start (fresh series / rewatch gaps)
+     * 4. Else first episode
+     */
     fun continueEpisode(series: Series, progress: Map<String, WatchProgressEntity>): Episode? {
         val flat = series.flatEpisodes()
         if (flat.isEmpty()) return null
-        flat.firstOrNull { ep ->
+
+        // 1. Resume most recent unfinished (by updatedAt, not episode order).
+        flat.filter { ep ->
             val p = progress[ep.id]
             p != null && !p.completed && p.positionMs > 5_000
-        }?.let { return it }
-        return flat.firstOrNull { progress[it.id]?.completed != true } ?: flat.first()
+        }.maxByOrNull { progress[it.id]?.updatedAt ?: 0L }?.let { return it }
+
+        // 2. Continue after the most recently completed episode.
+        val lastWatched = flat.filter { progress[it.id]?.completed == true }
+            .maxByOrNull { progress[it.id]?.updatedAt ?: 0L }
+        if (lastWatched != null) {
+            val startIdx = flat.indexOfFirst { it.id == lastWatched.id }
+            if (startIdx >= 0) {
+                for (i in (startIdx + 1) until flat.size) {
+                    val ep = flat[i]
+                    if (progress[ep.id]?.completed != true && !ep.upcoming) return ep
+                }
+            }
+        }
+
+        // 3. First unwatched anywhere (skipping upcoming), 4. else first.
+        return flat.firstOrNull { progress[it.id]?.completed != true && !it.upcoming }
+            ?: flat.firstOrNull { progress[it.id]?.completed != true }
+            ?: flat.first()
+    }
+
+    /** Drop a title from the Weiterschauen row without touching seen-status. */
+    suspend fun removeFromContinueWatching(seriesId: String) = withContext(Dispatchers.IO) {
+        db.watch().forSeries(pid(), seriesId)
+            .filter { !it.completed }
+            .forEach { db.watch().delete(pid(), it.episodeId) }
     }
 
     suspend fun clearCache() = withContext(Dispatchers.IO) {

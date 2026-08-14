@@ -746,6 +746,7 @@ class HomeActivity : AppCompatActivity() {
                 "Noch nicht gesehen markieren",
                 "Metadaten neu laden",
                 "Details öffnen",
+                "Aus „Weiterschauen“ entfernen",
             )
             android.app.AlertDialog.Builder(this@HomeActivity)
                 .setTitle(s.title)
@@ -813,6 +814,17 @@ class HomeActivity : AppCompatActivity() {
                             }
                         }
                         4 -> openSeries(s)
+                        5 -> lifecycleScope.launch {
+                            runCatching { repo.removeFromContinueWatching(s.id) }
+                                .onSuccess {
+                                    Toast.makeText(
+                                        this@HomeActivity,
+                                        "Aus Weiterschauen entfernt",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    if (mode == HomeMode.LIBRARY) load(false)
+                                }
+                        }
                     }
                 }
                 .setNegativeButton(android.R.string.cancel, null)

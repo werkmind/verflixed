@@ -11,6 +11,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * TMDb metadata — same model as Plex/Kodi: the **app** ships a public scraper key,
@@ -26,6 +27,7 @@ class TmdbClient(
 ) {
     private val searchAdapter = moshi.adapter(TmdbSearchResponse::class.java)
     private val detailsAdapter = moshi.adapter(TmdbTvDetails::class.java)
+    private val movieYearCache = ConcurrentHashMap<String, Int>()
 
     private fun apiKey(): String = prefs.tmdbApiKey.ifBlank { APP_KEY }
 
@@ -68,6 +70,37 @@ class TmdbClient(
                 ?: details.firstAirDate?.take(4)?.toIntOrNull()
                 ?: details.releaseDate?.take(4)?.toIntOrNull(),
         )
+    }
+
+    /**
+     * Real-world release year for a movie title (search endpoint only, cached).
+     * Used to rank "Neu" shelves by actual release, not platform-added date.
+     */
+    suspend fun movieReleaseYear(title: String): Int? = withContext(Dispatchers.IO) {
+        val q = title.trim()
+        if (q.length < 2) return@withContext null
+        movieYearCache[q.lowercase()]?.let { return@withContext it.takeIf { y -> y > 0 } }
+        val url = "https://api.themoviedb.org/3/search/movie".toHttpUrl().newBuilder()
+            .addQueryParameter("api_key", apiKey())
+            .addQueryParameter("query", q)
+            .addQueryParameter("language", "de-DE")
+            .build()
+        val body = get(url.toString()) ?: return@withContext null
+        val year = runCatching {
+            val results = JSONObject(body).optJSONArray("results")
+            var best: Int? = null
+            for (i in 0 until minOf(3, results?.length() ?: 0)) {
+                val o = results?.optJSONObject(i) ?: continue
+                val name = (o.optString("title").ifBlank { o.optString("original_title") }).lowercase()
+                val date = o.optString("release_date")
+                val y = date.take(4).toIntOrNull() ?: continue
+                if (name == q.lowercase()) return@runCatching y
+                if (best == null) best = y
+            }
+            best
+        }.getOrNull()
+        movieYearCache[q.lowercase()] = year ?: -1
+        year
     }
 
     /**

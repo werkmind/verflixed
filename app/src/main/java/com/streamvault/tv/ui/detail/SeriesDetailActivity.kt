@@ -182,14 +182,7 @@ class SeriesDetailActivity : AppCompatActivity() {
             getString(R.string.detail_favorite_remove)
         } else getString(R.string.detail_favorite_add)
 
-        val continueEp = (application as VerflixedApp).container.catalog.continueEpisode(s, progressMap)
-        binding.btnPlay.text = when {
-            s.isMovie -> getString(R.string.detail_play)
-            continueEp == null -> getString(R.string.detail_play)
-            progressMap[continueEp.id]?.let { !it.completed && it.positionMs > 5_000 } == true ->
-                "Weiter S${continueEp.seasonNumber}E${continueEp.number}"
-            else -> "Play S${continueEp.seasonNumber}E${continueEp.number}"
-        }
+        val continueEp = updatePlayButtonLabel(s)
 
         if (s.isMovie) {
             binding.seasonTabs.visibility = View.GONE
@@ -324,6 +317,19 @@ class SeriesDetailActivity : AppCompatActivity() {
         }
     }
 
+    /** Re-derives „Weiter SxEy“ from current progress; safe to call after any watched-toggle. */
+    private fun updatePlayButtonLabel(s: Series): Episode? {
+        val continueEp = (application as VerflixedApp).container.catalog.continueEpisode(s, progressMap)
+        binding.btnPlay.text = when {
+            s.isMovie -> getString(R.string.detail_play)
+            continueEp == null -> getString(R.string.detail_play)
+            progressMap[continueEp.id]?.let { !it.completed && it.positionMs > 5_000 } == true ->
+                "Weiter S${continueEp.seasonNumber}E${continueEp.number}"
+            else -> "Play S${continueEp.seasonNumber}E${continueEp.number}"
+        }
+        return continueEp
+    }
+
     private fun updateSeasonWatchedButton() {
         val s = series ?: return
         val eps = s.seasons.find { it.number == selectedSeason }?.episodes.orEmpty()
@@ -354,6 +360,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                 repo.progressForSeries(s.id)
             }.onSuccess { p ->
                 progressMap = p
+                series?.let { updatePlayButtonLabel(it) }
                 renderEpisodes()
                 updateSeasonWatchedButton()
                 Toast.makeText(
@@ -377,6 +384,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                 repo.progressForSeries(ep.seriesId)
             }.onSuccess { p ->
                 progressMap = p
+                series?.let { updatePlayButtonLabel(it) }
                 if (series?.isMovie == true) {
                     val seen = p[ep.id]?.completed == true
                     binding.btnSeasonWatched.text = if (seen) "Als ungesehen" else "Als gesehen"
@@ -581,6 +589,28 @@ class SeriesDetailActivity : AppCompatActivity() {
         if (!s.isMovie) {
             options += "Staffel als gesehen"
             actions += { toggleSeasonWatched() }
+            options += "Zufällige Folge abspielen"
+            actions += {
+                val pool = s.flatEpisodes().filter { !it.upcoming }
+                pool.randomOrNull()?.let { ep ->
+                    Toast.makeText(
+                        this,
+                        "Zufall: S${ep.seasonNumber}E${ep.number}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    launchPlayer(ep, startMs = 0L)
+                }
+            }
+            options += "Aus „Weiterschauen“ entfernen"
+            actions += {
+                lifecycleScope.launch {
+                    runCatching { repo.removeFromContinueWatching(s.id) }
+                    progressMap = runCatching { repo.progressForSeries(s.id) }.getOrDefault(progressMap)
+                    updatePlayButtonLabel(s)
+                    renderEpisodes()
+                    Toast.makeText(this@SeriesDetailActivity, "Aus Weiterschauen entfernt", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         options += "Stream-Cache dieser Serie leeren"
         actions += {
