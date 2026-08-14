@@ -12,8 +12,8 @@ android {
         applicationId = "com.verflixed.tv"
         minSdk = 25
         targetSdk = 34
-        versionCode = 32
-        versionName = "1.7.6"
+        versionCode = 33
+        versionName = "1.7.7"
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
@@ -82,4 +82,7 @@ dependencies {
     ksp("com.github.bumptech.glide:ksp:4.16.0")
 
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // Cloudflare IUAM / challenge auto-click WebViewClient (darkryh, MIT)
+    implementation("com.github.darkryh:Cloudflare-Bypass:0.0.5")
 }

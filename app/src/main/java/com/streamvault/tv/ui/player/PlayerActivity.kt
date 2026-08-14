@@ -29,6 +29,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import com.ead.lib.cloudflare_bypass.BypassClient
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.catalog.StreamKind
@@ -284,7 +285,9 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
-        binding.webPlayer.webViewClient = object : WebViewClient() {
+        // darkryh Cloudflare-Bypass: auto-clicks classic CF IUAM / challenge pages.
+        // In-page SerienStream Turnstile still uses our captchaMode helpers below.
+        binding.webPlayer.webViewClient = object : BypassClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString().orEmpty()
                 if (url.isBlank()) return false
@@ -316,7 +319,7 @@ class PlayerActivity : AppCompatActivity() {
                 return super.shouldInterceptRequest(view, request)
             }
 
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            override fun onPageStartedPassed(view: WebView?, url: String?, favicon: Bitmap?) {
                 if (!url.isNullOrBlank() && !StreamKind.isPlayBlobUrl(url)) {
                     playReferer = url
                 }
@@ -327,19 +330,43 @@ class PlayerActivity : AppCompatActivity() {
                         if (binding.webPlayer.url != page) binding.webPlayer.loadUrl(page)
                     }
                 }
+                val title = view?.title.orEmpty()
+                if (looksLikeCloudflareChallengeTitle(title)) {
+                    handler.post { enterCaptchaMode(force = true) }
+                }
             }
 
+            @Deprecated("Use onPageFinishedByPassed")
             override fun onPageFinished(view: WebView?, url: String?) {
+                val title = view?.title.orEmpty()
+                if (looksLikeCloudflareChallengeTitle(title) || looksLikeCaptchaHtml(title)) {
+                    handler.post {
+                        enterCaptchaMode(force = true)
+                        binding.resolveStatus.text = "Cloudflare wird gelöst…"
+                    }
+                }
+                // BypassClient injects challenge clicker when title matches, then calls ByPassed.
+                @Suppress("DEPRECATION")
+                super.onPageFinished(view, url)
+            }
+
+            override fun onPageFinishedByPassed(view: WebView?, url: String?) {
                 if (!usingWebPlayer || handedOffToExo) return
                 if (!url.isNullOrBlank() && !StreamKind.isPlayBlobUrl(url)) {
                     playReferer = url
                 }
                 binding.playerLoading.visibility = View.GONE
+                if (captchaMode) {
+                    // CF IUAM just cleared (or still interactive) — keep helpers running.
+                    binding.resolveStatus.visibility = View.VISIBLE
+                    binding.resolveStatus.text = getString(R.string.player_captcha_status)
+                }
                 if (!url.isNullOrBlank() && (StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url))) {
                     maybeClaimVoe(url)
                 }
-                // Always watch for Turnstile; focus helpers run only in captcha mode / after poll.
+                // Always watch for Turnstile; also run darkryh-style challenge clicker.
                 view?.evaluateJavascript(CAPTCHA_WATCH_JS, null)
+                view?.evaluateJavascript(CF_CHALLENGE_CLICK_JS, null)
                 if (!captchaMode) {
                     view?.evaluateJavascript(playerBootstrapJs(), null)
                     view?.evaluateJavascript(IFRAME_VOE_WATCH_JS, null)
@@ -361,7 +388,6 @@ class PlayerActivity : AppCompatActivity() {
                         """https?://[^"'\\\s<>]+/e/[a-zA-Z0-9]+""",
                         RegexOption.IGNORE_CASE,
                     ).findAll(html).map { it.value }.forEach { maybeClaimVoe(it) }
-                    // Decode VOE payload from current page HTML if present
                     if (!url.isNullOrBlank() && (StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url))) {
                         val fromHtml = runCatching {
                             (application as VerflixedApp).container.voeExtractor.extractSourceFromHtml(html)
@@ -369,7 +395,6 @@ class PlayerActivity : AppCompatActivity() {
                         if (!fromHtml.isNullOrBlank()) maybeCaptureMedia(fromHtml)
                     }
                 }
-                // After episode page + cookies exist, retry native VOE/HLS claim (no SerienStream UI).
                 if (!captchaMode && url != null && StreamKind.isEpisodeWatchPage(url)) {
                     retryNativeClaimAfterCookies()
                 }
@@ -932,6 +957,19 @@ class PlayerActivity : AppCompatActivity() {
         return StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
     }
 
+    private fun looksLikeCloudflareChallengeTitle(title: String): Boolean {
+        if (title.isBlank()) return false
+        val t = title.lowercase()
+        // darkryh BypassClient uses title.contains("..."); keep that plus common CF titles.
+        return title.contains("...") ||
+            t.contains("just a moment") ||
+            t.contains("attention required") ||
+            t.contains("checking your browser") ||
+            t.contains("einen moment") ||
+            t.contains("security check") ||
+            t.contains("cloudflare")
+    }
+
     private fun looksLikeCaptchaHtml(html: String): Boolean {
         if (html.isBlank()) return false
         val lower = html.lowercase()
@@ -1483,7 +1521,7 @@ class PlayerActivity : AppCompatActivity() {
 })();
 """
 
-        /** Detect Cloudflare Turnstile / prepare modal and notify Android. */
+        /** Detect Cloudflare Turnstile / prepare modal / IUAM and notify Android. */
         private const val CAPTCHA_WATCH_JS = """
 (function(){
   try {
@@ -1491,7 +1529,10 @@ class PlayerActivity : AppCompatActivity() {
       var t=document.querySelector('[name="cf-turnstile-response"], textarea[name="cf-turnstile-response"], input[name="cf-turnstile-response"]');
       return !!(t && t.value && String(t.value).length>10);
     }
-    function visible(){
+    function challengeForm(){
+      return document.querySelector('#challenge-form, #challenge-stage, .cf-browser-verification, #cf-challenge-running');
+    }
+    function visibleTurnstile(){
       var nodes=document.querySelectorAll('#playerPrepareModal, .cf-turnstile, #player-prepare-turnstile, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"], .cf-challenge');
       for (var i=0;i<nodes.length;i++){
         var n=nodes[i];
@@ -1503,8 +1544,51 @@ class PlayerActivity : AppCompatActivity() {
       return false;
     }
     if (!window.AndroidBridge || !AndroidBridge.onCaptcha) return;
-    if (tokenOk()) { AndroidBridge.onCaptcha('solved'); window.__vfCaptchaLock=false; return; }
-    if (visible()) { AndroidBridge.onCaptcha('need'); window.__vfCaptchaLock=true; }
+    if (tokenOk()) { AndroidBridge.onCaptcha('solved'); window.__vfCaptchaLock=false; window.__vfHadChallenge=false; return; }
+    if (challengeForm() || visibleTurnstile()) {
+      window.__vfHadChallenge=true;
+      AndroidBridge.onCaptcha('need');
+      window.__vfCaptchaLock=true;
+      return;
+    }
+    if (window.__vfHadChallenge) {
+      window.__vfHadChallenge=false;
+      AndroidBridge.onCaptcha('solved');
+      window.__vfCaptchaLock=false;
+    }
+  } catch(e) {}
+})();
+"""
+
+        /**
+         * Adapted from darkryh/Cloudflare-Bypass Scripts.CLOUDFLARE_BYPASS (MIT).
+         * Auto-clicks classic CF challenge buttons; also tries Turnstile host checkbox.
+         */
+        private const val CF_CHALLENGE_CLICK_JS = """
+(function(){
+  try {
+    if (window.__vfCfClickTimer) return;
+    window.__vfCfClickTimer = setInterval(function(){
+      try {
+        var form = document.querySelector('#challenge-form');
+        if (form) {
+          var simple = document.querySelector("#challenge-stage > div > input[type='button'], #challenge-stage input[type='button'], input[type='button'].big-button");
+          if (simple) { try { simple.click(); } catch(e){} }
+          var box = document.querySelector('div.hcaptcha-box > iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]');
+          if (box) {
+            try { box.focus(); box.click(); } catch(e){}
+            try {
+              var button = box.contentWindow && box.contentWindow.document && box.contentWindow.document.querySelector("input[type='checkbox']");
+              if (button) button.click();
+            } catch(e) { /* cross-origin expected for Turnstile */ }
+          }
+          if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('need');
+        } else if (window.__vfHadChallenge) {
+          if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('solved');
+          window.__vfHadChallenge = false;
+        }
+      } catch(e) {}
+    }, 2000);
   } catch(e) {}
 })();
 """
@@ -1563,9 +1647,12 @@ class PlayerActivity : AppCompatActivity() {
       }
       return true;
     }
-    var frame=document.querySelector('#player-prepare-turnstile iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]');
+    // darkryh-style classic CF challenge button
+    var simple=document.querySelector("#challenge-stage > div > input[type='button'], #challenge-stage input[type='button'], input[type='button'].big-button");
+    if (simple) fire(simple);
+    var frame=document.querySelector('#player-prepare-turnstile iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"], div.hcaptcha-box > iframe');
     if (frame) { fire(frame); }
-    var box=document.querySelector('.cf-turnstile, #player-prepare-turnstile, [data-sitekey]');
+    var box=document.querySelector('.cf-turnstile, #player-prepare-turnstile, [data-sitekey], #challenge-form');
     if (box) fire(box);
     var btn=document.querySelector('#playerPrepareModal button, .player-prepare-modal button, button[type="submit"]');
     if (btn) fire(btn);

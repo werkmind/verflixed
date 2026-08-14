@@ -1,8 +1,8 @@
 {
-  "versionCode": 32,
-  "versionName": "1.7.6",
+  "versionCode": 33,
+  "versionName": "1.7.7",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "fb7dde94b1ac289bb222b01e93a0b196f1ab259ca52836ef3c50029ff7c72be1",
-  "changelog": "1.7.6: Cloudflare Click-Captcha auf Fire TV lösbar (OK/Mitte), kein Infinite-Loading-Reload mehr"
+  "sha256": "b54a59f6052a69b1d7e200893f2cf3be84293f97c1254e63c7ead1048b8cbd81",
+  "changelog": "1.7.7: darkryh Cloudflare-Bypass WebViewClient + TV Captcha-Modus (IUAM auto-click + Turnstile OK)"
 }
