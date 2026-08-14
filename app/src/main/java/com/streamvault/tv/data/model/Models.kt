@@ -12,6 +12,8 @@ data class Series(
     val overview: String? = null,
     val year: Int? = null,
     val tmdbId: Int? = null,
+    /** MyAnimeList id when known (AniSkip). */
+    val malId: Int? = null,
     val detailPath: String? = null,
     val genres: List<String> = emptyList(),
     val seasons: List<Season> = emptyList(),

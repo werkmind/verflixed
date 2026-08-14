@@ -37,11 +37,14 @@ import com.streamvault.tv.data.catalog.StreamLanguage
 import com.streamvault.tv.data.db.StreamCacheEntity
 import com.streamvault.tv.data.model.Episode
 import com.streamvault.tv.data.model.Series
+import com.streamvault.tv.data.skip.EpisodeSkipPlan
+import com.streamvault.tv.data.skip.SkipSegment
 import com.streamvault.tv.databinding.ActivityPlayerBinding
 import com.streamvault.tv.ui.util.FocusFx
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Playback strategy for SerienStream-like hosts:
@@ -76,15 +79,22 @@ class PlayerActivity : AppCompatActivity() {
     /** True while Cloudflare Turnstile / click-captcha needs remote OK input. */
     private var captchaMode = false
     private var captchaSolvedPending = false
+    private var skipPlan: EpisodeSkipPlan? = null
+    private var activeSkip: SkipSegment? = null
+    private val dismissedSkipTypes = mutableSetOf<SkipSegment.Type>()
+    private var skipPlanEpisodeId: String? = null
     private val handler = Handler(Looper.getMainLooper())
 
     private val progressTick = object : Runnable {
         override fun run() {
             persistProgress(forceCompleted = false)
+            maybeShowSkipSegment()
             maybeShowNext()
-            // 1s while playing so the last-60s next-episode overlay appears promptly;
-            // 400ms while the countdown is visible for a smooth timer.
-            val interval = if (nextPromptVisible) 400L else 1_000L
+            val interval = when {
+                nextPromptVisible -> 400L
+                activeSkip != null -> 500L
+                else -> 1_000L
+            }
             handler.postDelayed(this, interval)
         }
     }
@@ -168,9 +178,11 @@ class PlayerActivity : AppCompatActivity() {
         FocusFx.bindScale(binding.btnUseWebPlayer, 1.06f)
         FocusFx.bindScale(binding.btnPlayNext, 1.06f)
         FocusFx.bindScale(binding.btnSkipNextPrompt, 1.06f)
+        FocusFx.bindScale(binding.btnSkipSegment, 1.06f)
 
         binding.btnPlayNext.setOnClickListener { playNext(auto = false) }
         binding.btnSkipNextPrompt.setOnClickListener { dismissNextPrompt(keepPlaying = true) }
+        binding.btnSkipSegment.setOnClickListener { skipActiveSegment() }
         binding.btnRetryHls.setOnClickListener {
             val hls = lastMediaUrl?.takeIf { StreamKind.isDirectMediaUrl(it) }
             if (hls != null) {
@@ -590,6 +602,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun consumeBackForControls(): Boolean {
+        if (binding.btnSkipSegment.visibility == View.VISIBLE) {
+            activeSkip?.let { dismissedSkipTypes += it.type }
+            hideSkipSegment()
+            return true
+        }
         if (binding.captchaHint.visibility == View.VISIBLE) {
             // Keep captcha mode, but allow user to dismiss the hint banner once.
             binding.captchaHint.visibility = View.GONE
@@ -869,6 +886,7 @@ class PlayerActivity : AppCompatActivity() {
                     binding.playerLoading.visibility = View.GONE
                     binding.resolveStatus.visibility = View.GONE
                     showModeBar(false)
+                    refreshSkipPlan(force = false)
                 }
                 if (playbackState == Player.STATE_ENDED) {
                     persistProgress(forceCompleted = true)
@@ -1256,6 +1274,110 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshSkipPlan(force: Boolean) {
+        val s = series ?: return
+        val ep = episode ?: return
+        val p = player ?: return
+        val dur = p.duration
+        if (dur <= 0L) return
+        if (!force && skipPlanEpisodeId == ep.id && skipPlan != null) return
+        skipPlanEpisodeId = ep.id
+        dismissedSkipTypes.clear()
+        hideSkipSegment()
+        lifecycleScope.launch {
+            val app = application as VerflixedApp
+            val aniskip = withContext(Dispatchers.IO) {
+                runCatching {
+                    app.container.aniSkip.skipSegments(s, ep.number, dur)
+                }.getOrDefault(emptyList())
+            }
+            // Persist MAL id on in-memory series for this session when resolved.
+            val mal = withContext(Dispatchers.IO) {
+                runCatching { app.container.aniSkip.resolveMalId(s) }.getOrNull()
+            }
+            if (mal != null && s.malId == null) {
+                series = s.copy(malId = mal)
+            }
+            val plan = app.container.skipMarks.buildPlan(
+                episodeId = ep.id,
+                seriesId = s.id,
+                durationMs = dur,
+                aniskip = aniskip,
+            )
+            skipPlan = plan
+        }
+    }
+
+    private fun maybeShowSkipSegment() {
+        if (captchaMode || nextPromptVisible) {
+            hideSkipSegment()
+            return
+        }
+        val p = player ?: return
+        if (!p.isPlaying || p.duration <= 0L) {
+            hideSkipSegment()
+            return
+        }
+        val pos = p.currentPosition
+        val plan = skipPlan
+        if (plan == null) {
+            hideSkipSegment()
+            return
+        }
+        // Prefer intro/recap over credits chip (credits use next-ep banner).
+        val hit = plan.segments.firstOrNull { seg ->
+            seg.type != SkipSegment.Type.CREDITS &&
+                seg.type !in dismissedSkipTypes &&
+                seg.contains(pos)
+        } ?: plan.segments.firstOrNull { seg ->
+            seg.type == SkipSegment.Type.CREDITS &&
+                seg.type !in dismissedSkipTypes &&
+                seg.contains(pos) &&
+                !nextPromptVisible
+        }
+        if (hit == null) {
+            hideSkipSegment()
+            return
+        }
+        if (activeSkip?.type == hit.type && binding.btnSkipSegment.visibility == View.VISIBLE) {
+            return
+        }
+        activeSkip = hit
+        binding.btnSkipSegment.text = hit.label
+        binding.btnSkipSegment.visibility = View.VISIBLE
+        binding.btnSkipSegment.post { binding.btnSkipSegment.requestFocus() }
+    }
+
+    private fun hideSkipSegment() {
+        activeSkip = null
+        binding.btnSkipSegment.visibility = View.GONE
+    }
+
+    private fun skipActiveSegment() {
+        val seg = activeSkip ?: return
+        val p = player ?: return
+        dismissedSkipTypes += seg.type
+        hideSkipSegment()
+        val target = when (seg.type) {
+            SkipSegment.Type.CREDITS -> p.duration.coerceAtLeast(seg.endMs)
+            else -> seg.endMs
+        }
+        p.seekTo(target.coerceAtMost(p.duration.coerceAtLeast(0L)))
+        if (seg.type == SkipSegment.Type.CREDITS) {
+            // Jumping into/over credits → offer next episode promptly.
+            maybeShowNext()
+        }
+    }
+
+    private fun nextPromptLeadMs(durationMs: Long): Long {
+        val plan = skipPlan
+        if (plan != null && plan.nextPromptLeadMs > 0L) return plan.nextPromptLeadMs
+        val s = series
+        val store = (application as VerflixedApp).container.skipMarks
+        return s?.let { store.creditsLeadMs(it.id) }
+            ?: store.heuristicLeadMs(durationMs)
+    }
+
     private fun maybeShowNext() {
         val s = series ?: return
         val ep = episode ?: return
@@ -1266,6 +1388,10 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return
         val dur = p.duration
         if (dur <= 0L || !p.isPlaying) return
+        if (skipPlanEpisodeId != ep.id || skipPlan == null) {
+            refreshSkipPlan(force = false)
+        }
+        val lead = nextPromptLeadMs(dur)
         val left = dur - p.currentPosition
         val next = (application as VerflixedApp).container.catalog.nextEpisode(s, ep)
         if (next == null) {
@@ -1273,12 +1399,18 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         if (nextPromptDismissed) {
-            if (left > 60_000L) nextPromptDismissed = false
+            if (left > lead) nextPromptDismissed = false
             return
         }
-        if (left in 1..60_000L) {
+        // Don't stack intro skip + next banner.
+        if (activeSkip != null && activeSkip?.type != SkipSegment.Type.CREDITS) {
+            hideNextPrompt()
+            return
+        }
+        if (left in 1..lead) {
+            hideSkipSegment()
             showNextPrompt(next, left)
-        } else if (left > 60_000L) {
+        } else if (left > lead) {
             hideNextPrompt()
         }
     }
@@ -1330,9 +1462,23 @@ class PlayerActivity : AppCompatActivity() {
             hideNextPrompt()
             return
         }
+        // Learn credits length from manual next (position when user skipped ahead).
+        if (!auto) {
+            val p = player
+            val dur = p?.duration ?: 0L
+            val pos = p?.currentPosition ?: 0L
+            if (dur > 0L && pos > 0L && pos < dur) {
+                val lead = (dur - pos).coerceIn(15_000L, 8 * 60_000L)
+                (application as VerflixedApp).container.skipMarks.recordCreditsLead(s.id, lead)
+            }
+        }
         advancingToNext = true
         persistProgress(forceCompleted = true)
         episode = next
+        skipPlan = null
+        skipPlanEpisodeId = null
+        dismissedSkipTypes.clear()
+        hideSkipSegment()
         handedOffToExo = false
         allowEmbeddedFallback = false
         exoRetryUsed = false

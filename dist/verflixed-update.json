@@ -1,8 +1,8 @@
 {
-  "versionCode": 34,
-  "versionName": "1.7.8",
+  "versionCode": 35,
+  "versionName": "1.7.9",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "8d039adc7eb10852820b7a911e5eea4305ec1006dfef788a6a02e62d8c9d8817",
-  "changelog": "1.7.8: Captcha-first Gate (kein schwarzer VOE/SerienStream-Müll); Turnstile sichtbar + OK"
+  "sha256": "baad7a6299d5d62767fb40a6f4dcf2ee7e9bcc757792e56c94f0040bdb849c9d",
+  "changelog": "1.7.9: Adaptive Abspann + AniSkip Intro/Recap/ED Skip; lernt von „Nächste Folge“"
 }

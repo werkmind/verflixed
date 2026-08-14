@@ -15,6 +15,8 @@ import com.streamvault.tv.data.db.AppDatabase
 import com.streamvault.tv.data.meta.TvMazeClient
 import com.streamvault.tv.data.prefs.UserPrefs
 import com.streamvault.tv.data.profile.ProfileRepository
+import com.streamvault.tv.data.skip.AniSkipClient
+import com.streamvault.tv.data.skip.SkipMarksStore
 import com.streamvault.tv.data.tmdb.TmdbClient
 import com.streamvault.tv.data.update.UpdateChecker
 import okhttp3.Cookie
@@ -28,6 +30,7 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val prefs = UserPrefs(appContext)
+    val skipMarks = SkipMarksStore(appContext)
 
     val moshi: Moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -56,6 +59,7 @@ class AppContainer(context: Context) {
     val parser = CatalogParser(moshi)
     val tmdb = TmdbClient(http, moshi, prefs)
     val tvMaze = TvMazeClient(http, moshi)
+    val aniSkip = AniSkipClient(http, moshi)
     val calendar = CalendarClient(http, prefs, moshi)
     val profiles = ProfileRepository(db, prefs)
     val updates = UpdateChecker(http, moshi, prefs)

@@ -36,7 +36,10 @@
     <string name="watched">Gesehen</string>
     <string name="unwatched">Ungesehen</string>
     <string name="player_next">Nächste Folge</string>
-    <string name="player_skip_credits">Überspringen</string>
+    <string name="player_skip_credits">Weiter schauen</string>
+    <string name="player_skip_intro">Intro überspringen</string>
+    <string name="player_skip_recap">Rückblick überspringen</string>
+    <string name="player_skip_outro">Abspann überspringen</string>
     <string name="player_next_countdown">Automatisch in %1$ds</string>
     <string name="player_next_title">Als Nächstes: S%1$dE%2$d · %3$s</string>
     <string name="player_captcha_hint">Bitte Captcha-Checkbox mit OK bestätigen</string>
