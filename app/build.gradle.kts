@@ -12,13 +12,25 @@ android {
         applicationId = "com.verflixed.tv"
         minSdk = 25
         targetSdk = 34
-        versionCode = 41
-        versionName = "1.10.1"
+        versionCode = 43
+        versionName = "1.11.1"
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
             "\"https://github.com/werkmind/verflixed/releases/latest/download/verflixed-update.json\""
         )
+    }
+
+    signingConfigs {
+        create("stable") {
+            val ks = rootProject.file("keystore/verflixed.jks")
+            if (ks.isFile) {
+                storeFile = ks
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
@@ -28,9 +40,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("stable")
         }
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stable")
         }
     }
 

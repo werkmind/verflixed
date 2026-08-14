@@ -69,6 +69,11 @@
     <string name="settings_nav_topbar">Layout: Topbar</string>
     <string name="settings_lib_tiles">Bibliothek: Kacheln</string>
     <string name="settings_lib_cards">Bibliothek: Cards</string>
+    <string name="settings_zoom">Zoom: 100%</string>
+    <string name="settings_zoom_value">Zoom: %1$d%%</string>
+    <string name="settings_zoom_applied">Zoom %1$d%% – Oberfläche wird neu geladen</string>
+    <string name="profile_categories">Kategorien laden</string>
+    <string name="profile_categories_hint">Aus = Kategorie wird nie geladen (Browse, Suche, Regale). Horror und Anime sind standardmäßig aus.</string>
     <string name="search_empty">Keine Treffer. Filter/Anti-Patterns prüfen.</string>
     <string name="player_error_title">Player-Fehler</string>
     <string name="filters_title">Kategorien &amp; Anti-Patterns</string>

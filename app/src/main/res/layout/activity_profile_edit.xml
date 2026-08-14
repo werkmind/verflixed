@@ -26,10 +26,47 @@
         android:hint="@string/profile_name_hint"
         android:inputType="textPersonName"
         android:maxLines="1"
-        android:nextFocusDown="@id/avatarGrid"
+        android:nextFocusDown="@id/categoryGrid"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/editorTitle" />
+
+    <TextView
+        android:id="@+id/categoryLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="@string/profile_categories"
+        android:textColor="@color/sv_text_secondary"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/inputName" />
+
+    <TextView
+        android:id="@+id/categoryHint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/profile_categories_hint"
+        android:textColor="@color/sv_text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/categoryLabel" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/categoryGrid"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:clipToPadding="false"
+        android:minHeight="80dp"
+        android:nextFocusUp="@id/inputName"
+        android:nextFocusDown="@id/avatarGrid"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/categoryHint" />
 
     <TextView
         android:id="@+id/avatarLabel"
@@ -41,7 +78,7 @@
         android:textSize="15sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/inputName" />
+        app:layout_constraintTop_toBottomOf="@id/categoryGrid" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/avatarGrid"
@@ -50,7 +87,7 @@
         android:layout_marginTop="10dp"
         android:layout_marginBottom="12dp"
         android:clipToPadding="false"
-        android:nextFocusUp="@id/inputName"
+        android:nextFocusUp="@id/categoryGrid"
         android:nextFocusDown="@id/btnSaveProfile"
         app:layout_constraintBottom_toTopOf="@id/actionRow"
         app:layout_constraintEnd_toEndOf="parent"

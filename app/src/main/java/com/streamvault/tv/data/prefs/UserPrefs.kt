@@ -185,6 +185,50 @@ class UserPrefs(context: Context) {
 
     val isLibraryCards: Boolean get() = libraryView(activeProfileId) == LIB_CARDS
 
+    /** UI zoom percent: 85 / 100 / 115 / 130. Device-wide, applied via densityDpi. */
+    var uiScalePercent: Int
+        get() = normalizeScale(sp.getInt(KEY_UI_SCALE, SCALE_DEFAULT))
+        set(value) = sp.edit { putInt(KEY_UI_SCALE, normalizeScale(value)) }
+
+    fun cycleUiScale(): Int {
+        val next = SCALE_STEPS[(SCALE_STEPS.indexOf(uiScalePercent) + 1) % SCALE_STEPS.size]
+        uiScalePercent = next
+        return next
+    }
+
+    /**
+     * Categories that must never be loaded (browse shelves, catalog, search).
+     * Default: Horror + Anime. Missing key = defaults, empty stored set = allow all.
+     */
+    fun blockedGenres(profileId: String?): Set<String> {
+        val id = profileId?.trim().orEmpty()
+        val keyed = if (id.isNotBlank()) "$KEY_BLOCKED_PREFIX$id" else null
+        val raw = when {
+            keyed != null && sp.contains(keyed) -> sp.getString(keyed, "")
+            sp.contains(KEY_BLOCKED) -> sp.getString(KEY_BLOCKED, "")
+            else -> return DEFAULT_BLOCKED_GENRES
+        }
+        return parseCsvSet(raw)
+    }
+
+    fun setBlockedGenres(profileId: String?, ids: Set<String>) {
+        val normalized = ids.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSortedSet()
+        val value = normalized.joinToString(",")
+        sp.edit {
+            val id = profileId?.trim().orEmpty()
+            if (id.isNotBlank()) putString("$KEY_BLOCKED_PREFIX$id", value)
+            putString(KEY_BLOCKED, value)
+        }
+    }
+
+    fun toggleBlockedGenre(profileId: String?, genreId: String): Set<String> {
+        val id = genreId.trim().lowercase()
+        val next = blockedGenres(profileId).toMutableSet()
+        if (id in next) next.remove(id) else next.add(id)
+        setBlockedGenres(profileId, next)
+        return next
+    }
+
     fun markSetupDone() {
         setupDone = true
     }
@@ -203,6 +247,9 @@ class UserPrefs(context: Context) {
         const val NAV_TOPBAR = "topbar"
         const val LIB_TILES = "tiles"
         const val LIB_CARDS = "cards"
+        const val SCALE_DEFAULT = 100
+        val SCALE_STEPS = listOf(85, 100, 115, 130)
+        val DEFAULT_BLOCKED_GENRES = setOf("horror", "anime")
 
         const val DEFAULT_SERIES_BASE = "https://serienstream.cx"
         const val DEFAULT_MOVIES_BASE = "https://filmpalast.to"
@@ -228,6 +275,9 @@ class UserPrefs(context: Context) {
         private const val KEY_NAV_LAYOUT_PREFIX = "nav_layout_"
         private const val KEY_LIB_VIEW = "library_view"
         private const val KEY_LIB_VIEW_PREFIX = "library_view_"
+        private const val KEY_UI_SCALE = "ui_scale_percent"
+        private const val KEY_BLOCKED = "blocked_genres"
+        private const val KEY_BLOCKED_PREFIX = "blocked_genres_"
         const val BROWSE_PAGE_SIZE = 24
 
         fun normalizeUrl(raw: String): String {
@@ -248,6 +298,16 @@ class UserPrefs(context: Context) {
             val l = raw?.trim()?.lowercase().orEmpty()
             return if (l == LIB_CARDS || l == "card" || l == "list") LIB_CARDS else LIB_TILES
         }
+
+        fun normalizeScale(raw: Int): Int =
+            SCALE_STEPS.minByOrNull { kotlin.math.abs(it - raw) } ?: SCALE_DEFAULT
+
+        private fun parseCsvSet(raw: String?): Set<String> =
+            raw.orEmpty()
+                .split(',', ';')
+                .map { it.trim().lowercase() }
+                .filter { it.isNotBlank() }
+                .toSet()
     }
 }
 

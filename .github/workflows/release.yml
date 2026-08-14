@@ -59,9 +59,20 @@ PY
       - name: Build Android APK
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug
+          ./gradlew :app:assembleRelease
           mkdir -p dist/release
-          cp app/build/outputs/apk/debug/app-debug.apk dist/release/Verflixed-FireTV.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/release/Verflixed-FireTV.apk
+          # Fail the release if the APK is unsigned, a downgrade, or the wrong version.
+          AAPT="$(ls -1 "$ANDROID_HOME"/build-tools/*/aapt 2>/dev/null | tail -1)"
+          if [ -z "$AAPT" ]; then AAPT="$(ls -1 "$ANDROID_SDK_ROOT"/build-tools/*/aapt 2>/dev/null | tail -1)"; fi
+          BADGING="$("$AAPT" dump badging dist/release/Verflixed-FireTV.apk)"
+          echo "$BADGING" | head -3
+          echo "$BADGING" | grep -q "versionName='${{ steps.ver.outputs.version }}'" \
+            || { echo "APK versionName mismatch"; exit 1; }
+          echo "$BADGING" | grep -q "versionCode='${{ steps.ver.outputs.code }}'" \
+            || { echo "APK versionCode mismatch"; exit 1; }
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify dist/release/Verflixed-FireTV.apk \
+            || "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" verify dist/release/Verflixed-FireTV.apk
 
       - name: Package Webapp
         run: |

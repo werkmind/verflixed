@@ -4,7 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.prefs.UserPrefs
@@ -12,7 +12,7 @@ import com.streamvault.tv.databinding.ActivitySetupBinding
 import com.streamvault.tv.ui.home.HomeActivity
 import kotlinx.coroutines.launch
 
-class SetupActivity : AppCompatActivity() {
+class SetupActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivitySetupBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {

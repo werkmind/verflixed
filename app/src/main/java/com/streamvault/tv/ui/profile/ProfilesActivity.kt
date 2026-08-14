@@ -9,7 +9,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -24,7 +24,7 @@ import com.streamvault.tv.ui.util.UiSound
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.launch
 
-class ProfilesActivity : AppCompatActivity() {
+class ProfilesActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityProfilesBinding
     private val prefs by lazy { (application as VerflixedApp).container.prefs }
     private val adapter = ProfileAdapter(

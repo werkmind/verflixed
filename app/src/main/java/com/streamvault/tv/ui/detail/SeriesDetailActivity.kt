@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -34,7 +34,7 @@ private object StreamLanguageLabel {
     fun fromPrefs(prefs: UserPrefs): String =
         StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))
 }
-class SeriesDetailActivity : AppCompatActivity() {
+class SeriesDetailActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityDetailBinding
     private var series: Series? = null
     private var selectedSeason = 1

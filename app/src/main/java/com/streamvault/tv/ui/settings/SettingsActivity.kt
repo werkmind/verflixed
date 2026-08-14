@@ -3,7 +3,7 @@ package com.streamvault.tv.ui.settings
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.BuildConfig
 import com.streamvault.tv.R
@@ -14,7 +14,7 @@ import com.streamvault.tv.util.toVfMessage
 import com.streamvault.tv.data.prefs.UserPrefs
 import kotlinx.coroutines.launch
 
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivitySettingsBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -156,6 +156,21 @@ class SettingsActivity : AppCompatActivity() {
                 if (next == UserPrefs.NAV_SIDEBAR) "Sidebar aktiv (Profil)" else "Topbar aktiv (Profil)",
                 Toast.LENGTH_SHORT
             ).show()
+        }
+
+        fun paintZoom() {
+            binding.btnToggleZoom.text = getString(R.string.settings_zoom_value, prefs.uiScalePercent)
+        }
+        paintZoom()
+        binding.btnToggleZoom.setOnClickListener {
+            val next = prefs.cycleUiScale()
+            paintZoom()
+            Toast.makeText(
+                this,
+                getString(R.string.settings_zoom_applied, next),
+                Toast.LENGTH_SHORT
+            ).show()
+            recreate()
         }
 
         fun paintLibraryView() {

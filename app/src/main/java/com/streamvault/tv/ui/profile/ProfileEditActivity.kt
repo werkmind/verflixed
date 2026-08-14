@@ -5,8 +5,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -14,6 +15,9 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
+import com.streamvault.tv.data.model.CatalogFilters
+import com.streamvault.tv.data.model.GenreChip
+import com.streamvault.tv.data.prefs.UserPrefs
 import com.streamvault.tv.data.profile.AvatarCatalog
 import com.streamvault.tv.data.profile.AvatarOption
 import com.streamvault.tv.databinding.ActivityProfileEditBinding
@@ -22,12 +26,14 @@ import com.streamvault.tv.ui.util.UiSound
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.launch
 
-class ProfileEditActivity : AppCompatActivity() {
+class ProfileEditActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityProfileEditBinding
     private val prefs by lazy { (application as VerflixedApp).container.prefs }
     private var editingId: String? = null
     private var selectedAvatarUrl: String? = null
     private lateinit var avatarAdapter: AvatarAdapter
+    private lateinit var categoryAdapter: CategoryChipAdapter
+    private val blockedGenres = mutableSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +46,21 @@ class ProfileEditActivity : AppCompatActivity() {
         binding.editorTitle.text = if (create) {
             getString(R.string.profile_create_title)
         } else getString(R.string.profile_edit_title)
+
+        if (create) {
+            blockedGenres.addAll(UserPrefs.DEFAULT_BLOCKED_GENRES)
+        } else {
+            blockedGenres.addAll(prefs.blockedGenres(editingId ?: prefs.activeProfileId))
+        }
+        categoryAdapter = CategoryChipAdapter { chip ->
+            UiSound.click(this@ProfileEditActivity, prefs)
+            if (chip.id in blockedGenres) blockedGenres.remove(chip.id) else blockedGenres.add(chip.id)
+            categoryAdapter.submit(CatalogFilters.GENRES, blockedGenres)
+        }
+        binding.categoryGrid.layoutManager = GridLayoutManager(this, 7)
+        binding.categoryGrid.adapter = categoryAdapter
+        binding.categoryGrid.itemAnimator = null
+        categoryAdapter.submit(CatalogFilters.GENRES, blockedGenres)
 
         avatarAdapter = AvatarAdapter { opt ->
             UiSound.click(this@ProfileEditActivity, prefs)
@@ -80,6 +101,9 @@ class ProfileEditActivity : AppCompatActivity() {
                         binding.inputName.setText(p.name)
                         selectedAvatarUrl = p.avatarUrl
                         avatarAdapter.select(p.avatarUrl)
+                        blockedGenres.clear()
+                        blockedGenres.addAll(prefs.blockedGenres(p.id))
+                        categoryAdapter.submit(CatalogFilters.GENRES, blockedGenres)
                     }
             } else {
                 selectedAvatarUrl = (favs + dice).firstOrNull()?.url
@@ -108,11 +132,15 @@ class ProfileEditActivity : AppCompatActivity() {
                 if (create) {
                     val created = app.container.profiles.create(name, selectedAvatarUrl)
                     app.container.profiles.switchTo(created.id)
+                    prefs.setBlockedGenres(created.id, blockedGenres)
                     created
                 } else {
-                    app.container.profiles.update(editingId!!, name, selectedAvatarUrl)
+                    val updated = app.container.profiles.update(editingId!!, name, selectedAvatarUrl)
+                    prefs.setBlockedGenres(updated.id, blockedGenres)
+                    updated
                 }
             }.onSuccess {
+                app.container.catalog.onContentFiltersChanged()
                 Toast.makeText(this@ProfileEditActivity, R.string.profile_saved, Toast.LENGTH_SHORT).show()
                 setResult(RESULT_OK)
                 finish()
@@ -198,4 +226,42 @@ private class AvatarAdapter(
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val image: ImageView = itemView.findViewById(R.id.avatarImage)
     }
+}
+
+private class CategoryChipAdapter(
+    private val onClick: (GenreChip) -> Unit
+) : RecyclerView.Adapter<CategoryChipAdapter.VH>() {
+    private val items = mutableListOf<GenreChip>()
+    private var blocked = emptySet<String>()
+
+    fun submit(data: List<GenreChip>, blockedGenres: Set<String>) {
+        items.clear()
+        items.addAll(data)
+        blocked = blockedGenres.toSet()
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_filter_chip, parent, false)
+        FocusFx.bindScale(v, 1.06f)
+        return VH(v as TextView)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val chip = items[position]
+        val enabled = chip.id !in blocked
+        holder.label.text = chip.label
+        holder.label.isSelected = enabled
+        holder.label.alpha = if (enabled) 1f else 0.45f
+        holder.label.contentDescription = if (enabled) {
+            "${chip.label} aktiv"
+        } else {
+            "${chip.label} ausgeblendet"
+        }
+        holder.label.setOnClickListener { onClick(chip) }
+    }
+
+    class VH(val label: TextView) : RecyclerView.ViewHolder(label)
 }

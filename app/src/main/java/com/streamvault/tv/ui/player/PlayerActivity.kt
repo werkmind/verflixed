@@ -19,7 +19,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -56,7 +56,7 @@ import kotlinx.coroutines.withContext
  * - Mode bar (HLS / Web) stays above the WebView so D-pad switching works.
  */
 @UnstableApi
-class PlayerActivity : AppCompatActivity() {
+class PlayerActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
     private var series: Series? = null

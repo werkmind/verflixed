@@ -4,7 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.animation.PathInterpolator
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  * Branded splash: animated 3D-style V mark + startup sting, then Home.
  * The catalog warms up during the sting so Home lands on content, not a spinner.
  */
-class SplashActivity : AppCompatActivity() {
+class SplashActivity : ScaledAppCompatActivity() {
     private val sting by lazy { BrandSting(this) }
     private var navigated = false
 

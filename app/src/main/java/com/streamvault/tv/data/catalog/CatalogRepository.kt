@@ -135,11 +135,7 @@ class CatalogRepository(
         // Browse: no Room/meta cache. Hydrate cover URLs from genre HTML (in-memory) only.
         val page = prefs.browsePage
         val size = UserPrefs.BROWSE_PAGE_SIZE
-        val filtered = if (isMoviesMode()) {
-            catalog.series
-        } else {
-            applyGenreFilters(catalog.series)
-        }.map { hydrateBrowseArt(it) }
+        val filtered = applyContentFilters(catalog.series).map { hydrateBrowseArt(it) }
         val from = (page * size).coerceAtMost(filtered.size)
         val to = (from + size).coerceAtMost(filtered.size)
         val slice = filtered.subList(from, to)
@@ -150,14 +146,13 @@ class CatalogRepository(
             val base = activeBase()
             if (base.isNotBlank()) {
                 val homeHtml = runCatching { getText(base) }.getOrNull().orEmpty()
-                val neu = parser.parseHomeHeroNewReleases(homeHtml, base)
+                val neu = applyContentFilters(parser.parseHomeHeroNewReleases(homeHtml, base))
                     .map { hydrateBrowseArt(it) }
                     .take(16)
                 if (neu.isNotEmpty()) rows += HomeRow("Neu", neu)
                 val week = runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
                 if (week.isNotEmpty()) {
-                    rows += HomeRow(
-                        "Serienkalender",
+                    val calItems = applyContentFilters(
                         week.distinctBy { it.seriesId + it.date }.take(16).map { e ->
                             Series(
                                 id = e.seriesId,
@@ -170,6 +165,7 @@ class CatalogRepository(
                             )
                         }
                     )
+                    if (calItems.isNotEmpty()) rows += HomeRow("Serienkalender", calItems)
                 }
             }
         }
@@ -202,7 +198,7 @@ class CatalogRepository(
                 val base = activeBase()
                 if (base.isBlank()) return@forEach
                 val body = runCatching { getText("$base$path") }.getOrNull() ?: return@forEach
-                val items = FilmParser.parseMovieList(body, base, moviesOnly = true)
+                val items = applyContentFilters(FilmParser.parseMovieList(body, base, moviesOnly = true))
                     .map { hydrateBrowseArt(it) }
                     .take(16)
                 if (items.isNotEmpty()) {
@@ -215,7 +211,7 @@ class CatalogRepository(
                 }
             }
             // Category shelves scraped from Filmpalast genre search pages
-            CatalogFilters.GENRES.take(8).forEach { genre ->
+            allowedGenreChips().take(8).forEach { genre ->
                 val genreMovies = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
                 if (genreMovies.isEmpty()) return@forEach
                 val items = genreMovies.map { hydrateBrowseArt(it) }.take(16)
@@ -224,7 +220,7 @@ class CatalogRepository(
             return@withContext rows
         }
         // Category rows (limited) from genre pages — premium “shelves” with real covers
-        CatalogFilters.GENRES.take(8).forEach { genre ->
+        allowedGenreChips().take(8).forEach { genre ->
             val genreSeries = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
             if (genreSeries.isEmpty()) return@forEach
             val items = genreSeries.map { hydrateBrowseArt(it) }.take(16)
@@ -310,13 +306,15 @@ class CatalogRepository(
     suspend fun getLibraryRows(): List<HomeRow> = withContext(Dispatchers.IO) {
         val catalog = runCatching { loadCatalog(false) }.getOrNull()
         val favEntities = db.favorites().all(pid())
-        val favorites = favEntities.mapNotNull { fav ->
-            runCatching { seriesAdapter.fromJson(fav.cachedJson) }.getOrNull()
-                ?: catalog?.series?.find { it.id == fav.seriesId }?.copy(
-                    title = fav.title,
-                    posterUrl = fav.posterUrl
-                )
-        }
+        val favorites = applyContentFilters(
+            favEntities.mapNotNull { fav ->
+                runCatching { seriesAdapter.fromJson(fav.cachedJson) }.getOrNull()
+                    ?: catalog?.series?.find { it.id == fav.seriesId }?.copy(
+                        title = fav.title,
+                        posterUrl = fav.posterUrl
+                    )
+            }
+        )
         val allProgress = db.watch().all(pid())
         val progressBySeries = allProgress
             .filter { !it.completed && it.positionMs > 5_000 && it.durationMs > 0 }
@@ -328,9 +326,11 @@ class CatalogRepository(
             .map { it.seriesId }
             .distinct()
         fun withBar(s: Series) = s.copy(progressFraction = progressBySeries[s.id] ?: s.progressFraction)
-        val continueWatching = continueIdsOrdered.mapNotNull { id ->
-            (favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id })?.let(::withBar)
-        }
+        val continueWatching = applyContentFilters(
+            continueIdsOrdered.mapNotNull { id ->
+                (favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id })?.let(::withBar)
+            }
+        )
         // One big library: all favorites (and continue items that aren't favs), no redundant Favoriten row
         val continueIdSet = continueWatching.map { it.id }.toSet()
         // Favorites only in library shelves — do NOT re-merge continue items (avoids duplicates).
@@ -401,21 +401,27 @@ class CatalogRepository(
             if (continueWatching.isNotEmpty()) {
                 add(HomeRow("Weiterschauen", continueWatching.take(8)))
             }
-            val recommended = recommendForYou(
-                catalog = catalog?.series.orEmpty(),
-                seeds = favorites,
-                excludeIds = (favorites.map { it.id } + continueIdSet).toSet(),
-            )
-            if (recommended.isNotEmpty()) add(HomeRow("Das gefällt dir bestimmt", recommended))
+            val catalogPool = applyContentFilters(catalog?.series.orEmpty())
+            val becauseExclude = (favorites.map { it.id } + continueIdSet).toMutableSet()
+            becauseYouWatchedSeeds(allProgress, favorites, catalog?.series.orEmpty()).forEach { seed ->
+                val similar = becauseYouWatched(
+                    catalog = catalogPool,
+                    seed = seed,
+                    excludeIds = becauseExclude,
+                )
+                if (similar.size < 4) return@forEach
+                add(HomeRow(becauseYouWatchedTitle(seed), similar))
+                becauseExclude += similar.map { it.id }
+            }
             if (seriesFavs.isNotEmpty()) add(HomeRow("Meine Serien", seriesFavs))
             if (movieFavs.isNotEmpty()) add(HomeRow("Meine Filme", movieFavs))
             // A–Z combined once (no duplicate of Meine Serien/Filme items beyond the dedicated shelves)
             val az = (seriesFavs + movieFavs).distinctBy { it.id }.sortedBy { it.title.lowercase() }
             if (az.size >= 8) add(HomeRow("A–Z", az))
-            if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", calendarAsSeries(upcoming)))
-            if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu", calendarAsSeries(recentNew)))
-            if (weekCalendar.isNotEmpty()) add(HomeRow("Serienkalender", calendarAsSeries(weekCalendar)))
-            if (recentlyWatched.isNotEmpty()) add(HomeRow("Zuletzt gesehen", recentlyWatched))
+            if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", applyContentFilters(calendarAsSeries(upcoming))))
+            if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu", applyContentFilters(calendarAsSeries(recentNew))))
+            if (weekCalendar.isNotEmpty()) add(HomeRow("Serienkalender", applyContentFilters(calendarAsSeries(weekCalendar))))
+            if (recentlyWatched.isNotEmpty()) add(HomeRow("Zuletzt gesehen", applyContentFilters(recentlyWatched)))
         }
     }
 
@@ -435,8 +441,8 @@ class CatalogRepository(
             val favKind = if (fav.mediaKind == "movie") "movie" else "series"
             favKind == kind
         }
-        val pool = (favs + catalog.series).distinctBy { it.id }
-        val filtered = if (isMoviesMode()) pool else applyGenreFilters(pool)
+        val pool = applyContentFilters((favs + catalog.series).distinctBy { it.id })
+        val filtered = pool
         if (q.isEmpty()) return@withContext filtered.take(48)
 
         val localHits = filtered.filter {
@@ -472,7 +478,7 @@ class CatalogRepository(
                 )
             }
         }
-        byId.values.toList().also { rememberSeriesHits(it) }
+        applyContentFilters(byId.values.toList()).also { rememberSeriesHits(it) }
     }
 
     suspend fun searchGrouped(query: String): List<HomeRow> = withContext(Dispatchers.IO) {
@@ -490,19 +496,25 @@ class CatalogRepository(
         withContext(Dispatchers.IO) {
             val raw = query.trim()
             val q = raw.lowercase()
-            val catalogSeries = runCatching {
-                loadCatalog(forceRefresh = false, kindOverride = "series")
-                    .series.filter { it.mediaKind != "movie" }
-            }.getOrDefault(emptyList())
-            val catalogMovies = runCatching {
-                loadCatalog(forceRefresh = false, kindOverride = "movie")
-                    .series.filter { it.mediaKind == "movie" }
-            }.getOrDefault(emptyList())
-            val favs = runCatching {
-                db.favorites().all(pid()).mapNotNull {
-                    runCatching { seriesAdapter.fromJson(it.cachedJson) }.getOrNull()
-                }
-            }.getOrDefault(emptyList())
+            val catalogSeries = applyContentFilters(
+                runCatching {
+                    loadCatalog(forceRefresh = false, kindOverride = "series")
+                        .series.filter { it.mediaKind != "movie" }
+                }.getOrDefault(emptyList())
+            )
+            val catalogMovies = applyContentFilters(
+                runCatching {
+                    loadCatalog(forceRefresh = false, kindOverride = "movie")
+                        .series.filter { it.mediaKind == "movie" }
+                }.getOrDefault(emptyList())
+            )
+            val favs = applyContentFilters(
+                runCatching {
+                    db.favorites().all(pid()).mapNotNull {
+                        runCatching { seriesAdapter.fromJson(it.cachedJson) }.getOrNull()
+                    }
+                }.getOrDefault(emptyList())
+            )
             fun match(list: List<Series>): List<Series> {
                 if (q.isEmpty()) return list.take(24)
                 return list.filter {
@@ -543,8 +555,8 @@ class CatalogRepository(
                 return map.values.toList()
             }
 
-            val seriesRow = merge(seriesHits, liveSeries).take(36)
-            val movieRow = merge(movieHits, liveMovies).take(36)
+            val seriesRow = applyContentFilters(merge(seriesHits, liveSeries)).take(36)
+            val movieRow = applyContentFilters(merge(movieHits, liveMovies)).take(36)
             val libRow = libHits.take(24)
             rememberSeriesHits(seriesRow + movieRow + libRow)
 
@@ -573,18 +585,31 @@ class CatalogRepository(
         }
 
 
-    private suspend fun applyGenreFilters(series: List<Series>): List<Series> {
-        // Antifilter UI removed — never filter by include/exclude genres.
-        return series
+    private fun blockedGenreIds(): Set<String> = prefs.blockedGenres(prefs.activeProfileId)
+
+    private fun allowedGenreChips() =
+        CatalogFilters.GENRES.filter { it.id !in blockedGenreIds() }
+
+    private fun applyContentFilters(series: List<Series>): List<Series> {
+        val blocked = blockedGenreIds()
+        if (blocked.isEmpty()) return series
+        return series.filterNot { ContentGate.isBlocked(it, blocked) }
+    }
+
+    /** Drop in-memory genre shelves after the profile filter changes. */
+    fun onContentFiltersChanged() {
+        genreMembers.clear()
+        genreSeriesCache.clear()
     }
 
     private suspend fun seriesIdsForGenre(genreId: String): Set<String> =
         seriesForGenre(genreId).map { it.id }.toSet()
 
     private suspend fun seriesForGenre(genreId: String): List<Series> {
+        if (genreId in blockedGenreIds()) return emptyList()
         val cacheKey = "${if (isMoviesMode()) "m" else "s"}:$genreId"
-        genreSeriesCache[cacheKey]?.let { return it }
-        genreSeriesCache[genreId]?.let { return it }
+        genreSeriesCache[cacheKey]?.let { return applyContentFilters(it) }
+        genreSeriesCache[genreId]?.let { return applyContentFilters(it) }
         genreMembers[genreId]?.let { ids ->
             // IDs without art — fall through to fetch
             if (ids.isNotEmpty() && genreSeriesCache.containsKey(genreId)) {
@@ -625,11 +650,12 @@ class CatalogRepository(
                 )
             }
         }
-        artResolver.putAll(withArt)
-        genreMembers[genreId] = withArt.map { it.id }.toSet()
-        genreSeriesCache[cacheKey] = withArt
-        genreSeriesCache[genreId] = withArt
-        return withArt
+        val allowed = applyContentFilters(withArt)
+        artResolver.putAll(allowed)
+        genreMembers[genreId] = allowed.map { it.id }.toSet()
+        genreSeriesCache[cacheKey] = allowed
+        genreSeriesCache[genreId] = allowed
+        return allowed
     }
 
     suspend fun getSeries(
@@ -1597,28 +1623,47 @@ class CatalogRepository(
         )
     }
 
-    private fun recommendForYou(
+    /**
+     * Recent titles the profile actually watched — one seed per “Weil du X”-row.
+     * Favorites-only (never played) do not count.
+     */
+    private fun becauseYouWatchedSeeds(
+        progress: List<WatchProgressEntity>,
+        favorites: List<Series>,
         catalog: List<Series>,
-        seeds: List<Series>,
+    ): List<Series> {
+        val byId = (favorites + catalog).associateBy { it.id }
+        return progress
+            .asSequence()
+            .filter { it.completed || it.positionMs > 30_000 }
+            .sortedByDescending { it.updatedAt }
+            .map { it.seriesId }
+            .distinct()
+            .mapNotNull { byId[it] }
+            .let { applyContentFilters(it.toList()) }
+            .filter { usefulGenres(it.genres).isNotEmpty() }
+            .take(2)
+    }
+
+    private fun becauseYouWatched(
+        catalog: List<Series>,
+        seed: Series,
         excludeIds: Set<String>,
     ): List<Series> {
-        if (seeds.isEmpty() || catalog.isEmpty()) return emptyList()
-        val noise = setOf("deutsch", "englisch", "german", "english")
-        val seedGenres = seeds.flatMap { it.genres }
-            .map { it.lowercase() }
-            .filter { it !in noise && it.length > 2 && !it.contains("demnächst") && !it.contains("uhr") }
-            .groupingBy { it }
-            .eachCount()
+        if (catalog.isEmpty()) return emptyList()
+        val seedGenres = usefulGenres(seed.genres)
         if (seedGenres.isEmpty()) return emptyList()
+        val seedKind = if (seed.mediaKind == "movie") "movie" else "series"
         val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
         return catalog
             .asSequence()
-            .filter { it.id !in excludeIds }
+            .filter { it.id != seed.id && it.id !in excludeIds }
+            .filter { (if (it.mediaKind == "movie") "movie" else "series") == seedKind }
             .map { s ->
-                var score = s.genres.sumOf { g -> seedGenres[g.lowercase()] ?: 0 }
-                // Recency boost: fresh titles float up, without drowning genre fit.
+                var score = usefulGenres(s.genres).count { it in seedGenres }
+                if (score == 0) return@map s to 0
                 s.year?.let { y ->
-                    if (y >= nowYear - 1) score += 2 else if (y >= nowYear - 4) score += 1
+                    if (y >= nowYear - 1) score += 1
                 }
                 s to score
             }
@@ -1628,6 +1673,20 @@ class CatalogRepository(
             .distinctBy { it.id }
             .take(16)
             .toList()
+    }
+
+    private fun usefulGenres(genres: List<String>): Set<String> {
+        val noise = setOf("deutsch", "englisch", "german", "english")
+        return genres
+            .map { it.lowercase().trim() }
+            .filter { it !in noise && it.length > 2 && !it.contains("demnächst") && !it.contains("uhr") }
+            .toSet()
+    }
+
+    private fun becauseYouWatchedTitle(seed: Series): String {
+        val name = seed.title.trim().ifBlank { "diesen Titel" }
+        val short = if (name.length > 36) name.take(34).trimEnd() + "…" else name
+        return "Weil du $short geschaut hast"
     }
 
     suspend fun saveProgress(

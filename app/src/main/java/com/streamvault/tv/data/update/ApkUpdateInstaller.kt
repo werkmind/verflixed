@@ -3,6 +3,7 @@ package com.streamvault.tv.data.update
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -77,9 +78,52 @@ class ApkUpdateInstaller(
                     out.delete()
                     error("Download unvollständig (${out.length()} Bytes)")
                 }
+                validateUpdateApk(context, out)
                 Result(out, out.length())
             }
         }
+
+    /**
+     * Catch the two install-killers before the system dialog says only
+     * „App nicht installiert“: signature mismatch and version downgrade.
+     */
+    fun validateUpdateApk(context: Context, apkFile: File) {
+        val pm = context.packageManager
+        @Suppress("DEPRECATION")
+        val incoming = pm.getPackageArchiveInfo(
+            apkFile.absolutePath,
+            PackageManager.GET_SIGNATURES,
+        ) ?: error("APK ist ungültig oder beschädigt")
+        incoming.applicationInfo?.apply {
+            sourceDir = apkFile.absolutePath
+            publicSourceDir = apkFile.absolutePath
+        }
+        if (incoming.packageName != context.packageName) {
+            error("Update hat die falsche App-ID (${incoming.packageName})")
+        }
+        @Suppress("DEPRECATION")
+        val installed = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+        val incomingCode = packageVersionCode(incoming)
+        val installedCode = packageVersionCode(installed)
+        if (incomingCode <= installedCode) {
+            error(
+                "Update ist älter als die installierte App " +
+                    "(${incoming.versionName ?: incomingCode} ≤ ${installed.versionName ?: installedCode}).",
+            )
+        }
+        val have = installed.signatures?.firstOrNull()?.toByteArray()
+        val want = incoming.signatures?.firstOrNull()?.toByteArray()
+        if (have != null && want != null && !have.contentEquals(want)) {
+            error(
+                "Signatur passt nicht zur installierten App. " +
+                    "Bitte Verflixed deinstallieren und die neue APK manuell sideloaden.",
+            )
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun packageVersionCode(info: android.content.pm.PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
     fun canInstallPackages(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

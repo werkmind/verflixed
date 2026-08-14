@@ -11,7 +11,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.appcompat.app.AppCompatActivity
+import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
 
 enum class HomeMode { LIBRARY, SERIES, MOVIES, SEARCH }
 
-class HomeActivity : AppCompatActivity() {
+class HomeActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityHomeBinding
     private var heroSeries: Series? = null
     private var mode = HomeMode.LIBRARY
@@ -53,6 +53,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var searchKeyboard: RecyclerView
     private lateinit var searchResultsList: RecyclerView
     private val prefs by lazy { (application as VerflixedApp).container.prefs }
+    private var appliedUiScale = UserPrefs.SCALE_DEFAULT
 
     private val rowsAdapter = RowsAdapter(
         onClick = {
@@ -130,6 +131,7 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        appliedUiScale = prefs.uiScalePercent
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -442,6 +444,10 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (prefs.uiScalePercent != appliedUiScale) {
+            recreate()
+            return
+        }
         if (::binding.isInitialized) {
             applyNavChrome()
             refreshActiveProfile()
