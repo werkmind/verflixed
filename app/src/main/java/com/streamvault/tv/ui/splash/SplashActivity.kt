@@ -4,13 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.animation.PathInterpolator
-import android.widget.VideoView
 import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.prefs.UserPrefs
-import com.streamvault.tv.ui.brand.BrandIntroPlayer
 import com.streamvault.tv.ui.brand.BrandSting
 import com.streamvault.tv.ui.brand.VerflixedIntroView
 import com.streamvault.tv.ui.home.HomeActivity
@@ -18,12 +16,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Branded splash: animated 3D-style V mark + startup sting, then Home.
+ * Branded splash: 1.10.1 canvas V + startup sting, then Home.
  * The catalog warms up during the sting so Home lands on content, not a spinner.
  */
 class SplashActivity : ScaledAppCompatActivity() {
     private val sting by lazy { BrandSting(this) }
-    private var introPlayer: BrandIntroPlayer? = null
     private var navigated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,20 +37,13 @@ class SplashActivity : ScaledAppCompatActivity() {
 
         val intro = findViewById<VerflixedIntroView>(R.id.splashIntro)
         val progress = findViewById<View>(R.id.splashProgress)
-        val video = findViewById<VideoView>(R.id.splashIntroVideo)
 
-        // Rendered 3D opener first; canvas + sting only if it cannot decode.
-        introPlayer = BrandIntroPlayer(video)
-        introPlayer?.play(
-            onFallback = {
-                sting.play()
-                intro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
-            },
-        )
+        sting.play()
+        intro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
 
         progress.animate()
             .alpha(1f)
-            .setStartDelay(1500)
+            .setStartDelay(1150)
             .setDuration(420)
             .setInterpolator(PathInterpolator(0.16f, 1f, 0.3f, 1f))
             .start()
@@ -66,7 +56,6 @@ class SplashActivity : ScaledAppCompatActivity() {
         }
     }
 
-    /** Prefetch rows while the sting plays so Home feels instant. */
     private fun warmCatalog() {
         val app = application as VerflixedApp
         app.appScope.launch {
@@ -89,7 +78,6 @@ class SplashActivity : ScaledAppCompatActivity() {
 
     override fun onDestroy() {
         sting.stop()
-        introPlayer?.stop()
         super.onDestroy()
     }
 }

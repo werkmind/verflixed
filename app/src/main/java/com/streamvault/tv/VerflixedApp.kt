@@ -2,6 +2,7 @@ package com.streamvault.tv
 
 import android.app.Application
 import com.streamvault.tv.data.AppContainer
+import com.streamvault.tv.data.adblock.AdBlock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,6 +19,7 @@ class VerflixedApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         appScope.launch {
+            runCatching { AdBlock.warm(this@VerflixedApp) }
             runCatching { container.profiles.ensureDefaultProfile() }
         }
     }

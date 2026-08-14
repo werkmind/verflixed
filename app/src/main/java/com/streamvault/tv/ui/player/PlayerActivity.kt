@@ -40,7 +40,7 @@ import com.streamvault.tv.data.model.Series
 import com.streamvault.tv.data.skip.EpisodeSkipPlan
 import com.streamvault.tv.data.skip.SkipSegment
 import com.streamvault.tv.databinding.ActivityPlayerBinding
-import com.streamvault.tv.ui.brand.BrandIntroPlayer
+import com.streamvault.tv.data.adblock.AdBlock
 import com.streamvault.tv.ui.brand.BrandSting
 import com.streamvault.tv.ui.brand.VerflixedIntroView
 import com.streamvault.tv.ui.util.FocusFx
@@ -90,7 +90,6 @@ class PlayerActivity : ScaledAppCompatActivity() {
 
     /** Branded pre-roll that hides raw loading / WebView switching until playback starts. */
     private val brandSting by lazy { BrandSting(this) }
-    private var playerIntroVideo: BrandIntroPlayer? = null
     private var brandGateShown = false
     private var brandGateMinUntilMs = 0L
 
@@ -358,6 +357,8 @@ class PlayerActivity : ScaledAppCompatActivity() {
             ): WebResourceResponse? {
                 val url = request?.url?.toString().orEmpty()
                 if (url.isBlank()) return super.shouldInterceptRequest(view, request)
+                AdBlock.warm(this@PlayerActivity)
+                AdBlock.intercept(url)?.let { return it }
                 if (StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url)) {
                     maybeClaimVoe(url)
                 } else {
@@ -1077,14 +1078,9 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.playerBrandGate.alpha = 1f
         binding.playerBrandStatus.alpha = 0f
         binding.playerBrandStatus.text = titleHint?.takeIf { it.isNotBlank() } ?: ""
-        playerIntroVideo = BrandIntroPlayer(binding.playerIntroVideo)
-        playerIntroVideo?.play(
-            onFallback = {
-                binding.playerIntro.compact = true
-                binding.playerIntro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
-                brandSting.play(0.9f)
-            },
-        )
+        binding.playerIntro.compact = true
+        binding.playerIntro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
+        brandSting.play(0.9f)
         brandGateMinUntilMs = System.currentTimeMillis() +
             VerflixedIntroView.DEFAULT_DURATION_MS - 250L
         handler.post(brandStatusTick)
@@ -1109,7 +1105,6 @@ class PlayerActivity : ScaledAppCompatActivity() {
         handler.removeCallbacks(brandGateTimeout)
         brandSting.stop()
         binding.playerIntro.stop()
-        playerIntroVideo?.stop()
         binding.playerBrandGate.animate()
             .alpha(0f)
             .setDuration(if (force) 220L else 320L)
@@ -1132,15 +1127,14 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.playerLoading.visibility = View.GONE
         binding.resolveStatus.visibility = View.VISIBLE
         binding.resolveStatus.text = getString(R.string.player_captcha_status)
-        binding.captchaHint.visibility = View.VISIBLE
+        binding.captchaHint.visibility = View.GONE
         showModeBar(false)
-        // Let the WebView sit above chrome so D-pad/OK reach Turnstile.
+        // Chrome overlays the WebView on Fire TV even with elevation — hide it
+        // so D-pad can reach Turnstile and the site's "Weiter" button.
+        binding.playerChrome.visibility = View.GONE
         binding.webPlayer.elevation = 40f
         binding.webPlayer.translationZ = 40f
-        binding.playerChrome.elevation = 8f
-        binding.playerChrome.translationZ = 8f
-        (binding.playerChrome as? android.view.ViewGroup)?.descendantFocusability =
-            android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        binding.webPlayer.bringToFront()
         focusWebPlayerForCaptcha()
         binding.webPlayer.evaluateJavascript(GATE_MODE_JS, null)
         binding.webPlayer.evaluateJavascript(CAPTCHA_FOCUS_JS, null)
@@ -1149,6 +1143,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
     private fun exitCaptchaMode() {
         captchaMode = false
         binding.captchaHint.visibility = View.GONE
+        binding.playerChrome.visibility = View.VISIBLE
         binding.webPlayer.elevation = 0f
         binding.webPlayer.translationZ = 0f
         binding.playerChrome.elevation = 28f
@@ -1792,7 +1787,6 @@ class PlayerActivity : ScaledAppCompatActivity() {
         persistProgress(forceCompleted = false)
         player?.playWhenReady = false
         brandSting.stop()
-        playerIntroVideo?.stop()
         super.onStop()
     }
 
@@ -1804,7 +1798,6 @@ class PlayerActivity : ScaledAppCompatActivity() {
         handler.removeCallbacks(brandGateTimeout)
         brandSting.stop()
         binding.playerIntro.stop()
-        playerIntroVideo?.stop()
         persistProgress(forceCompleted = false)
         runCatching {
             binding.webPlayer.apply {
@@ -1937,32 +1930,38 @@ class PlayerActivity : ScaledAppCompatActivity() {
     var style=document.createElement('style');
     style.id='vf-gate-css';
     style.textContent=[
-      'html,body{background:#000!important;overflow:hidden!important;}',
+      'html,body{background:#000!important;}',
       'nav,.navbar,.top-nav,.sidebar,.footer,footer,header,.breadcrumb,.seriesBanner,',
-      '.hosterSiteTitle,.hosterSiteDescription,.hosterSiteVideo + *,',
       '#footer,.ads,.ad-banner,#cookie-consent,.cookie-consent,.cc-window,',
-      '.fc-consent-root,.alert,.news,.comments,#comments,.row.mt-5,',
-      '.col-md-4,.spin-container,.cf-turnstile-response{display:none!important;}',
-      /* Keep player / gate host visible */
+      '.fc-consent-root,.news,.comments,#comments{display:none!important;}',
       '.hosterSiteVideo,.hosterSiteVideo *,#player,#player-container,.player-wrap,',
       '#playerPrepareModal,#playerPrepareModal *,.cf-turnstile,#player-prepare-turnstile,',
-      'iframe[src*="challenges.cloudflare"],iframe[src*="turnstile"]{',
-      '  display:block!important; visibility:visible!important; opacity:1!important;',
-      '  pointer-events:auto!important;',
+      'iframe[src*="challenges.cloudflare"],iframe[src*="turnstile"],',
+      '#playerPrepareModal button,#playerPrepareModal .btn,#playerPrepareModal a.btn,',
+      '#playerPrepareModal input,#challenge-stage,#challenge-form{',
+      '  display:revert!important; visibility:visible!important; opacity:1!important;',
+      '  pointer-events:auto!important; max-height:none!important;',
       '}',
       '#playerPrepareModal, .player-prepare-modal, .modal.show, .modal.in {',
       '  display:flex!important; align-items:center!important; justify-content:center!important;',
       '  position:fixed!important; inset:0!important; z-index:2147483646!important;',
       '  background:rgba(0,0,0,.92)!important; margin:0!important; padding:24px!important;',
       '  max-width:none!important; width:100%!important; height:100%!important;',
+      '  overflow:auto!important;',
       '}',
       '#playerPrepareModal .modal-dialog, #playerPrepareModal .modal-content {',
       '  margin:auto!important; max-width:92vw!important; background:#111!important;',
       '  color:#fff!important; border:0!important; box-shadow:none!important;',
       '}',
+      '#playerPrepareModal button, #playerPrepareModal .btn, #playerPrepareModal a.btn,',
+      '#challenge-stage input[type=button], input.big-button {',
+      '  display:inline-block!important; min-height:48px!important; min-width:160px!important;',
+      '  font-size:20px!important; margin:12px!important; padding:12px 22px!important;',
+      '  pointer-events:auto!important; position:relative!important; z-index:2147483647!important;',
+      '}',
       '.cf-turnstile, #player-prepare-turnstile, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"] {',
-      '  transform:scale(1.45)!important; transform-origin:center center!important;',
-      '  margin:28px auto!important;',
+      '  transform:scale(1.25)!important; transform-origin:center center!important;',
+      '  margin:20px auto!important;',
       '}'
     ].join('');
     document.documentElement.appendChild(style);
@@ -1983,13 +1982,29 @@ class PlayerActivity : ScaledAppCompatActivity() {
 })();
 """
 
-        /** Enlarge/center captcha UI and focus the Turnstile iframe for TV D-pad. */
+        /** Enlarge/center captcha UI and focus Turnstile or the site's Weiter button. */
         private const val CAPTCHA_FOCUS_JS = """
 (function(){
   try {
-    // Ensure gate CSS is present
-    if (!document.getElementById('vf-gate-css') && window.__vfNeedGate !== false) {
-      /* GATE_MODE_JS is injected separately */
+    function gateButtons(){
+      var nodes=document.querySelectorAll('button, a.btn, input[type=submit], input[type=button], .btn');
+      var out=[];
+      for (var i=0;i<nodes.length;i++){
+        var el=nodes[i];
+        var t=((el.innerText||el.value||el.getAttribute('aria-label')||'')+'').replace(/\s+/g,' ').trim();
+        if (/weiter|continue|bestätig|confirm|abspielen|los geht/i.test(t)) out.push(el);
+      }
+      return out;
+    }
+    function arm(el){
+      if (!el) return;
+      try {
+        el.setAttribute('tabindex','0');
+        el.style.display='inline-block';
+        el.style.visibility='visible';
+        el.style.opacity='1';
+        el.style.pointerEvents='auto';
+      } catch(e){}
     }
     var modal=document.getElementById('playerPrepareModal') ||
       document.querySelector('.player-prepare-modal, .modal.show, .cf-turnstile, #player-prepare-turnstile');
@@ -2003,18 +2018,26 @@ class PlayerActivity : ScaledAppCompatActivity() {
         modal.removeAttribute('aria-hidden');
         modal.scrollIntoView({block:'center'});
       } catch(e){}
-      if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('need');
+    }
+    var btns=gateButtons();
+    for (var i=0;i<btns.length;i++) arm(btns[i]);
+    var token=document.querySelector('[name="cf-turnstile-response"]');
+    var solved=token && token.value && String(token.value).length>10;
+    if (solved && btns[0]) {
+      try { btns[0].focus(); btns[0].scrollIntoView({block:'center'}); } catch(e){}
+      return;
     }
     var frame=document.querySelector('#player-prepare-turnstile iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]');
     if (frame) {
       try { frame.setAttribute('tabindex','0'); frame.focus(); } catch(e){}
-      try { frame.scrollIntoView({block:'center'}); } catch(e){}
+    } else if (btns[0]) {
+      try { btns[0].focus(); } catch(e){}
     }
   } catch(e) {}
 })();
 """
 
-        /** Best-effort activate Turnstile checkbox / host confirm button for OK key. */
+        /** OK key: prefer Weiter / confirm, then classic CF button, then Turnstile. */
         private const val CAPTCHA_CLICK_JS = """
 (function(){
   try {
@@ -2033,17 +2056,17 @@ class PlayerActivity : ScaledAppCompatActivity() {
       }
       return true;
     }
-    // darkryh-style classic CF challenge button
+    var nodes=document.querySelectorAll('button, a.btn, input[type=submit], input[type=button], .btn');
+    for (var i=0;i<nodes.length;i++){
+      var t=((nodes[i].innerText||nodes[i].value||'')+'').replace(/\s+/g,' ').trim();
+      if (/weiter|continue|bestätig|confirm|abspielen|los geht/i.test(t)) return fire(nodes[i]);
+    }
     var simple=document.querySelector("#challenge-stage > div > input[type='button'], #challenge-stage input[type='button'], input[type='button'].big-button");
-    if (simple) fire(simple);
+    if (simple) return fire(simple);
+    var active=document.activeElement;
+    if (active && active!==document.body && active.click) return fire(active);
     var frame=document.querySelector('#player-prepare-turnstile iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"], div.hcaptcha-box > iframe');
-    if (frame) { fire(frame); }
-    var box=document.querySelector('.cf-turnstile, #player-prepare-turnstile, [data-sitekey], #challenge-form');
-    if (box) fire(box);
-    var btn=document.querySelector('#playerPrepareModal button, .player-prepare-modal button, button[type="submit"]');
-    if (btn) fire(btn);
-    var mark=document.querySelector('#playerPrepareModal input[type="checkbox"], .cf-turnstile input');
-    if (mark) fire(mark);
+    if (frame) return fire(frame);
   } catch(e) {}
 })();
 """

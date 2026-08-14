@@ -6,6 +6,7 @@ const {
   resolveEpisodeToHls,
   PARTITION,
 } = require("./voe-capture");
+const adblock = require("./adblock");
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -41,6 +42,8 @@ app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 app.whenReady().then(() => {
   // Persist site partition + default session CORS/media tweaks
   const siteSes = session.fromPartition(PARTITION);
+  adblock.attach(session.defaultSession);
+  adblock.attach(siteSes);
   for (const ses of [session.defaultSession, siteSes]) {
     ses.webRequest.onHeadersReceived((details, callback) => {
       const headers = { ...details.responseHeaders };

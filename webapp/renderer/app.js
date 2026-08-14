@@ -423,6 +423,7 @@
     const canvas = $("playerIntro");
     window.VfIntro?.stop?.(canvas);
     window.VfIntro?.play?.(canvas, { compact: true });
+    window.VfIntro?.sting?.();
   }
 
   function hideBrandGate() {
@@ -3210,14 +3211,15 @@
   async function runSplash() {
     const canvas = $("splashIntro");
     try {
+      window.VfIntro?.sting?.();
       await window.VfIntro?.play?.(canvas, { compact: false });
       await new Promise((r) => setTimeout(r, window.VfIntro?.HOLD_AFTER_MS || 260));
     } catch (_) {}
     hideSplash();
   }
 
-  localStorage.setItem("vf_app_version", "1.16.0");
-  localStorage.setItem("vf_version_code", "49");
+  localStorage.setItem("vf_app_version", "1.17.0");
+  localStorage.setItem("vf_version_code", "50");
   applyChromePrefs();
   applyUiScale();
   syncBaseUrlInputs();
@@ -3230,11 +3232,11 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.16.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.17.0";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.16.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.17.0";
     }
     setHomeMode("library");
     refreshCalendarRows();

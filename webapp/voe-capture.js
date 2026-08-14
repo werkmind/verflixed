@@ -323,7 +323,12 @@ function captureEmbedFromEpisodeBackground(episodeUrl, { timeoutMs = 120000, all
     wc.on("will-redirect", (_e, url) => considerUrl(url));
     wc.on("did-redirect-navigation", (_e, url) => considerUrl(url));
 
+    const { shouldBlock } = require("./adblock");
     const onBefore = (details, cb) => {
+      if (shouldBlock(details.url)) {
+        cb({ cancel: true });
+        return;
+      }
       considerUrl(details.url);
       cb({});
     };
@@ -332,6 +337,7 @@ function captureEmbedFromEpisodeBackground(episodeUrl, { timeoutMs = 120000, all
     win.on("closed", () => {
       try {
         ses.webRequest.onBeforeRequest(null);
+        require("./adblock").attach(ses);
       } catch (_) {}
       if (!settled) {
         settled = true;
@@ -377,7 +383,22 @@ function captureEmbedFromEpisodeBackground(episodeUrl, { timeoutMs = 120000, all
             );
           if (need) {
             captchaShown = true;
-            win.setTitle("Verflixed – kurz Captcha lösen (iframe bleibt versteckt)");
+            win.setTitle("Verflixed – Captcha / Weiter");
+            try {
+              await wc.executeJavaScript(
+                `(function(){
+                  var nodes=document.querySelectorAll('button,a.btn,input[type=button],input[type=submit]');
+                  for (var i=0;i<nodes.length;i++){
+                    var t=(nodes[i].innerText||nodes[i].value||'');
+                    if (/weiter|continue|bestätig/i.test(t)) {
+                      nodes[i].setAttribute('tabindex','0');
+                      try { nodes[i].focus(); } catch(e){}
+                    }
+                  }
+                })()`,
+                true,
+              );
+            } catch (_) {}
             win.show();
             win.focus();
           }
@@ -613,6 +634,7 @@ function resolveVoeShareInBackground(shareUrl, { timeoutMs = 90000, referer } = 
     win.on("closed", () => {
       try {
         ses.webRequest.onBeforeRequest(null);
+        require("./adblock").attach(ses);
       } catch (_) {}
       if (!settled) {
         settled = true;

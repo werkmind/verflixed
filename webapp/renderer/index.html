@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.16.0" />
-  <meta name="vf-version-code" content="49" />
+  <meta name="vf-version" content="1.17.0" />
+  <meta name="vf-version-code" content="50" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -17,7 +17,6 @@
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="false">
-    <video id="splashIntroVideo" class="intro-video" muted playsinline preload="auto" src="brand_intro.mp4"></video>
     <canvas id="splashIntro" class="intro-canvas" aria-label="Verflixed"></canvas>
     <div id="splashProgress" class="splash-progress" aria-hidden="true"></div>
   </div>
@@ -157,7 +156,6 @@
           <div class="player-shell" id="playerShell">
             <video id="video" playsinline></video>
             <div id="playerBrandGate" class="player-brand-gate hidden" aria-hidden="true">
-              <video id="playerIntroVideo" class="intro-video" muted playsinline preload="auto" src="brand_intro.mp4"></video>
               <canvas id="playerIntro" class="intro-canvas compact" aria-hidden="true"></canvas>
               <div id="playerBrandStatus" class="player-brand-status"></div>
             </div>
@@ -200,7 +198,7 @@
                   <p id="detailMeta" class="detail-meta"></p>
                   <p id="detailOverview"></p>
                   <div class="detail-actions">
-                    <button id="btnPlayContinue" class="btn primary">Play</button>
+                    <button id="btnPlayContinue" class="btn primary" tabindex="0">Play</button>
                     <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
                     <button id="btnSeasonWatched" class="btn ghost" type="button">Staffel als gesehen</button>
                     <button id="btnLanguage" class="btn ghost" type="button" hidden>DE</button>
