@@ -1028,3 +1028,80 @@ main {
   background: rgba(47, 128, 255, 0.22);
   outline: none;
 }
+
+/* ===== 1.12 modernization: glass depth + tvOS-like motion (parity mit Fire TV) ===== */
+:root {
+  --glass-hi: rgba(255, 255, 255, 0.11);
+  --glass-lo: rgba(255, 255, 255, 0.04);
+  --sheen: rgba(255, 255, 255, 0.14);
+  --ease-glide: cubic-bezier(0.23, 1, 0.32, 1);
+}
+.btn {
+  transition: transform 0.28s var(--ease-glide), opacity 0.2s ease,
+    border-color 0.2s ease, box-shadow 0.28s var(--ease-glide);
+}
+.btn:hover { transform: translateY(-1px) scale(1.02); }
+.btn.ghost {
+  background: linear-gradient(180deg, var(--glass-hi), var(--glass-lo));
+  border: 1px solid var(--sheen);
+}
+.btn.ghost:hover {
+  border-color: rgba(127, 184, 255, 0.6);
+  box-shadow: 0 6px 22px rgba(47, 128, 255, 0.18);
+}
+.btn.primary {
+  background: linear-gradient(180deg, #3f8cff, #2568d8);
+  box-shadow: 0 6px 20px rgba(47, 128, 255, 0.22);
+}
+.card-media {
+  transition: transform 0.3s var(--ease-glide), border-color 0.3s var(--ease-glide),
+    box-shadow 0.3s var(--ease-glide);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.card:hover .card-media,
+.card:focus-visible .card-media {
+  transform: scale(1.045) translateZ(0);
+  border-color: rgba(127, 184, 255, 0.8);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(127, 184, 255, 0.25);
+}
+.chip {
+  background: linear-gradient(180deg, var(--glass-hi), var(--glass-lo));
+  border: 1px solid var(--sheen);
+  transition: transform 0.24s var(--ease-glide), background 0.2s ease,
+    border-color 0.2s ease, opacity 0.2s ease;
+}
+.chip:hover { transform: scale(1.04); }
+.chip.active {
+  background: linear-gradient(180deg, #3f8cff, #2568d8);
+  border-color: rgba(127, 184, 255, 0.55);
+  color: var(--primary-btn-text);
+}
+.category-chips { margin-top: 8px; }
+.category-chip.off {
+  opacity: 0.42;
+  text-decoration: line-through;
+}
+.settings-card,
+.vf-modal-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--sheen);
+  backdrop-filter: none;
+}
+.cache-status:not(:empty) {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--glass-hi), var(--glass-lo));
+  border: 1px solid var(--sheen);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.skeleton-tile,
+.skeleton-title {
+  animation: vfSkelPulse 1.4s ease-in-out infinite;
+}
+@keyframes vfSkelPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}

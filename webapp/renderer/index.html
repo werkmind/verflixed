@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.7.5" />
-  <meta name="vf-version-code" content="31" />
+  <meta name="vf-version" content="1.12.0" />
+  <meta name="vf-version-code" content="44" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -142,6 +142,13 @@
             <button id="btnToggleNavLayout" class="btn ghost" type="button">Layout: Sidebar</button>
             <label style="margin-top:14px;display:block;">Bibliothek</label>
             <button id="btnToggleLibraryView" class="btn ghost" type="button">Bibliothek: Kacheln</button>
+            <label style="margin-top:14px;display:block;">Zoom</label>
+            <button id="btnToggleZoom" class="btn ghost" type="button">Zoom: 100%</button>
+            <label style="margin-top:14px;display:block;">Kategorien laden</label>
+            <p class="muted" style="margin:4px 0 8px;font-size:0.85rem;">
+              Aus = Kategorie wird nie geladen (Browse, Suche, Regale). Horror und Anime sind standardmäßig aus.
+            </p>
+            <div id="categoryChips" class="chips category-chips"></div>
             <label style="margin-top:14px;display:block;">Profil-Ton</label>
             <button id="btnToggleLanguagePref" class="btn ghost" type="button">Profil-Ton: Deutsch</button>
             <div class="base-row tight" style="margin-top:12px;">
@@ -230,6 +237,7 @@
   <script src="site-search.js"></script>
   <script src="tvmaze.js"></script>
   <script src="profiles-store.js"></script>
+  <script src="content-gate.js"></script>
   <script src="vf-updates.js"></script>
   <script src="skip-marks.js"></script>
   <script src="app.js"></script>

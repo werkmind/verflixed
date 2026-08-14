@@ -166,16 +166,34 @@ window.VfProfiles = (() => {
     }
   }
 
+  /**
+   * Netflix-style continuation (parity with Fire TV 1.10+):
+   * 1) most recently touched unfinished episode,
+   * 2) the episode AFTER the most recently completed one,
+   * 3) first unwatched, 4) first overall.
+   */
   function continueForSeries(series) {
     const map = progressMap();
-    const eps = (series.seasons || []).flatMap((s) => s.episodes || []);
+    const eps = (series.seasons || [])
+      .slice()
+      .sort((a, b) => (a.number || 0) - (b.number || 0))
+      .flatMap((s) => (s.episodes || []).slice().sort((a, b) => (a.number || 0) - (b.number || 0)));
     const unfinished = eps
       .map((ep) => ({ ep, p: map[ep.id] }))
       .filter((x) => x.p && !x.p.completed && x.p.positionMs > 5000)
       .sort((a, b) => b.p.updatedAt - a.p.updatedAt);
     if (unfinished[0]) return unfinished[0].ep;
-    const next = eps.find((ep) => !map[ep.id]?.completed);
-    return next || eps[0] || null;
+    const lastWatched = eps
+      .map((ep, i) => ({ i, p: map[ep.id] }))
+      .filter((x) => x.p?.completed)
+      .sort((a, b) => (b.p.updatedAt || 0) - (a.p.updatedAt || 0))[0];
+    if (lastWatched) {
+      for (let i = lastWatched.i + 1; i < eps.length; i++) {
+        if (!map[eps[i].id]?.completed && !eps[i].upcoming) return eps[i];
+      }
+    }
+    const next = eps.find((ep) => !map[ep.id]?.completed && !ep.upcoming);
+    return next || eps.find((ep) => !map[ep.id]?.completed) || eps[0] || null;
   }
 
   function continueRow(seriesIndex) {
@@ -303,6 +321,55 @@ window.VfProfiles = (() => {
     return norm;
   }
 
+  const DEFAULT_BLOCKED_GENRES = ["horror", "anime"];
+
+  /** Categories that must never load for the active profile. Missing = defaults. */
+  function blockedGenres(profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const p = s.profiles.find((x) => x.id === id);
+    if (Array.isArray(p?.blockedGenres)) return p.blockedGenres;
+    if (Array.isArray(s.blockedGenres)) return s.blockedGenres;
+    return DEFAULT_BLOCKED_GENRES.slice();
+  }
+
+  function setBlockedGenres(ids, profileId) {
+    const s = load();
+    const id = profileId || s.activeProfileId;
+    const norm = [...new Set((ids || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
+    const p = s.profiles.find((x) => x.id === id);
+    if (p) p.blockedGenres = norm;
+    s.blockedGenres = norm;
+    save(s);
+    return norm;
+  }
+
+  function toggleBlockedGenre(genreId, profileId) {
+    const cur = new Set(blockedGenres(profileId));
+    const id = String(genreId).trim().toLowerCase();
+    if (cur.has(id)) cur.delete(id);
+    else cur.add(id);
+    return setBlockedGenres([...cur], profileId);
+  }
+
+  const UI_SCALE_STEPS = [85, 100, 115, 130];
+
+  function uiScale() {
+    const s = load();
+    const v = Number(s.uiScalePercent) || 100;
+    return UI_SCALE_STEPS.reduce((best, step) =>
+      Math.abs(step - v) < Math.abs(best - v) ? step : best, 100);
+  }
+
+  function cycleUiScale() {
+    const s = load();
+    const cur = uiScale();
+    const next = UI_SCALE_STEPS[(UI_SCALE_STEPS.indexOf(cur) + 1) % UI_SCALE_STEPS.length];
+    s.uiScalePercent = next;
+    save(s);
+    return next;
+  }
+
   function streamCacheMap() {
     const s = load();
     if (!s.streamCache) s.streamCache = {};
@@ -402,6 +469,11 @@ window.VfProfiles = (() => {
     setNavLayout,
     libraryView,
     setLibraryView,
+    blockedGenres,
+    setBlockedGenres,
+    toggleBlockedGenre,
+    uiScale,
+    cycleUiScale,
     cacheStream,
     getCachedStream,
     clearCachedStream,

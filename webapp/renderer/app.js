@@ -107,6 +107,34 @@
     app.classList.toggle("lib-tiles", lib !== "cards");
   }
 
+  function applyUiScale() {
+    const pct = window.VfProfiles?.uiScale?.() || 100;
+    document.documentElement.style.setProperty("zoom", pct === 100 ? "" : `${pct / 100}`);
+  }
+
+  function renderCategoryChips() {
+    const host = $("categoryChips");
+    if (!host || !window.ContentGate) return;
+    const blocked = new Set(window.VfProfiles?.blockedGenres?.() || []);
+    host.innerHTML = "";
+    for (const g of window.ContentGate.GENRES) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const enabled = !blocked.has(g.id);
+      chip.className = "chip category-chip" + (enabled ? " active" : " off");
+      chip.textContent = g.label;
+      chip.title = enabled ? `${g.label} wird geladen` : `${g.label} ist ausgeblendet`;
+      chip.onclick = () => {
+        window.VfProfiles.toggleBlockedGenre(g.id);
+        renderCategoryChips();
+        refreshBrowseFromState();
+        const q = $("searchInput")?.value || "";
+        if (q) runSearch(q);
+      };
+      host.appendChild(chip);
+    }
+  }
+
   function paintSettingsToggles() {
     const navBtn = $("btnToggleNavLayout");
     if (navBtn) {
@@ -118,6 +146,11 @@
       const lib = window.VfProfiles?.libraryView?.() || "tiles";
       libBtn.textContent = lib === "cards" ? "Bibliothek: Cards" : "Bibliothek: Kacheln";
     }
+    const zoomBtn = $("btnToggleZoom");
+    if (zoomBtn) {
+      zoomBtn.textContent = `Zoom: ${window.VfProfiles?.uiScale?.() || 100}%`;
+    }
+    renderCategoryChips();
     paintLanguagePrefButton();
   }
 
@@ -651,8 +684,11 @@
   function renderRowsInto(host, rows) {
     if (!host) return;
     host.innerHTML = "";
+    const blocked = window.VfProfiles?.blockedGenres?.() || [];
     for (const g of rows) {
       if (!g.items?.length) continue;
+      g = { ...g, items: window.ContentGate ? window.ContentGate.filterList(g.items, blocked) : g.items };
+      if (!g.items.length) continue;
       const wrap = document.createElement("section");
       wrap.className = "shelf";
       wrap.innerHTML = `<div class="shelf-head"><h2 class="row-title">${escapeHtml(g.title)}</h2><span class="shelf-count">${g.items.length}</span></div>`;
@@ -704,21 +740,42 @@
     return ordered;
   }
 
-  function recommendForYou(catalog, seeds, excludeIds) {
+  function usefulGenres(genres) {
     const noise = new Set(["deutsch", "englisch", "german", "english"]);
-    const counts = {};
-    for (const s of seeds || []) {
-      for (const g of s.genres || []) {
-        const k = String(g).toLowerCase();
-        if (k.length < 3 || noise.has(k) || k.includes("demnächst") || k.includes("uhr")) continue;
-        counts[k] = (counts[k] || 0) + 1;
-      }
+    return new Set(
+      (genres || [])
+        .map((g) => String(g).toLowerCase().trim())
+        .filter((k) => k.length > 2 && !noise.has(k) && !k.includes("demnächst") && !k.includes("uhr")),
+    );
+  }
+
+  /** Seeds for „Weil du X geschaut hast" — recently actually watched titles. */
+  function becauseYouWatchedSeeds(indexById) {
+    const map = window.VfProfiles.progressMap();
+    const byId = new Map(indexById);
+    for (const f of window.VfProfiles.listFavorites()) {
+      if (!byId.has(f.id)) byId.set(f.id, f);
     }
-    if (!Object.keys(counts).length) return [];
+    return Object.values(map)
+      .filter((p) => p.completed || (p.positionMs || 0) > 30000)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      .map((p) => p.seriesId)
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .map((id) => byId.get(id))
+      .filter((s) => s && usefulGenres(s.genres).size > 0)
+      .slice(0, 2);
+  }
+
+  function becauseYouWatched(catalog, seed, excludeIds) {
+    const seedGenres = usefulGenres(seed.genres);
+    if (!seedGenres.size) return [];
+    const seedKind = seed.mediaKind === "movie" ? "movie" : "series";
     return (catalog || [])
-      .filter((s) => s?.id && !excludeIds.has(s.id))
+      .filter((s) => s?.id && s.id !== seed.id && !excludeIds.has(s.id))
+      .filter((s) => (s.mediaKind === "movie" ? "movie" : "series") === seedKind)
       .map((s) => {
-        const score = (s.genres || []).reduce((n, g) => n + (counts[String(g).toLowerCase()] || 0), 0);
+        let score = 0;
+        for (const g of usefulGenres(s.genres)) if (seedGenres.has(g)) score++;
         return { s, score };
       })
       .filter((x) => x.score > 0)
@@ -726,6 +783,12 @@
       .map((x) => x.s)
       .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
       .slice(0, 16);
+  }
+
+  function becauseYouWatchedTitle(seed) {
+    const name = String(seed.title || "diesen Titel").trim();
+    const short = name.length > 36 ? name.slice(0, 34).trimEnd() + "…" : name;
+    return `Weil du ${short} geschaut hast`;
   }
 
   function buildLibraryRows() {
@@ -749,10 +812,19 @@
         items: continueItems.map((s) => ({ series: s, _continue: s._continue })),
       });
     }
-    const seeds = [...seriesFavs, ...movieFavs];
-    const exclude = new Set([...seeds.map((s) => s.id), ...continueIdSet]);
-    const rec = recommendForYou(index, seeds, exclude);
-    if (rec.length) rows.push({ title: "Das gefällt dir bestimmt", items: rec });
+    // „Weil du X geschaut hast" — one local row per recently watched seed.
+    const exclude = new Set([
+      ...seriesFavs.map((s) => s.id),
+      ...movieFavs.map((s) => s.id),
+      ...continueIdSet,
+    ]);
+    const indexById = new Map(index.map((s) => [s.id, s]));
+    for (const seed of becauseYouWatchedSeeds(indexById)) {
+      const similar = becauseYouWatched(index, seed, exclude);
+      if (similar.length < 4) continue;
+      rows.push({ title: becauseYouWatchedTitle(seed), items: similar });
+      similar.forEach((s) => exclude.add(s.id));
+    }
     if (seriesFavs.length) rows.push({ title: "Meine Serien", items: seriesFavs });
     if (movieFavs.length) rows.push({ title: "Meine Filme", items: movieFavs });
     if (az.length >= 8) rows.push({ title: "A–Z", items: az });
@@ -773,11 +845,84 @@
 
   function buildMoviesBrowseRows() {
     const rows = [];
+    if (state.freshMovies?.length) {
+      rows.push({ title: "Neu erschienen", items: state.freshMovies });
+    }
     for (const shelf of state.moviesRows || []) rows.push(shelf);
     if (!rows.length && (state.movies || []).length) {
       rows.push({ title: "Browse", items: state.movies.slice(0, BROWSE_PAGE_SIZE) });
     }
     return rows;
+  }
+
+  // ---- "Neu erschienen": rank newest platform additions by REAL release year (TMDb) ----
+  // Built-in public scraper key — same Plex/Kodi model as the Fire TV app.
+  const TMDB_APP_KEY = "af3a53eb387d57fc935e9128468b1899";
+
+  function tmdbYearCache() {
+    try {
+      return JSON.parse(localStorage.getItem("vf_tmdb_years") || "{}");
+    } catch (_) {
+      return {};
+    }
+  }
+
+  async function movieReleaseYear(title) {
+    const key = String(title || "").trim().toLowerCase();
+    if (!key) return null;
+    const cache = tmdbYearCache();
+    if (key in cache) return cache[key];
+    let year = null;
+    try {
+      const url =
+        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_APP_KEY}` +
+        `&language=de-DE&query=${encodeURIComponent(key)}`;
+      const body = await getText(url);
+      const json = JSON.parse(body);
+      const hit = (json?.results || [])[0];
+      const date = hit?.release_date || "";
+      const y = parseInt(date.slice(0, 4), 10);
+      if (Number.isFinite(y) && y > 1900) year = y;
+    } catch (_) {}
+    cache[key] = year;
+    try {
+      localStorage.setItem("vf_tmdb_years", JSON.stringify(cache));
+    } catch (_) {}
+    return year;
+  }
+
+  let freshMoviesToken = 0;
+
+  /** Resolve real release years for the newest additions, keep current/last year. */
+  async function computeFreshMovies() {
+    const token = ++freshMoviesToken;
+    const candidates = (state.movies || []).slice(0, 44);
+    if (!candidates.length) return;
+    const nowYear = new Date().getFullYear();
+    const dated = [];
+    const queue = [...candidates];
+    const workers = Array.from({ length: 6 }, async () => {
+      while (queue.length) {
+        const movie = queue.shift();
+        const year = movie.year || (await movieReleaseYear(movie.title));
+        if (year != null) dated.push({ movie, year });
+      }
+    });
+    await Promise.all(workers);
+    if (token !== freshMoviesToken) return;
+    state.freshMovies = dated
+      .filter((x) => x.year >= nowYear - 1)
+      .sort(
+        (a, b) =>
+          b.year - a.year ||
+          candidates.findIndex((c) => c.id === a.movie.id) -
+            candidates.findIndex((c) => c.id === b.movie.id),
+      )
+      .map((x) => ({ ...x.movie, year: x.year }))
+      .slice(0, 16);
+    if (state.freshMovies.length && state.homeMode === "movies") {
+      renderRowsInto($("moviesRows"), buildMoviesBrowseRows());
+    }
   }
 
   /** Legacy combined builder — used when a caller still expects browse shelves. */
@@ -2221,6 +2366,7 @@
         renderRowsInto($("moviesRows"), buildMoviesBrowseRows());
       }
       setStatus($("moviesStatus"), `${movies.length} Filme`);
+      computeFreshMovies();
       refreshLibrary();
     } catch (e) {
       showSkeleton("movie", false);
@@ -2355,8 +2501,12 @@
       box.appendChild(st);
     }
     let any = false;
-    for (const sec of sections) {
+    const blocked = window.VfProfiles?.blockedGenres?.() || [];
+    for (let sec of sections) {
       if (!sec.items?.length) continue;
+      // Blocked categories never surface — not even via search (TV parity).
+      sec = { ...sec, items: window.ContentGate ? window.ContentGate.filterList(sec.items, blocked) : sec.items };
+      if (!sec.items.length) continue;
       any = true;
       const wrap = document.createElement("section");
       wrap.className = "shelf search-section";
@@ -2669,6 +2819,14 @@
       $("btnCheckUpdate").onclick = () => runUpdateCheck();
     }
 
+    if ($("btnToggleZoom")) {
+      $("btnToggleZoom").onclick = () => {
+        window.VfProfiles.cycleUiScale();
+        applyUiScale();
+        paintSettingsToggles();
+      };
+    }
+
     bindPlayerUi();
   }
 
@@ -2715,9 +2873,10 @@
     setTimeout(hideSplash, 1600);
   }
 
-  localStorage.setItem("vf_app_version", "1.9.2");
-  localStorage.setItem("vf_version_code", "39");
+  localStorage.setItem("vf_app_version", "1.12.0");
+  localStorage.setItem("vf_version_code", "44");
   applyChromePrefs();
+  applyUiScale();
   syncBaseUrlInputs();
   updateSearchPlaceholder();
   syncProfileChip();
