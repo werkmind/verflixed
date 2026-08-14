@@ -357,28 +357,25 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 binding.playerLoading.visibility = View.GONE
                 if (captchaMode) {
-                    // CF IUAM just cleared (or still interactive) — keep helpers running.
                     binding.resolveStatus.visibility = View.VISIBLE
                     binding.resolveStatus.text = getString(R.string.player_captcha_status)
                 }
                 if (!url.isNullOrBlank() && (StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url))) {
                     maybeClaimVoe(url)
                 }
-                // Always watch for Turnstile; also run darkryh-style challenge clicker.
+                // Always: hide SerienStream chrome, force gate UI, try VOE click, watch captcha.
+                view?.evaluateJavascript(GATE_MODE_JS, null)
                 view?.evaluateJavascript(CAPTCHA_WATCH_JS, null)
                 view?.evaluateJavascript(CF_CHALLENGE_CLICK_JS, null)
-                if (!captchaMode) {
-                    view?.evaluateJavascript(playerBootstrapJs(), null)
-                    view?.evaluateJavascript(IFRAME_VOE_WATCH_JS, null)
-                } else {
-                    view?.evaluateJavascript(CAPTCHA_FOCUS_JS, null)
-                }
+                view?.evaluateJavascript(CAPTCHA_FOCUS_JS, null)
+                view?.evaluateJavascript(playerBootstrapJs(), null)
+                view?.evaluateJavascript(IFRAME_VOE_WATCH_JS, null)
                 view?.evaluateJavascript(
                     "(function(){try{return document.documentElement.outerHTML;}catch(e){return '';}})();",
                 ) { htmlJson ->
                     val html = unescapeJsString(htmlJson)
                     if (looksLikeCaptchaHtml(html)) {
-                        handler.post { enterCaptchaMode() }
+                        handler.post { enterCaptchaMode(force = true) }
                     }
                     Regex(
                         """https?://[^"'\\\s<>]+\.m3u8[^"'\\\s<>]*""",
@@ -395,12 +392,13 @@ class PlayerActivity : AppCompatActivity() {
                         if (!fromHtml.isNullOrBlank()) maybeCaptureMedia(fromHtml)
                     }
                 }
-                if (!captchaMode && url != null && StreamKind.isEpisodeWatchPage(url)) {
+                if (url != null && StreamKind.isEpisodeWatchPage(url)) {
+                    // Soft retry; captchaMode no longer blocks this.
                     retryNativeClaimAfterCookies()
                 }
                 showModeBar(false)
                 handler.removeCallbacks(captchaPoll)
-                handler.postDelayed(captchaPoll, 800L)
+                handler.postDelayed(captchaPoll, 500L)
             }
 
             override fun onReceivedError(
@@ -458,23 +456,20 @@ class PlayerActivity : AppCompatActivity() {
                 exitCaptchaMode()
                 handOffToExoPlayer(hls, force = true)
             } else {
-                // Series only: VOE embed WebView claim. Movies never use WebView.
                 if (isMoviePlayback()) {
                     showPlayerError("[VF-302] Film-Hoster ohne direkten Stream – kein Web-Player.")
                     return@launch
                 }
                 voeClaimInFlight = null
-                if (!usingWebPlayer || binding.webPlayer.url?.let { StreamKind.isEpisodeWatchPage(it) } == true) {
-                    handler.post {
-                        if (handedOffToExo) return@post
-                        // Stay on episode page so Turnstile remains solvable; don't bounce to VOE top-level.
-                        if (captchaMode) {
-                            binding.resolveStatus.text = getString(R.string.player_captcha_status)
-                            return@post
-                        }
-                        binding.resolveStatus.text = "Stream vorbereiten…"
-                        playReferer = voeUrl
-                        startWebResolver(voeUrl, keepVisible = false)
+                handler.post {
+                    if (handedOffToExo) return@post
+                    // NEVER open VOE top-level (black player, no captcha). Stay on episode page.
+                    val page = playbackPageUrl()
+                    if (!page.isNullOrBlank()) {
+                        ensureEpisodeGatePage(page)
+                    } else {
+                        enterCaptchaMode(force = true)
+                        binding.webPlayer.evaluateJavascript(GATE_MODE_JS, null)
                     }
                 }
             }
@@ -484,7 +479,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun retryNativeClaimAfterCookies() {
         val ep = episode ?: return
         if (handedOffToExo) return
-        if (allowEmbeddedFallback && !captchaSolvedPending && !captchaMode) return
         lifecycleScope.launch {
             runCatching { CookieManager.getInstance().flush() }
             val url = runCatching {
@@ -549,13 +543,40 @@ class PlayerActivity : AppCompatActivity() {
                     if (!hls.isNullOrBlank()) {
                         startExoPlayer(hls, resumeMs)
                     } else {
-                        startWebResolver(url, keepVisible = false)
+                        // Prefer episode page (captcha lives there), never black VOE top-level.
+                        val page = playbackPageUrl()
+                        if (!page.isNullOrBlank()) {
+                            startWebResolver(page, keepVisible = true, forCaptcha = true)
+                        } else {
+                            showPlayerError("Stream-Gate nicht erreichbar (keine Episode-Seite).")
+                        }
                     }
                 }
             }
-            else -> startWebResolver(url, keepVisible = false)
+            else -> {
+                // Episode page / gate: open as captcha-first WebView, not a fake "video" player.
+                val page = if (StreamKind.isEpisodeWatchPage(url)) url else playbackPageUrl() ?: url
+                startWebResolver(page, keepVisible = true, forCaptcha = true)
+            }
         }
         handler.post(progressTick)
+    }
+
+    /** Keep WebView on the episode watch page and force the visible captcha gate UI. */
+    private fun ensureEpisodeGatePage(page: String) {
+        enterCaptchaMode(force = true)
+        val current = binding.webPlayer.url
+        val onEpisode = !current.isNullOrBlank() &&
+            current != "about:blank" &&
+            StreamKind.isEpisodeWatchPage(current)
+        if (!onEpisode) {
+            startWebResolver(page, keepVisible = true, forCaptcha = true)
+        } else {
+            binding.resolveStatus.text = getString(R.string.player_captcha_status)
+            binding.webPlayer.evaluateJavascript(GATE_MODE_JS, null)
+            binding.webPlayer.evaluateJavascript(CAPTCHA_FOCUS_JS, null)
+            binding.webPlayer.evaluateJavascript(playerBootstrapJs(), null)
+        }
     }
 
     private fun looksLikeSignedMedia(url: String): Boolean {
@@ -671,7 +692,17 @@ class PlayerActivity : AppCompatActivity() {
             showPlayerError("[VF-302] Kein Web-Player für Filme – nur direkter Stream.")
             return
         }
-        val target = normalizePlaybackUrl(url, episode)
+        // keepVisible retained for call-site clarity; captcha-first always shows the WebView.
+        @Suppress("UNUSED_PARAMETER")
+        val _keep = keepVisible
+        // Always prefer episode watch page — captcha lives there, not on VOE/black embeds.
+        val preferred = playbackPageUrl()
+        val target = when {
+            StreamKind.isVoePlayerUrl(url) || StreamKind.isVoeEmbedPath(url) || StreamKind.isPlayBlobUrl(url) ->
+                preferred ?: normalizePlaybackUrl(url, episode)
+            StreamKind.isEpisodeWatchPage(url) -> url
+            else -> preferred ?: normalizePlaybackUrl(url, episode)
+        }
         usingWebPlayer = true
         webChromeDismissed = false
         player?.release()
@@ -681,59 +712,48 @@ class PlayerActivity : AppCompatActivity() {
         binding.webPlayer.visibility = View.VISIBLE
         binding.webPlayer.isFocusable = true
         binding.webPlayer.isFocusableInTouchMode = true
-        binding.playerChrome.bringToFront()
-        binding.playerLoading.visibility = if (keepVisible || forCaptcha || captchaMode) {
-            View.GONE
-        } else {
-            View.VISIBLE
-        }
+        // Captcha-first: focus WebView immediately, hide spinner, show hint.
+        enterCaptchaMode(force = true)
+        binding.playerLoading.visibility = View.GONE
         binding.resolveStatus.visibility = View.VISIBLE
-        binding.resolveStatus.text = when {
-            forCaptcha || captchaMode -> getString(R.string.player_captcha_status)
-            keepVisible -> "Web-Player aktiv – Captcha ggf. mit OK bestätigen"
-            StreamKind.isVoePlayerUrl(target) || StreamKind.isVoeEmbedPath(target) ->
-                "VOE laden → m3u8 claimen…"
-            else -> "Episode laden → VOE/HLS claimen…"
-        }
+        binding.resolveStatus.text = getString(R.string.player_captcha_status)
         binding.nextEpisodeBanner.visibility = View.GONE
         hideError()
         showModeBar(false)
-        if (keepVisible) {
-            handedOffToExo = false
-        }
+        handedOffToExo = false
 
+        // Do NOT override User-Agent per-request (CF detects UA mismatch with WebView JS APIs).
         val headers = linkedMapOf(
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "User-Agent" to USER_AGENT,
         )
         val ref = playReferer ?: (application as VerflixedApp).container.prefs.activeBaseUrl()
         if (!ref.isNullOrBlank()) {
             headers["Referer"] = if (ref.endsWith("/")) ref else "$ref/"
         }
         try {
-            // Don't reload while the user is mid-captcha — that resets Turnstile forever.
             val current = binding.webPlayer.url
-            if (captchaMode && !current.isNullOrBlank() && current != "about:blank") {
+            if (!current.isNullOrBlank() && current != "about:blank" &&
+                StreamKind.isEpisodeWatchPage(current) &&
+                (current == target || StreamKind.isEpisodeWatchPage(target))
+            ) {
+                binding.webPlayer.evaluateJavascript(GATE_MODE_JS, null)
                 binding.webPlayer.evaluateJavascript(CAPTCHA_FOCUS_JS, null)
+                binding.webPlayer.evaluateJavascript(playerBootstrapJs(), null)
             } else if (current == target && !forCaptcha) {
                 binding.webPlayer.reload()
-            } else if (current != target) {
+            } else {
                 binding.webPlayer.loadUrl(target, headers)
             }
         } catch (t: Throwable) {
             showPlayerError("[VF-303] ${t.message}")
         }
 
-        if (!keepVisible && !forCaptcha && !captchaMode) {
-            handler.removeCallbacks(resolveTimeout)
-            handler.postDelayed(resolveTimeout, 45_000L)
-        } else {
-            handler.removeCallbacks(resolveTimeout)
-        }
+        handler.removeCallbacks(resolveTimeout)
+        // Longer window: user must see & solve captcha; never destructive reload.
+        handler.postDelayed(resolveTimeout, 120_000L)
         handler.removeCallbacks(captchaPoll)
-        handler.postDelayed(captchaPoll, 600L)
+        handler.postDelayed(captchaPoll, 400L)
 
-        // Mark in-progress so continue-watching works even if HLS claim fails.
         episode?.let { ep ->
             lifecycleScope.launch {
                 runCatching {
@@ -1001,6 +1021,7 @@ class PlayerActivity : AppCompatActivity() {
         (binding.playerChrome as? android.view.ViewGroup)?.descendantFocusability =
             android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
         focusWebPlayerForCaptcha()
+        binding.webPlayer.evaluateJavascript(GATE_MODE_JS, null)
         binding.webPlayer.evaluateJavascript(CAPTCHA_FOCUS_JS, null)
     }
 
@@ -1064,24 +1085,28 @@ class PlayerActivity : AppCompatActivity() {
         return """
 (function(){
   try {
-    if (window.__vfCaptchaLock) return;
+    function tokenOk(){
+      var t=document.querySelector('[name="cf-turnstile-response"]');
+      return !!(t && t.value && String(t.value).length>10);
+    }
     function hasCaptcha(){
       try {
-        var token=document.querySelector('[name="cf-turnstile-response"]');
-        if (token && token.value && token.value.length>10) return false;
-        return !!(document.querySelector('.cf-turnstile, #player-prepare-turnstile, #playerPrepareModal, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]'));
+        if (tokenOk()) return false;
+        return !!(document.querySelector('.cf-turnstile, #player-prepare-turnstile, #playerPrepareModal.show, #playerPrepareModal.in, #playerPrepareModal[style*="display: block"], #playerPrepareModal[style*="display:block"], #playerPrepareModal:not([aria-hidden="true"]), iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]'));
       } catch(e){ return false; }
     }
-    if (hasCaptcha()) {
-      window.__vfCaptchaLock = true;
+    function notifyNeed(){
       try { if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('need'); } catch(e){}
+    }
+    if (tokenOk()) {
+      try { if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('solved'); } catch(e){}
+      return;
+    }
+    if (hasCaptcha()) {
+      notifyNeed();
       return;
     }
     var preferDe = ${if (preferDe) "true" else "false"};
-    var hide = ['.ads','.ad-banner','#cookie-consent','.cookie-consent','.cc-window','.fc-consent-root','.navbar','.top-nav'];
-    hide.forEach(function(s){
-      document.querySelectorAll(s).forEach(function(n){ try { n.style.display='none'; } catch(e){} });
-    });
 
     function langScore(l){
       l = (l||'').toLowerCase();
@@ -1098,10 +1123,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     function clickVoe(){
-      if (hasCaptcha()) {
-        try { if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('need'); } catch(e){}
-        return false;
-      }
+      if (tokenOk()) return false;
+      if (hasCaptcha()) { notifyNeed(); return false; }
       var buttons = Array.prototype.slice.call(document.querySelectorAll(
         'button.link-box, .link-box, [data-play-url], [data-provider-name], a[data-play-url], .hosterSiteVideoButton'
       ));
@@ -1126,6 +1149,10 @@ class PlayerActivity : AppCompatActivity() {
         .sort(function(a,b){ return b.score - a.score; });
       if (scored.length) {
         try { scored[0].b.focus(); scored[0].b.click(); } catch(e) {}
+        // Captcha modal usually appears after hoster click — force UI next ticks.
+        setTimeout(function(){ if (hasCaptcha()) notifyNeed(); }, 400);
+        setTimeout(function(){ if (hasCaptcha()) notifyNeed(); }, 1200);
+        setTimeout(function(){ if (hasCaptcha()) notifyNeed(); }, 2500);
         return true;
       }
       var play = document.querySelector('.hosterSiteVideo .play, .play-button, button[data-play-url], .vjs-big-play-button, button.play');
@@ -1139,7 +1166,7 @@ class PlayerActivity : AppCompatActivity() {
     setTimeout(clickVoe, 3600);
 
     function focusFrame(){
-      if (hasCaptcha()) return;
+      if (hasCaptcha()) { notifyNeed(); return; }
       var frame = document.getElementById('player-iframe') || document.querySelector('iframe[src*="/r?t="], iframe[src*="voe"], iframe[src*="/e/"], iframe');
       if (!frame) return;
       try { frame.scrollIntoView({block:'center'}); } catch(e) {}
@@ -1147,15 +1174,6 @@ class PlayerActivity : AppCompatActivity() {
         var src = frame.src || '';
         if (src && window.AndroidBridge && AndroidBridge.onVoeUrl) {
           if (/voe|\/e\//i.test(src)) AndroidBridge.onVoeUrl(src);
-        }
-        var doc = frame.contentDocument || frame.contentWindow.document;
-        if (doc) {
-          var v = doc.querySelector('video');
-          if (v) { try { v.muted = true; v.play(); } catch(e) {}
-            if (v.currentSrc && AndroidBridge.onMediaUrl) AndroidBridge.onMediaUrl(v.currentSrc);
-          }
-          var pb = doc.querySelector('.vjs-big-play-button, button.play, .play-button');
-          if (pb) { try { pb.click(); } catch(e) {} }
         }
       } catch(e) {}
     }
@@ -1593,32 +1611,85 @@ class PlayerActivity : AppCompatActivity() {
 })();
 """
 
+        /**
+         * Hide SerienStream site chrome; leave a black stage so only the captcha/gate is visible.
+         * Without this the user only sees the episode page and never finds the Turnstile.
+         */
+        private const val GATE_MODE_JS = """
+(function(){
+  try {
+    if (document.getElementById('vf-gate-css')) return;
+    var style=document.createElement('style');
+    style.id='vf-gate-css';
+    style.textContent=[
+      'html,body{background:#000!important;overflow:hidden!important;}',
+      'nav,.navbar,.top-nav,.sidebar,.footer,footer,header,.breadcrumb,.seriesBanner,',
+      '.hosterSiteTitle,.hosterSiteDescription,.hosterSiteVideo + *,',
+      '#footer,.ads,.ad-banner,#cookie-consent,.cookie-consent,.cc-window,',
+      '.fc-consent-root,.alert,.news,.comments,#comments,.row.mt-5,',
+      '.col-md-4,.spin-container,.cf-turnstile-response{display:none!important;}',
+      /* Keep player / gate host visible */
+      '.hosterSiteVideo,.hosterSiteVideo *,#player,#player-container,.player-wrap,',
+      '#playerPrepareModal,#playerPrepareModal *,.cf-turnstile,#player-prepare-turnstile,',
+      'iframe[src*="challenges.cloudflare"],iframe[src*="turnstile"]{',
+      '  display:block!important; visibility:visible!important; opacity:1!important;',
+      '  pointer-events:auto!important;',
+      '}',
+      '#playerPrepareModal, .player-prepare-modal, .modal.show, .modal.in {',
+      '  display:flex!important; align-items:center!important; justify-content:center!important;',
+      '  position:fixed!important; inset:0!important; z-index:2147483646!important;',
+      '  background:rgba(0,0,0,.92)!important; margin:0!important; padding:24px!important;',
+      '  max-width:none!important; width:100%!important; height:100%!important;',
+      '}',
+      '#playerPrepareModal .modal-dialog, #playerPrepareModal .modal-content {',
+      '  margin:auto!important; max-width:92vw!important; background:#111!important;',
+      '  color:#fff!important; border:0!important; box-shadow:none!important;',
+      '}',
+      '.cf-turnstile, #player-prepare-turnstile, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"] {',
+      '  transform:scale(1.45)!important; transform-origin:center center!important;',
+      '  margin:28px auto!important;',
+      '}'
+    ].join('');
+    document.documentElement.appendChild(style);
+    // Observe late-injected Turnstile / prepare modal
+    try {
+      if (!window.__vfGateObs) {
+        window.__vfGateObs = new MutationObserver(function(){
+          var modal=document.getElementById('playerPrepareModal') ||
+            document.querySelector('.cf-turnstile, #player-prepare-turnstile, iframe[src*="challenges.cloudflare"]');
+          if (modal && window.AndroidBridge && AndroidBridge.onCaptcha) {
+            AndroidBridge.onCaptcha('need');
+          }
+        });
+        window.__vfGateObs.observe(document.documentElement,{subtree:true,childList:true,attributes:true});
+      }
+    } catch(e) {}
+  } catch(e) {}
+})();
+"""
+
         /** Enlarge/center captcha UI and focus the Turnstile iframe for TV D-pad. */
         private const val CAPTCHA_FOCUS_JS = """
 (function(){
   try {
-    var style=document.getElementById('vf-captcha-tv');
-    if (!style) {
-      style=document.createElement('style');
-      style.id='vf-captcha-tv';
-      style.textContent=[
-        '#playerPrepareModal, .player-prepare-modal, .modal.show {',
-        '  display:flex!important; align-items:center!important; justify-content:center!important;',
-        '  z-index:2147483000!important; position:fixed!important; inset:0!important;',
-        '  background:rgba(0,0,0,.72)!important; pointer-events:auto!important;',
-        '}',
-        '#playerPrepareModal *, .cf-turnstile, #player-prepare-turnstile {',
-        '  pointer-events:auto!important;',
-        '}',
-        '.cf-turnstile, #player-prepare-turnstile, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"] {',
-        '  transform:scale(1.35)!important; transform-origin:center center!important;',
-        '  margin:24px auto!important;',
-        '}'
-      ].join('');
-      document.documentElement.appendChild(style);
+    // Ensure gate CSS is present
+    if (!document.getElementById('vf-gate-css') && window.__vfNeedGate !== false) {
+      /* GATE_MODE_JS is injected separately */
     }
-    var modal=document.getElementById('playerPrepareModal') || document.querySelector('.cf-turnstile, #player-prepare-turnstile');
-    if (modal) { try { modal.scrollIntoView({block:'center'}); } catch(e){} }
+    var modal=document.getElementById('playerPrepareModal') ||
+      document.querySelector('.player-prepare-modal, .modal.show, .cf-turnstile, #player-prepare-turnstile');
+    if (modal) {
+      try {
+        modal.style.display='flex';
+        modal.style.visibility='visible';
+        modal.style.opacity='1';
+        modal.classList.add('show');
+        modal.classList.remove('hidden','fade');
+        modal.removeAttribute('aria-hidden');
+        modal.scrollIntoView({block:'center'});
+      } catch(e){}
+      if (window.AndroidBridge && AndroidBridge.onCaptcha) AndroidBridge.onCaptcha('need');
+    }
     var frame=document.querySelector('#player-prepare-turnstile iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]');
     if (frame) {
       try { frame.setAttribute('tabindex','0'); frame.focus(); } catch(e){}

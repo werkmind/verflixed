@@ -1,9 +1,13 @@
 # Third-party notices
 
-## Cloudflare-Bypass (darkryh)
-- Source: https://github.com/darkryh/Cloudflare-Bypass
-- License: MIT
-- Used as `BypassClient` WebViewClient base for classic Cloudflare IUAM /
-  “Just a moment…” challenge pages in the Fire TV player.
-- In-page Turnstile (SerienStream player prepare modal) is additionally handled
-  by Verflixed captcha-mode helpers (focus / OK / no reload).
+## Cloudflare Turnstile “bypass” repos
+
+Most repos under https://github.com/topics/cloudflare-turnstile-bypass are
+**Python / Playwright / paid solver APIs**. They do **not** run inside a Fire TV
+WebView and are not integrated.
+
+Verflixed instead:
+
+1. Uses [darkryh/Cloudflare-Bypass](https://github.com/darkryh/Cloudflare-Bypass) for classic CF IUAM pages.
+2. Forces a **captcha-first gate UI** on the episode page (hide SerienStream chrome,
+   never open black VOE top-level) so Turnstile is actually visible and solvable with OK.

@@ -1,8 +1,8 @@
 {
-  "versionCode": 33,
-  "versionName": "1.7.7",
+  "versionCode": 34,
+  "versionName": "1.7.8",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "b54a59f6052a69b1d7e200893f2cf3be84293f97c1254e63c7ead1048b8cbd81",
-  "changelog": "1.7.7: darkryh Cloudflare-Bypass WebViewClient + TV Captcha-Modus (IUAM auto-click + Turnstile OK)"
+  "sha256": "8d039adc7eb10852820b7a911e5eea4305ec1006dfef788a6a02e62d8c9d8817",
+  "changelog": "1.7.8: Captcha-first Gate (kein schwarzer VOE/SerienStream-Müll); Turnstile sichtbar + OK"
 }
