@@ -25,7 +25,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -274,23 +276,31 @@ class CatalogRepository(
                     posterUrl = fav.posterUrl
                 )
         }
-        val continueIdsOrdered = db.watch().all(pid())
+        val allProgress = db.watch().all(pid())
+        val progressBySeries = allProgress
+            .filter { !it.completed && it.positionMs > 5_000 && it.durationMs > 0 }
+            .sortedByDescending { it.updatedAt }
+            .associate { it.seriesId to (it.positionMs.toFloat() / it.durationMs).coerceIn(0.04f, 0.98f) }
+        val continueIdsOrdered = allProgress
             .filter { !it.completed && it.positionMs > 5_000 }
             .sortedByDescending { it.updatedAt }
             .map { it.seriesId }
             .distinct()
+        fun withBar(s: Series) = s.copy(progressFraction = progressBySeries[s.id] ?: s.progressFraction)
         val continueWatching = continueIdsOrdered.mapNotNull { id ->
-            favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id }
+            (favorites.find { it.id == id } ?: catalog?.series?.find { it.id == id })?.let(::withBar)
         }
         // One big library: all favorites (and continue items that aren't favs), no redundant Favoriten row
         val continueIdSet = continueWatching.map { it.id }.toSet()
         // Favorites only in library shelves — do NOT re-merge continue items (avoids duplicates).
         val seriesFavs = favorites.filter { it.mediaKind != "movie" }
             .sortedBy { it.title.lowercase() }
+            .map(::withBar)
         val movieFavs = favorites.filter { it.mediaKind == "movie" }
             .sortedBy { it.title.lowercase() }
+            .map(::withBar)
 
-        val recentlyWatched = db.watch().all(pid())
+        val recentlyWatched = allProgress
             .filter { it.completed }
             .sortedByDescending { it.updatedAt }
             .map { it.seriesId }
@@ -350,6 +360,12 @@ class CatalogRepository(
             if (continueWatching.isNotEmpty()) {
                 add(HomeRow("Weiterschauen", continueWatching.take(8)))
             }
+            val recommended = recommendForYou(
+                catalog = catalog?.series.orEmpty(),
+                seeds = favorites,
+                excludeIds = (favorites.map { it.id } + continueIdSet).toSet(),
+            )
+            if (recommended.isNotEmpty()) add(HomeRow("Das gefällt dir bestimmt", recommended))
             if (seriesFavs.isNotEmpty()) add(HomeRow("Meine Serien", seriesFavs))
             if (movieFavs.isNotEmpty()) add(HomeRow("Meine Filme", movieFavs))
             // A–Z combined once (no duplicate of Meine Serien/Filme items beyond the dedicated shelves)
@@ -1418,17 +1434,29 @@ class CatalogRepository(
         val resolvedById = LinkedHashMap<String, Episode>()
         all.forEach { resolvedById[it.id] = it }
 
-        for (ep in targets) {
-            if (ep.upcoming) continue
-            val label = "S${ep.seasonNumber}E${ep.number}"
-            onProgress(FavoriteCacheProgress(seriesId, cached, total, "caching", label))
-            val url = runCatching { resolveStream(ep) }.getOrNull()
-            if (!url.isNullOrBlank() && StreamKind.isDirectMediaUrl(url)) {
-                cached++
-                resolvedById[ep.id] = ep.copy(streamUrl = url)
-            } else if (!url.isNullOrBlank()) {
-                resolvedById[ep.id] = ep.copy(streamUrl = url)
-            }
+        val gate = Semaphore(3)
+        val lock = Mutex()
+        coroutineScope {
+            targets.map { ep ->
+                async {
+                    if (ep.upcoming) return@async
+                    val label = "S${ep.seasonNumber}E${ep.number}"
+                    lock.withLock {
+                        onProgress(FavoriteCacheProgress(seriesId, cached, total, "caching", label))
+                    }
+                    val url = gate.withPermit {
+                        runCatching { resolveStream(ep) }.getOrNull()
+                    }
+                    lock.withLock {
+                        if (!url.isNullOrBlank() && StreamKind.isDirectMediaUrl(url)) {
+                            cached++
+                            resolvedById[ep.id] = ep.copy(streamUrl = url)
+                        } else if (!url.isNullOrBlank()) {
+                            resolvedById[ep.id] = ep.copy(streamUrl = url)
+                        }
+                    }
+                }
+            }.awaitAll()
         }
 
         val bySeason = resolvedById.values.groupBy { it.seasonNumber }
@@ -1518,6 +1546,42 @@ class CatalogRepository(
     /** Episode IDs that already have a stream URL cached for the active profile. */
     suspend fun cachedEpisodeIds(seriesId: String): Set<String> = withContext(Dispatchers.IO) {
         db.streams().forSeries(pid(), seriesId).map { it.episodeId }.toSet()
+    }
+
+    suspend fun clearSeriesStreamCache(seriesId: String) = withContext(Dispatchers.IO) {
+        db.streams().deleteSeries(pid(), seriesId)
+        val fav = db.favorites().get(pid(), seriesId) ?: return@withContext
+        db.favorites().upsert(
+            fav.copy(streamsCached = 0, cacheStatus = "idle")
+        )
+    }
+
+    private fun recommendForYou(
+        catalog: List<Series>,
+        seeds: List<Series>,
+        excludeIds: Set<String>,
+    ): List<Series> {
+        if (seeds.isEmpty() || catalog.isEmpty()) return emptyList()
+        val noise = setOf("deutsch", "englisch", "german", "english")
+        val seedGenres = seeds.flatMap { it.genres }
+            .map { it.lowercase() }
+            .filter { it !in noise && it.length > 2 && !it.contains("demnächst") && !it.contains("uhr") }
+            .groupingBy { it }
+            .eachCount()
+        if (seedGenres.isEmpty()) return emptyList()
+        return catalog
+            .asSequence()
+            .filter { it.id !in excludeIds }
+            .map { s ->
+                val score = s.genres.sumOf { g -> seedGenres[g.lowercase()] ?: 0 }
+                s to score
+            }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .distinctBy { it.id }
+            .take(16)
+            .toList()
     }
 
     suspend fun saveProgress(

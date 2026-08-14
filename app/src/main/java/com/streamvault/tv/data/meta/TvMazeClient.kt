@@ -142,6 +142,7 @@ class TvMazeClient(
             // Prefer landscape/original art for 16:9 tiles when site backdrop missing.
             backdropUrl = series.backdropUrl ?: backdrop,
             year = series.year ?: show.premiered?.take(4)?.toIntOrNull(),
+            imdbId = series.imdbId ?: show.externals?.imdb?.takeIf { it.startsWith("tt") },
             seasons = seasons
         )
     }
@@ -233,7 +234,14 @@ data class TvMazeShow(
     val name: String? = null,
     val summary: String? = null,
     val premiered: String? = null,
-    val image: TvMazeImage? = null
+    val image: TvMazeImage? = null,
+    val externals: TvMazeExternals? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class TvMazeExternals(
+    val imdb: String? = null,
+    val thetvdb: Int? = null,
 )
 
 @JsonClass(generateAdapter = true)

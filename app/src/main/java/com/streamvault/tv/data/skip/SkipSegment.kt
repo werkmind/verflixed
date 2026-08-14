@@ -9,7 +9,7 @@ data class SkipSegment(
     val endMs: Long,
     val source: String,
 ) {
-    enum class Type { INTRO, RECAP, CREDITS }
+    enum class Type { INTRO, RECAP, CREDITS, PREVIEW }
 
     fun contains(positionMs: Long): Boolean =
         positionMs in startMs until endMs.coerceAtLeast(startMs + 1)
@@ -19,6 +19,7 @@ data class SkipSegment(
             Type.INTRO -> "Intro überspringen"
             Type.RECAP -> "Rückblick überspringen"
             Type.CREDITS -> "Abspann überspringen"
+            Type.PREVIEW -> "Vorschau überspringen"
         }
 }
 

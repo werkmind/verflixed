@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/sv_bg"
-    android:clipChildren="false">
+    android:clipChildren="true"
+    android:clipToPadding="true">
 
     <ImageView
         android:id="@+id/backdrop"
@@ -14,8 +15,8 @@
         android:contentDescription="@null"
         android:scaleType="centerCrop"
         android:src="@drawable/poster_placeholder"
+        app:layout_constraintBottom_toBottomOf="@id/heroBarrier"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_percent="0.42"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -39,10 +40,10 @@
 
     <ImageView
         android:id="@+id/poster"
-        android:layout_width="112dp"
-        android:layout_height="160dp"
+        android:layout_width="128dp"
+        android:layout_height="192dp"
         android:layout_marginStart="40dp"
-        android:layout_marginTop="36dp"
+        android:layout_marginTop="28dp"
         android:adjustViewBounds="false"
         android:background="@drawable/bg_poster_card"
         android:contentDescription="@null"
@@ -120,16 +121,17 @@
             android:clipToPadding="false"
             android:orientation="horizontal"
             android:paddingTop="4dp"
-            android:paddingBottom="4dp"
-            android:paddingEnd="8dp">
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
 
             <Button
                 android:id="@+id/btnPlay"
                 style="@style/SvButton.Primary"
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"
-                android:minHeight="38dp"
                 android:minWidth="124dp"
+                android:minHeight="38dp"
+                android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusRight="@id/btnFavorite"
                 android:text="@string/detail_play" />
 
@@ -140,6 +142,7 @@
                 android:layout_height="38dp"
                 android:layout_marginStart="10dp"
                 android:minHeight="38dp"
+                android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnPlay"
                 android:nextFocusRight="@id/btnSeasonWatched"
                 android:text="@string/detail_favorite_add" />
@@ -151,6 +154,7 @@
                 android:layout_height="38dp"
                 android:layout_marginStart="10dp"
                 android:minHeight="38dp"
+                android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnFavorite"
                 android:nextFocusRight="@id/btnMore"
                 android:text="@string/detail_mark_season_watched" />
@@ -161,8 +165,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"
                 android:layout_marginStart="10dp"
-                android:minHeight="38dp"
                 android:minWidth="72dp"
+                android:minHeight="38dp"
+                android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnSeasonWatched"
                 android:nextFocusRight="@id/btnMore"
                 android:text="DE"
@@ -174,13 +179,21 @@
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"
                 android:layout_marginStart="10dp"
-                android:minHeight="38dp"
                 android:minWidth="48dp"
+                android:minHeight="38dp"
+                android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnSeasonWatched"
                 android:text="@string/detail_more_menu"
                 android:contentDescription="@string/detail_more_menu_cd" />
         </LinearLayout>
     </HorizontalScrollView>
+
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/heroBarrier"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="poster,actionsScroll" />
 
     <TextView
         android:id="@+id/cacheStatus"
@@ -194,7 +207,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/backdrop" />
+        app:layout_constraintTop_toBottomOf="@id/heroBarrier" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/seasonTabs"
@@ -204,6 +217,9 @@
         android:layout_marginTop="8dp"
         android:layout_marginEnd="40dp"
         android:clipToPadding="false"
+        android:descendantFocusability="afterDescendants"
+        android:nextFocusDown="@id/episodeList"
+        android:nextFocusUp="@id/btnPlay"
         android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -214,10 +230,13 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginStart="40dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:layout_marginEnd="40dp"
-        android:clipToPadding="false"
-        android:paddingBottom="20dp"
+        android:clipChildren="true"
+        android:clipToPadding="true"
+        android:descendantFocusability="afterDescendants"
+        android:nextFocusUp="@id/seasonTabs"
+        android:paddingBottom="56dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

@@ -16,6 +16,7 @@ import com.streamvault.tv.data.meta.TvMazeClient
 import com.streamvault.tv.data.prefs.UserPrefs
 import com.streamvault.tv.data.profile.ProfileRepository
 import com.streamvault.tv.data.skip.AniSkipClient
+import com.streamvault.tv.data.skip.CrowdSkipClient
 import com.streamvault.tv.data.skip.SkipMarksStore
 import com.streamvault.tv.data.tmdb.TmdbClient
 import com.streamvault.tv.data.update.UpdateChecker
@@ -60,6 +61,7 @@ class AppContainer(context: Context) {
     val tmdb = TmdbClient(http, moshi, prefs)
     val tvMaze = TvMazeClient(http, moshi)
     val aniSkip = AniSkipClient(http, moshi, skipMarks)
+    val crowdSkip = CrowdSkipClient(http)
     val calendar = CalendarClient(http, prefs, moshi)
     val profiles = ProfileRepository(db, prefs)
     val updates = UpdateChecker(http, moshi, prefs)

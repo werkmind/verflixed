@@ -12,6 +12,8 @@ data class Series(
     val overview: String? = null,
     val year: Int? = null,
     val tmdbId: Int? = null,
+    /** IMDb id (tt…) when known — SkipDB / TheIntroDB. */
+    val imdbId: String? = null,
     /** MyAnimeList id when known (AniSkip). */
     val malId: Int? = null,
     val detailPath: String? = null,
@@ -23,6 +25,8 @@ data class Series(
     val availableLanguages: List<String> = emptyList(),
     /** Map language code → detail/stream page URL (movies: separate Filmpalast pages). */
     val languagePages: Map<String, String> = emptyMap(),
+    /** 0–1 watch progress for home/detail cards (not persisted). */
+    val progressFraction: Float? = null,
 ) {
     val isMovie: Boolean get() = mediaKind == "movie"
 

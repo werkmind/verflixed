@@ -48,10 +48,10 @@ class SkipMarksStore(context: Context) {
         seasonNumber: Int,
         episodeNumber: Int,
         durationMs: Long,
-        aniskip: List<SkipSegment>,
+        crowd: List<SkipSegment>,
     ): EpisodeSkipPlan {
-        val ed = aniskip.filter { it.type == SkipSegment.Type.CREDITS }.minByOrNull { it.startMs }
-        val hasIntroMeta = aniskip.any { it.type == SkipSegment.Type.INTRO }
+        val ed = crowd.filter { it.type == SkipSegment.Type.CREDITS }.minByOrNull { it.startMs }
+        val hasIntroMeta = crowd.any { it.type == SkipSegment.Type.INTRO }
         val learnedCredits = creditsLeadMs(seriesId)
         val learnedIntro = introEndMs(seriesId)
         val heuristicCredits = heuristicLeadMs(durationMs)
@@ -61,7 +61,7 @@ class SkipMarksStore(context: Context) {
             learnedCredits != null -> learnedCredits
             else -> heuristicCredits
         }
-        val segments = aniskip.toMutableList()
+        val segments = crowd.toMutableList()
 
         if (!hasIntroMeta) {
             val introEnd = learnedIntro ?: heuristicIntroEndMs(durationMs, episodeNumber)
@@ -132,7 +132,7 @@ class SkipMarksStore(context: Context) {
             .put("malId", rememberedMalId(seriesId))
 
     private fun quality(source: String): Int = when (source) {
-        "aniskip" -> 3
+        "aniskip", "theintrodb", "skipdb" -> 3
         "learned" -> 2
         else -> 1
     }

@@ -1299,8 +1299,8 @@ class PlayerActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val app = application as VerflixedApp
             val absEp = absoluteEpisodeNumber(s, ep)
-            val aniskip = withContext(Dispatchers.IO) {
-                runCatching {
+            val crowd = withContext(Dispatchers.IO) {
+                val ani = runCatching {
                     app.container.aniSkip.skipSegments(
                         series = s,
                         episodeNumber = ep.number,
@@ -1308,6 +1308,15 @@ class PlayerActivity : AppCompatActivity() {
                         absoluteEpisodeNumber = absEp,
                     )
                 }.getOrDefault(emptyList())
+                val db = runCatching {
+                    app.container.crowdSkip.skipSegments(
+                        series = s,
+                        seasonNumber = ep.seasonNumber,
+                        episodeNumber = ep.number,
+                        durationMs = dur,
+                    )
+                }.getOrDefault(emptyList())
+                ani + db
             }
             // Persist MAL id on in-memory series for this session when resolved.
             val mal = withContext(Dispatchers.IO) {
@@ -1322,7 +1331,7 @@ class PlayerActivity : AppCompatActivity() {
                 seasonNumber = ep.seasonNumber,
                 episodeNumber = ep.number,
                 durationMs = dur,
-                aniskip = aniskip,
+                crowd = crowd,
             )
             skipPlan = plan
         }
@@ -1380,7 +1389,7 @@ class PlayerActivity : AppCompatActivity() {
         dismissedSkipTypes += seg.type
         hideSkipSegment()
         // Learn intro length from where the user skipped (works for heuristic + AniSkip).
-        if (s != null && (seg.type == SkipSegment.Type.INTRO || seg.type == SkipSegment.Type.RECAP)) {
+        if (s != null && (seg.type == SkipSegment.Type.INTRO || seg.type == SkipSegment.Type.RECAP || seg.type == SkipSegment.Type.PREVIEW)) {
             val end = seg.endMs.coerceAtLeast(p.currentPosition)
             if (end in 8_000L..240_000L) {
                 (application as VerflixedApp).container.skipMarks.recordIntroEnd(s.id, end)

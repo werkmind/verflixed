@@ -68,6 +68,10 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.seasonTabs.adapter = seasonAdapter
         binding.episodeList.layoutManager = LinearLayoutManager(this)
         binding.episodeList.adapter = episodeAdapter
+        binding.episodeList.itemAnimator = null
+        binding.episodeList.setHasFixedSize(true)
+        binding.episodeList.isFocusable = false
+        binding.seasonTabs.itemAnimator = null
         listOf(
             binding.btnPlay,
             binding.btnFavorite,
@@ -128,7 +132,9 @@ class SeriesDetailActivity : AppCompatActivity() {
                 bindSeries(s, fav)
                 renderCacheStatus(cache?.cached ?: 0, cache?.total ?: s.flatEpisodes().size, cache?.status)
                 refreshReadyDots(s.id)
-                startBackgroundStreamWarmup(s)
+                if (fav && cache?.status != "ready") {
+                    startBackgroundStreamWarmup(s)
+                }
             }.onFailure {
                 binding.progress.visibility = View.GONE
                 Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
@@ -168,6 +174,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                 append("  •  $watched gesehen")
             }
         }
+        binding.overview.maxLines = if (s.isMovie) 6 else 3
         binding.overview.text = s.overview ?: "Keine Beschreibung verfügbar."
         PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false)
         PosterLoader.loadHero(binding.backdrop, s.backdropUrl ?: s.posterUrl, browseMode = false)
@@ -186,13 +193,16 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         if (s.isMovie) {
             binding.seasonTabs.visibility = View.GONE
-            binding.btnSeasonWatched.visibility = View.GONE
+            binding.episodeList.visibility = View.GONE
+            binding.btnSeasonWatched.visibility = View.VISIBLE
+            val movieEp = s.flatEpisodes().firstOrNull()
+            val seen = movieEp?.let { progressMap[it.id]?.completed == true } == true
+            binding.btnSeasonWatched.text = if (seen) "Als ungesehen" else "Als gesehen"
             selectedSeason = 1
             seasonAdapter.submit(emptyList(), 1)
-            // Single synthetic episode — keep list visible for play/watched toggle
-            renderEpisodes()
         } else {
             binding.seasonTabs.visibility = View.VISIBLE
+            binding.episodeList.visibility = View.VISIBLE
             val seasons = s.seasons.map { it.number }.ifEmpty { listOf(1) }
             selectedSeason = continueEp?.seasonNumber ?: seasons.first()
             seasonAdapter.submit(seasons, selectedSeason)
@@ -201,7 +211,10 @@ class SeriesDetailActivity : AppCompatActivity() {
             updateSeasonWatchedButton()
         }
         refreshAvailableLanguages(s)
-        binding.btnPlay.requestFocus()
+        wireActionFocusChain()
+        if (binding.episodeList.findFocus() == null && binding.seasonTabs.findFocus() == null) {
+            binding.btnPlay.requestFocus()
+        }
     }
 
     private fun refreshAvailableLanguages(s: Series) {
@@ -258,6 +271,16 @@ class SeriesDetailActivity : AppCompatActivity() {
             if (langVisible) R.id.btnLanguage else R.id.btnMore
         binding.btnMore.nextFocusLeftId =
             if (langVisible) R.id.btnLanguage else R.id.btnSeasonWatched
+        val down = if (series?.isMovie == true) View.NO_ID else {
+            if (binding.seasonTabs.visibility == View.VISIBLE) R.id.seasonTabs else R.id.episodeList
+        }
+        listOf(
+            binding.btnPlay,
+            binding.btnFavorite,
+            binding.btnSeasonWatched,
+            binding.btnLanguage,
+            binding.btnMore,
+        ).forEach { it.nextFocusDownId = down }
     }
 
     private fun paintLanguageButton() {
@@ -317,6 +340,11 @@ class SeriesDetailActivity : AppCompatActivity() {
 
     private fun toggleSeasonWatched() {
         val s = series ?: return
+        if (s.isMovie) {
+            val ep = s.flatEpisodes().firstOrNull() ?: return
+            toggleEpisodeWatched(ep)
+            return
+        }
         val eps = s.seasons.find { it.number == selectedSeason }?.episodes.orEmpty()
         val allWatched = eps.isNotEmpty() && eps.all { progressMap[it.id]?.completed == true }
         val repo = (application as VerflixedApp).container.catalog
@@ -349,8 +377,13 @@ class SeriesDetailActivity : AppCompatActivity() {
                 repo.progressForSeries(ep.seriesId)
             }.onSuccess { p ->
                 progressMap = p
-                renderEpisodes()
-                updateSeasonWatchedButton()
+                if (series?.isMovie == true) {
+                    val seen = p[ep.id]?.completed == true
+                    binding.btnSeasonWatched.text = if (seen) "Als ungesehen" else "Als gesehen"
+                } else {
+                    renderEpisodes()
+                    updateSeasonWatchedButton()
+                }
             }.onFailure {
                 Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
             }
@@ -394,7 +427,9 @@ class SeriesDetailActivity : AppCompatActivity() {
                 if (!ep.streamUrl.isNullOrBlank()) merged = merged + ep.id
             }
             readyEpisodeIds = merged
-            renderEpisodes()
+            if (series?.isMovie != true) {
+                episodeAdapter.updateReady(merged)
+            }
         }
     }
 
@@ -456,6 +491,9 @@ class SeriesDetailActivity : AppCompatActivity() {
                     renderCacheStatus(0, s.flatEpisodes().size, "caching")
                     warmingStreams = false
                     startBackgroundStreamWarmup(s)
+                } else {
+                    readyEpisodeIds = emptySet()
+                    if (!s.isMovie) episodeAdapter.updateReady(emptySet())
                 }
                 nowFav
             }.onSuccess { nowFav ->
@@ -468,11 +506,10 @@ class SeriesDetailActivity : AppCompatActivity() {
                 }
                 Toast.makeText(
                     this@SeriesDetailActivity,
-                    if (nowFav) "Favorit gespeichert – HLS/MP4-Links werden im Hintergrund geladen"
-                    else "Favorit entfernt",
+                    if (nowFav) "Favorit gespeichert – alle Staffeln werden im Hintergrund gecacht"
+                    else "Favorit entfernt – Stream-Cache gelöscht",
                     Toast.LENGTH_SHORT
                 ).show()
-                load(s.id, s.detailPath, s.title, s.mediaKind)
             }.onFailure {
                 binding.btnFavorite.isEnabled = true
                 val msg = it.toVfMessage()
@@ -537,36 +574,50 @@ class SeriesDetailActivity : AppCompatActivity() {
                 }
             }
         }
-        options += "Staffel als gesehen"
-        actions += { toggleSeasonWatched() }
-        options += "Stream-Links Staffel neu laden"
+        if (!s.isMovie) {
+            options += "Staffel als gesehen"
+            actions += { toggleSeasonWatched() }
+        }
+        options += "Stream-Cache dieser Serie leeren"
         actions += {
-            renderCacheStatus(0, s.flatEpisodes().count { it.seasonNumber == selectedSeason }, "caching")
-            warmingStreams = false
-            Toast.makeText(this@SeriesDetailActivity, "Staffel-Streams werden geladen…", Toast.LENGTH_SHORT).show()
-            val app = application as VerflixedApp
-            app.appScope.launch {
-                runCatching {
-                    repo.collectAllEpisodePlayerLinks(
-                        seriesId = s.id,
-                        seasonNumber = selectedSeason,
-                        clearExisting = true,
-                    ) { progress ->
+            lifecycleScope.launch {
+                runCatching { repo.clearSeriesStreamCache(s.id) }
+                readyEpisodeIds = emptySet()
+                if (!s.isMovie) episodeAdapter.updateReady(emptySet())
+                renderCacheStatus(0, s.flatEpisodes().size, "idle")
+                Toast.makeText(this@SeriesDetailActivity, "Stream-Cache geleert", Toast.LENGTH_SHORT).show()
+            }
+        }
+        if (!s.isMovie) {
+            options += "Stream-Links Staffel neu laden"
+            actions += {
+                renderCacheStatus(0, s.flatEpisodes().count { it.seasonNumber == selectedSeason }, "caching")
+                warmingStreams = false
+                Toast.makeText(this@SeriesDetailActivity, "Staffel-Streams werden geladen…", Toast.LENGTH_SHORT).show()
+                val app = application as VerflixedApp
+                app.appScope.launch {
+                    runCatching {
+                        repo.collectAllEpisodePlayerLinks(
+                            seriesId = s.id,
+                            seasonNumber = selectedSeason,
+                            clearExisting = true,
+                        ) { progress ->
+                            runOnUiThread {
+                                if (isFinishing || isDestroyed) return@runOnUiThread
+                                if (series?.id != s.id) return@runOnUiThread
+                                renderCacheStatus(progress.cached, progress.total, progress.status)
+                            }
+                        }
+                    }.onSuccess {
                         runOnUiThread {
                             if (isFinishing || isDestroyed) return@runOnUiThread
-                            if (series?.id != s.id) return@runOnUiThread
-                            renderCacheStatus(progress.cached, progress.total, progress.status)
+                            refreshReadyDots(s.id)
+                            Toast.makeText(this@SeriesDetailActivity, "Staffel-Streams fertig", Toast.LENGTH_SHORT).show()
                         }
-                    }
-                }.onSuccess {
-                    runOnUiThread {
-                        if (isFinishing || isDestroyed) return@runOnUiThread
-                        refreshReadyDots(s.id)
-                        Toast.makeText(this@SeriesDetailActivity, "Staffel-Streams fertig", Toast.LENGTH_SHORT).show()
-                    }
-                }.onFailure {
-                    runOnUiThread {
-                        Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                    }.onFailure {
+                        runOnUiThread {
+                            Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
@@ -699,6 +750,9 @@ private class SeasonAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_season_tab, parent, false)
+        FocusFx.bindScale(v, 1.04f)
+        v.nextFocusDownId = R.id.episodeList
+        v.nextFocusUpId = R.id.btnPlay
         return VH(v as TextView)
     }
 
@@ -733,11 +787,19 @@ private class EpisodeAdapter(
         progressMap: Map<String, WatchProgressEntity>,
         ready: Set<String> = emptySet(),
     ) {
+        val sameIds = items.size == data.size && items.indices.all { items[it].id == data[it].id }
         items.clear()
         items.addAll(data)
         progress = progressMap
         readyIds = ready
-        notifyDataSetChanged()
+        if (sameIds) notifyItemRangeChanged(0, items.size, "meta")
+        else notifyDataSetChanged()
+    }
+
+    fun updateReady(ready: Set<String>) {
+        if (readyIds == ready) return
+        readyIds = ready
+        if (items.isNotEmpty()) notifyItemRangeChanged(0, items.size, "meta")
     }
 
     fun focusedEpisode(): Episode? = focused ?: items.firstOrNull()
@@ -805,6 +867,24 @@ private class EpisodeAdapter(
             if (!ep.upcoming) onToggleWatched(ep)
             true
         }
+        val frac = if (p != null && !p.completed && p.durationMs > 0) {
+            (p.positionMs.toFloat() / p.durationMs).coerceIn(0.04f, 0.98f)
+        } else null
+        val bar = holder.progressBar
+        val track = holder.progressTrack
+        if (bar != null && track != null) {
+            if (frac != null) {
+                track.visibility = View.VISIBLE
+                bar.visibility = View.VISIBLE
+                bar.post {
+                    val w = (track.width * frac).toInt().coerceAtLeast(8)
+                    bar.layoutParams = bar.layoutParams.apply { width = w }
+                }
+            } else {
+                track.visibility = View.GONE
+                bar.visibility = View.GONE
+            }
+        }
         PosterLoader.loadEpisodeStill(holder.still, ep.stillUrl, seriesArtProvider())
         holder.itemView.alpha = if (ep.upcoming) 0.78f else 1f
         holder.itemView.isEnabled = true
@@ -846,5 +926,7 @@ private class EpisodeAdapter(
         val meta: TextView = itemView.findViewById(R.id.episodeMeta)
         val badge: TextView = itemView.findViewById(R.id.watchedBadge)
         val readyDot: View? = itemView.findViewById(R.id.streamReadyDot)
+        val progressBar: View? = itemView.findViewById(R.id.episodeProgressBar)
+        val progressTrack: View? = itemView.findViewById(R.id.episodeProgressTrack)
     }
 }

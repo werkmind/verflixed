@@ -704,6 +704,30 @@
     return ordered;
   }
 
+  function recommendForYou(catalog, seeds, excludeIds) {
+    const noise = new Set(["deutsch", "englisch", "german", "english"]);
+    const counts = {};
+    for (const s of seeds || []) {
+      for (const g of s.genres || []) {
+        const k = String(g).toLowerCase();
+        if (k.length < 3 || noise.has(k) || k.includes("demnächst") || k.includes("uhr")) continue;
+        counts[k] = (counts[k] || 0) + 1;
+      }
+    }
+    if (!Object.keys(counts).length) return [];
+    return (catalog || [])
+      .filter((s) => s?.id && !excludeIds.has(s.id))
+      .map((s) => {
+        const score = (s.genres || []).reduce((n, g) => n + (counts[String(g).toLowerCase()] || 0), 0);
+        return { s, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.s)
+      .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+      .slice(0, 16);
+  }
+
   function buildLibraryRows() {
     const index = [...(state.series || []), ...(state.movies || [])];
     const continueItems = window.VfProfiles.continueRow(index).slice(0, 8);
@@ -725,6 +749,10 @@
         items: continueItems.map((s) => ({ series: s, _continue: s._continue })),
       });
     }
+    const seeds = [...seriesFavs, ...movieFavs];
+    const exclude = new Set([...seeds.map((s) => s.id), ...continueIdSet]);
+    const rec = recommendForYou(index, seeds, exclude);
+    if (rec.length) rows.push({ title: "Das gefällt dir bestimmt", items: rec });
     if (seriesFavs.length) rows.push({ title: "Meine Serien", items: seriesFavs });
     if (movieFavs.length) rows.push({ title: "Meine Filme", items: movieFavs });
     if (az.length >= 8) rows.push({ title: "A–Z", items: az });
@@ -1007,10 +1035,10 @@
         $("detailOverview").textContent = detailed.overview || "Keine Beschreibung";
         $("seasonTabs").innerHTML = "";
         $("seasonTabs").style.display = "none";
+        if ($("episodeList")) $("episodeList").style.display = "none";
         applyDetailHero(state.season);
         updateDetailFavButton();
         updatePlayContinueButton();
-        renderEpisodes();
         await refreshAvailableLanguages(detailed, workingHtml, workingUrl);
         warmEpisodeStreamsLight(detailed);
         return;
@@ -1051,6 +1079,7 @@
         .join(" · ");
       $("detailOverview").textContent = detailed.overview || "Keine Beschreibung";
       $("seasonTabs").style.display = "";
+      if ($("episodeList")) $("episodeList").style.display = "";
       applyDetailHero(state.season);
       updateDetailFavButton();
       updatePlayContinueButton();
@@ -2686,8 +2715,8 @@
     setTimeout(hideSplash, 1600);
   }
 
-  localStorage.setItem("vf_app_version", "1.8.0");
-  localStorage.setItem("vf_version_code", "36");
+  localStorage.setItem("vf_app_version", "1.9.0");
+  localStorage.setItem("vf_version_code", "37");
   applyChromePrefs();
   syncBaseUrlInputs();
   updateSearchPlaceholder();

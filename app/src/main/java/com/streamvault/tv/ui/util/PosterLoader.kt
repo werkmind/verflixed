@@ -13,8 +13,7 @@ import com.streamvault.tv.data.catalog.SiteImages
  * Smart image binding for Fire TV:
  * - Lazy via Glide on RecyclerView bind
  * - Prefer high-res JPEG site URLs (2x-desktop)
- * - Browse/Search: **no Glide disk cache** (and no Room image/meta cache upstream)
- * - Library/Detail: normal disk cache OK (favorites persist metadata)
+ * - Disk + memory cache so D-pad scrolling stays smooth on Fire TV
  *
  * Corner rounding always happens inside the bitmap transform so cards never need
  * padding or a light-coloured container to fake the radius.
@@ -64,16 +63,8 @@ object PosterLoader {
         (value * resources.displayMetrics.density).toInt()
 
     private fun browseOptions(browseMode: Boolean): RequestOptions {
-        return if (browseMode) {
-            // No disk cache in Browse — always fetch current site art (JPEG/high-res).
-            // Memory cache stays on so D-pad scrolling does not flicker.
-            RequestOptions()
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .skipMemoryCache(false)
-        } else {
-            RequestOptions()
-                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                .skipMemoryCache(false)
-        }
+        return RequestOptions()
+            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+            .skipMemoryCache(false)
     }
 }

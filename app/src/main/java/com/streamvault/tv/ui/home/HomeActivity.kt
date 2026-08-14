@@ -10,6 +10,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -762,7 +763,8 @@ class HomeActivity : AppCompatActivity() {
                             }.onSuccess { now ->
                                 Toast.makeText(
                                     this@HomeActivity,
-                                    if (now) "Zu Favoriten hinzugefügt" else "Aus Favoriten entfernt",
+                                    if (now) "Favorit gespeichert – Streams werden gecacht"
+                                    else "Favorit entfernt – Stream-Cache gelöscht",
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 if (mode == HomeMode.LIBRARY) load(false)
@@ -1163,8 +1165,13 @@ private class PosterAdapter(
 
         fun bind(series: Series, browseMode: Boolean) {
             title.text = series.title
-            // Prefer portrait poster art — backdrop (16:9) causes letterbox/whitespace in 2:3 cards
-            PosterLoader.loadSeries(poster, series.posterUrl ?: series.backdropUrl, browseMode = browseMode)
+            val landscape = itemView.layoutParams?.width ?: 0 > (itemView.layoutParams?.height ?: 1)
+            val art = if (landscape) {
+                series.backdropUrl ?: series.posterUrl
+            } else {
+                series.posterUrl ?: series.backdropUrl
+            }
+            PosterLoader.loadSeries(poster, art, browseMode = browseMode)
             val badgeText = series.genres.firstOrNull {
                 it.contains("DEMNÄCHST", true) || it.contains("Uhr", true) || it.contains('.')
             } ?: series.overview?.lineSequence()?.firstOrNull {
@@ -1176,6 +1183,20 @@ private class PosterAdapter(
                     badge.visibility = View.VISIBLE
                 } else {
                     badge.visibility = View.GONE
+                }
+            }
+            val bar = itemView.findViewById<View>(R.id.progressBar)
+            val frac = series.progressFraction
+            if (bar != null) {
+                if (frac != null && frac > 0.02f) {
+                    bar.visibility = View.VISIBLE
+                    val lp = bar.layoutParams
+                    if (lp is ConstraintLayout.LayoutParams) {
+                        lp.matchConstraintPercentWidth = frac.coerceIn(0.06f, 1f)
+                        bar.layoutParams = lp
+                    }
+                } else {
+                    bar.visibility = View.GONE
                 }
             }
         }

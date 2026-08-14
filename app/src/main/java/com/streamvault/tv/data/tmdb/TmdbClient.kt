@@ -23,20 +23,40 @@ class TmdbClient(
         val key = prefs.tmdbApiKey
         if (key.isBlank()) return@withContext series
         runCatching {
-            val id = series.tmdbId ?: searchTvId(series.title, key) ?: return@withContext series
-            val details = tvDetails(id, key) ?: return@withContext series
-            series.copy(
-                tmdbId = id,
-                overview = series.overview ?: details.overview,
-                posterUrl = series.posterUrl ?: details.posterPath?.let { "$IMAGE_BASE$it" },
-                backdropUrl = series.backdropUrl ?: details.backdropPath?.let { "$IMAGE_BASE$it" },
-                year = series.year ?: details.firstAirDate?.take(4)?.toIntOrNull()
-            )
+            if (series.isMovie) enrichMovie(series, key) else enrichTv(series, key)
         }.getOrDefault(series)
     }
 
-    private fun searchTvId(title: String, apiKey: String): Int? {
-        val url = "https://api.themoviedb.org/3/search/tv".toHttpUrl().newBuilder()
+    private fun enrichTv(series: Series, key: String): Series {
+        val id = series.tmdbId ?: searchId("tv", series.title, key) ?: return series
+        val details = details("tv", id, key) ?: return series
+        return series.copy(
+            tmdbId = id,
+            imdbId = series.imdbId ?: details.externalIds?.imdbId,
+            overview = series.overview ?: details.overview,
+            posterUrl = series.posterUrl ?: details.posterPath?.let { "$IMAGE_BASE$it" },
+            backdropUrl = series.backdropUrl ?: details.backdropPath?.let { "$IMAGE_BASE$it" },
+            year = series.year ?: details.firstAirDate?.take(4)?.toIntOrNull()
+        )
+    }
+
+    private fun enrichMovie(series: Series, key: String): Series {
+        val id = series.tmdbId ?: searchId("movie", series.title, key) ?: return series
+        val details = details("movie", id, key) ?: return series
+        return series.copy(
+            tmdbId = id,
+            imdbId = series.imdbId ?: details.externalIds?.imdbId,
+            overview = series.overview ?: details.overview,
+            posterUrl = series.posterUrl ?: details.posterPath?.let { "$IMAGE_BASE$it" },
+            backdropUrl = series.backdropUrl ?: details.backdropPath?.let { "$IMAGE_BASE$it" },
+            year = series.year
+                ?: details.releaseDate?.take(4)?.toIntOrNull()
+                ?: details.firstAirDate?.take(4)?.toIntOrNull()
+        )
+    }
+
+    private fun searchId(kind: String, title: String, apiKey: String): Int? {
+        val url = "https://api.themoviedb.org/3/search/$kind".toHttpUrl().newBuilder()
             .addQueryParameter("api_key", apiKey)
             .addQueryParameter("query", title)
             .addQueryParameter("language", "de-DE")
@@ -45,10 +65,11 @@ class TmdbClient(
         return searchAdapter.fromJson(body)?.results?.firstOrNull()?.id
     }
 
-    private fun tvDetails(id: Int, apiKey: String): TmdbTvDetails? {
-        val url = "https://api.themoviedb.org/3/tv/$id".toHttpUrl().newBuilder()
+    private fun details(kind: String, id: Int, apiKey: String): TmdbTvDetails? {
+        val url = "https://api.themoviedb.org/3/$kind/$id".toHttpUrl().newBuilder()
             .addQueryParameter("api_key", apiKey)
             .addQueryParameter("language", "de-DE")
+            .addQueryParameter("append_to_response", "external_ids")
             .build()
         val body = get(url.toString()) ?: return null
         return detailsAdapter.fromJson(body)
@@ -84,5 +105,12 @@ data class TmdbTvDetails(
     val overview: String? = null,
     @Json(name = "poster_path") val posterPath: String? = null,
     @Json(name = "backdrop_path") val backdropPath: String? = null,
-    @Json(name = "first_air_date") val firstAirDate: String? = null
+    @Json(name = "first_air_date") val firstAirDate: String? = null,
+    @Json(name = "release_date") val releaseDate: String? = null,
+    @Json(name = "external_ids") val externalIds: TmdbExternalIds? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class TmdbExternalIds(
+    @Json(name = "imdb_id") val imdbId: String? = null,
 )
