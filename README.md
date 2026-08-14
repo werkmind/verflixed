@@ -2,7 +2,7 @@
 
 Fire TV (Android) + Desktop Webapp für Serien & Filme.
 
-**Version 1.13.0** (versionCode 45) – Fire TV APK + Desktop-Webapp (1:1 Intro/Layout/QoL)
+**Version 1.14.0** (versionCode 46) – Fire TV APK + Desktop-Webapp (voller APK-Port)
 
 Plattform-Hinweise (PS4 / Samsung): [docs/PLATFORMS.md](docs/PLATFORMS.md)
 

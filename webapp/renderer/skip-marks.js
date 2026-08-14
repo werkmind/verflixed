@@ -85,6 +85,34 @@
     return creditsLeadMs(seriesId) || heuristicLeadMs(durationMs);
   }
 
+  function quality(source) {
+    if (source === "aniskip" || source === "theintrodb" || source === "skipdb") return 3;
+    if (source === "learned") return 2;
+    return 1;
+  }
+
+  function buildPlan(seriesId, episodeNumber, durationMs, crowd) {
+    const segs = [...(crowd || [])];
+    const hasIntro = segs.some((s) => s.type === "INTRO");
+    const hasCredits = segs.some((s) => s.type === "CREDITS");
+    if (!hasIntro) {
+      const intro = introSegment(seriesId, durationMs, episodeNumber);
+      if (intro) segs.push(intro);
+    }
+    if (!hasCredits) {
+      const credits = creditsSegment(seriesId, durationMs);
+      if (credits) segs.push(credits);
+    }
+    const byType = {};
+    for (const s of segs) {
+      if (!byType[s.type] || quality(s.source) > quality(byType[s.type].source)) byType[s.type] = s;
+    }
+    return {
+      segments: Object.values(byType).sort((a, b) => a.startMs - b.startMs),
+      nextPromptLeadMs: nextPromptLeadMs(seriesId, durationMs),
+    };
+  }
+
   function introSegment(seriesId, durationMs, episodeNumber) {
     const learned = introEndMs(seriesId);
     const end = learned || heuristicIntroEndMs(durationMs, episodeNumber);
@@ -122,5 +150,6 @@
     nextPromptLeadMs,
     introSegment,
     creditsSegment,
+    buildPlan,
   };
 })(window);

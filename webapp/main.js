@@ -118,6 +118,11 @@ ipcMain.handle("voe:resolveHostersToHls", async (_evt, hosters, referer) => {
   return resolveHostersToHls(hosters || [], referer || null);
 });
 
+ipcMain.handle("voe:extractFirestream", async (_evt, embedUrl, referer) => {
+  const { extractFirestream } = require("./voe-core");
+  return extractFirestream(embedUrl, referer || null);
+});
+
 // Back-compat alias
 ipcMain.handle("voe:captureFromEpisode", async (_evt, episodeUrl, timeoutMs) => {
   const r = await resolveEpisodeVoeEmbed(episodeUrl, {

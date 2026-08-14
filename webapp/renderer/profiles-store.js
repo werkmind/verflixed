@@ -48,13 +48,46 @@ window.VfProfiles = (() => {
     return activeProfile();
   }
 
-  function createProfile(name) {
+  function diceBearUrl(seed, style = "avataaars") {
+    const safeStyle = style || "avataaars";
+    const safeSeed = String(seed || "verflixed")
+      .replace(/[^A-Za-z0-9_\- ]/g, "")
+      .replace(/\s+/g, "-")
+      .slice(0, 48) || "verflixed";
+    return `https://api.dicebear.com/9.x/${safeStyle}/png?seed=${encodeURIComponent(safeSeed)}&size=256&backgroundType=gradientLinear`;
+  }
+
+  function presetAvatars(nameHint = "Verflixed") {
+    const styles = [
+      "avataaars", "adventurer", "big-smile", "lorelei", "notionists", "open-peeps",
+      "personas", "micah", "miniavs", "fun-emoji", "bottts-neutral", "croodles",
+      "pixel-art", "thumbs", "shapes", "rings", "glass", "identicon",
+    ];
+    const seeds = [nameHint, "Nova", "Orbit", "Pulse", "Echo", "Vega", "Quark", "Flux", "Apex", "Rune", "Pixel", "Cobalt", "Indigo", "Azure", "Neon", "Drift", "Lumen", "Zenit", "Krypton", "Solar", "Nebula"];
+    const out = [];
+    for (let i = 0; i < 4; i++) {
+      for (let si = 0; si < styles.length; si++) {
+        const seed = seeds[(i * 7 + si) % seeds.length];
+        const style = styles[si];
+        out.push({
+          id: `${style}:${seed}`,
+          label: `${style} · ${seed}`,
+          url: diceBearUrl(seed, style),
+          source: "dicebear",
+        });
+      }
+    }
+    return out.filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i);
+  }
+
+  function createProfile(name, avatar) {
     const s = load();
     const id = uid();
+    const trimmed = (name || "Profil").trim() || "Profil";
     const p = {
       id,
-      name: (name || "Profil").trim() || "Profil",
-      avatar: null,
+      name: trimmed,
+      avatar: avatar || diceBearUrl(trimmed),
       createdAt: Date.now(),
     };
     s.profiles.push(p);
@@ -65,11 +98,12 @@ window.VfProfiles = (() => {
     return p;
   }
 
-  function renameProfile(id, name) {
+  function renameProfile(id, name, avatar) {
     const s = load();
     const p = s.profiles.find((x) => x.id === id);
     if (!p) return;
-    p.name = (name || p.name).trim() || p.name;
+    if (name) p.name = name.trim() || p.name;
+    if (avatar !== undefined) p.avatar = avatar;
     save(s);
     return p;
   }
@@ -463,6 +497,8 @@ window.VfProfiles = (() => {
     switchProfile,
     createProfile,
     renameProfile,
+    diceBearUrl,
+    presetAvatars,
     deleteProfile,
     listFavorites,
     isFavorite,

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("verflixed", {
     ipcRenderer.invoke("voe:resolveShareToHls", shareUrl, opts || {}),
   resolveHostersToHls: (hosters, referer) =>
     ipcRenderer.invoke("voe:resolveHostersToHls", hosters, referer || null),
+  extractFirestream: (embedUrl, referer) =>
+    ipcRenderer.invoke("voe:extractFirestream", embedUrl, referer || null),
   captureVoeFromEpisode: (episodeUrl, timeoutMs) =>
     ipcRenderer.invoke("voe:captureFromEpisode", episodeUrl, timeoutMs || 120000),
   getVersion: () => ipcRenderer.invoke("app:getVersion"),

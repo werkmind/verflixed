@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.13.0" />
-  <meta name="vf-version-code" content="45" />
+  <meta name="vf-version" content="1.14.0" />
+  <meta name="vf-version-code" content="46" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -24,6 +24,7 @@
   <div id="app" class="nav-sidebar">
     <aside id="sideNav" class="side-nav" aria-label="Hauptnavigation">
       <button type="button" class="side-avatar" id="btnSideAvatar" title="Profil">
+        <img id="sideAvatarImg" alt="" hidden />
         <span id="sideAvatarLetter">V</span>
       </button>
       <div class="side-divider"></div>
@@ -114,6 +115,7 @@
           <div id="profileGrid" class="profile-grid"></div>
           <div class="profile-actions">
             <button id="btnAddProfile" class="btn primary">Profil hinzufügen</button>
+            <button id="btnEditProfile" class="btn ghost">Profil bearbeiten</button>
           </div>
           <div class="settings-card">
             <label>Serien-Quellen-URL</label>
@@ -221,6 +223,24 @@
 
   <div id="ctxMenu" class="vf-ctx hidden" role="menu"></div>
 
+  <div id="profileEditor" class="vf-modal hidden" role="dialog" aria-modal="true">
+    <div class="vf-modal-card profile-editor-card">
+      <h2 id="profileEditorTitle">Profil</h2>
+      <label>Name</label>
+      <input id="profileEditorName" type="text" maxlength="32" placeholder="Profilname" />
+      <label style="margin-top:12px;display:block;">Profilbild</label>
+      <div id="avatarGrid" class="avatar-grid"></div>
+      <label style="margin-top:12px;display:block;">Kategorien laden</label>
+      <p class="muted" style="margin:4px 0 8px;font-size:0.85rem;">Aus = Kategorie wird nie geladen. Horror und Anime sind standardmäßig aus.</p>
+      <div id="editorCategoryChips" class="chips category-chips"></div>
+      <div class="vf-modal-actions">
+        <button type="button" id="btnDeleteEditorProfile" class="btn ghost">Löschen</button>
+        <button type="button" id="btnCancelEditor" class="btn ghost">Abbrechen</button>
+        <button type="button" id="btnSaveEditor" class="btn primary">Speichern</button>
+      </div>
+    </div>
+  </div>
+
   <script src="hls.min.js"></script>
   <script src="stream-language.js"></script>
   <script src="site-images.js"></script>
@@ -228,10 +248,14 @@
   <script src="film-parser.js"></script>
   <script src="site-search.js"></script>
   <script src="tvmaze.js"></script>
+  <script src="tmdb.js"></script>
+  <script src="wikidata.js"></script>
+  <script src="calendar.js"></script>
   <script src="profiles-store.js"></script>
   <script src="content-gate.js"></script>
   <script src="vf-updates.js"></script>
   <script src="skip-marks.js"></script>
+  <script src="skip-crowd.js"></script>
   <script src="intro.js"></script>
   <script src="app.js"></script>
 </body>

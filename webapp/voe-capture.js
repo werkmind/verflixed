@@ -10,6 +10,7 @@
 const {
   extractVoeHls,
   extractVidaraHls,
+  extractFirestream,
   extractSourceFromHtml,
   fetchText,
   request,
@@ -732,6 +733,20 @@ async function resolveHostersToHls(hosters, referer) {
           hlsUrl: r.hls,
           provider: name,
           method: "vidara-api",
+          attempts,
+        };
+      }
+    }
+
+    if (/firestream/i.test(name) || /firestream/i.test(url)) {
+      const r = await extractFirestream(url, referer);
+      attempts.push({ host: name, url, ok: r.ok, error: r.error, method: "firestream" });
+      if (r.ok && r.hls) {
+        return {
+          ok: true,
+          hlsUrl: r.hls,
+          provider: name,
+          method: "firestream",
           attempts,
         };
       }

@@ -1,10 +1,13 @@
 # Verflixed Desktop Webapp
 
-Lokale Desktop-App (Electron) für **macOS**, **Windows** und **Linux** – Stand **1.13.0** (1:1 mit Fire-TV 1.12.0).
+Lokale Desktop-App (Electron) für **macOS**, **Windows** und **Linux** – Stand **1.14.0** (voller Port der Fire-TV-APK).
 
-## Features (1.13.0)
+## Features (1.14.0)
 
-- 3D-Intro + Brand-Sting wie die APK (Splash und Player-Pre-Roll)
+- 3D-Intro + echter Brand-Sting (`splash_tudum.ogg`) wie die APK
+- Eingebetteter TMDb-Key (Kodi/Plex), Wikidata-IDs, AniSkip/TheIntroDB/SkipDB
+- Firestream + VOE + Vidara Stream-Links, Profil-Avatare (DiceBear + TMDb)
+- Serienkalender, Sidebar-Avatar, Profil-Editor mit Kategorien
 - Home-Hero, Portrait-Poster, Glass-Flächen, tvOS-Motion
 - Sidebar ohne Desktop-Chrome (Quellen-URL in den Einstellungen)
 - Zoom, Kategorie-Filter (Horror/Anime standardmäßig aus), „Weil du X geschaut hast“

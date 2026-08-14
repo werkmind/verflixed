@@ -540,7 +540,18 @@
     const el = $("profileChipName");
     if (el && p) el.textContent = p.name;
     const letter = $("sideAvatarLetter");
-    if (letter) letter.textContent = (p?.name || "V").charAt(0).toUpperCase();
+    const img = $("sideAvatarImg");
+    if (img && p?.avatar) {
+      img.src = p.avatar;
+      img.hidden = false;
+      if (letter) letter.hidden = true;
+    } else {
+      if (img) img.hidden = true;
+      if (letter) {
+        letter.hidden = false;
+        letter.textContent = (p?.name || "V").charAt(0).toUpperCase();
+      }
+    }
   }
 
   function formatTime(sec) {
@@ -901,8 +912,30 @@
     if (seriesFavs.length) rows.push({ title: "Meine Serien", items: seriesFavs });
     if (movieFavs.length) rows.push({ title: "Meine Filme", items: movieFavs });
     if (az.length >= 8) rows.push({ title: "A–Z", items: az });
+    if (state.calUpcoming?.length) rows.push({ title: "Kalender · Demnächst", items: state.calUpcoming });
+    if (state.calRecent?.length) rows.push({ title: "Kalender · Neu", items: state.calRecent });
+    if (state.calWeek?.length) rows.push({ title: "Serienkalender", items: state.calWeek });
     if (recent.length) rows.push({ title: "Zuletzt gesehen", items: recent });
     return rows;
+  }
+
+  async function refreshCalendarRows() {
+    if (!window.VfCalendar) return;
+    const favs = window.VfProfiles.listFavorites("series");
+    const favIds = new Set(favs.map((f) => String(f.id || "").toLowerCase()));
+    const favTitles = new Set(favs.map((f) => String(f.title || "").toLowerCase()));
+    const base = state.seriesBaseUrl;
+    try {
+      const [up, rec, week] = await Promise.all([
+        window.VfCalendar.favoritesUpcoming(base, favIds, favTitles),
+        window.VfCalendar.favoritesRecent(base, favIds, favTitles),
+        window.VfCalendar.weekAhead(base),
+      ]);
+      state.calUpcoming = window.VfCalendar.asSeries(up);
+      state.calRecent = window.VfCalendar.asSeries(rec);
+      state.calWeek = window.VfCalendar.asSeries(week);
+      if (state.homeMode === "library") refreshLibrary();
+    } catch (_) {}
   }
 
   function buildSeriesBrowseRows() {
@@ -941,27 +974,23 @@
   }
 
   async function movieReleaseYear(title) {
+    if (window.Tmdb?.movieReleaseYear) return window.Tmdb.movieReleaseYear(title);
     const key = String(title || "").trim().toLowerCase();
     if (!key) return null;
     const cache = tmdbYearCache();
     if (key in cache) return cache[key];
-    let year = null;
+    return null;
+  }
+
+  async function enrichMeta(series) {
+    let s = series;
     try {
-      const url =
-        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_APP_KEY}` +
-        `&language=de-DE&query=${encodeURIComponent(key)}`;
-      const body = await getText(url);
-      const json = JSON.parse(body);
-      const hit = (json?.results || [])[0];
-      const date = hit?.release_date || "";
-      const y = parseInt(date.slice(0, 4), 10);
-      if (Number.isFinite(y) && y > 1900) year = y;
+      if (window.Wikidata?.enrich) s = await window.Wikidata.enrich(s);
     } catch (_) {}
-    cache[key] = year;
     try {
-      localStorage.setItem("vf_tmdb_years", JSON.stringify(cache));
+      if (window.Tmdb?.enrich) s = await window.Tmdb.enrich(s);
     } catch (_) {}
-    return year;
+    return s;
   }
 
   let freshMoviesToken = 0;
@@ -1086,7 +1115,7 @@
       card.type = "button";
       card.className = "profile-card" + (p.id === active.id ? " active" : "");
       card.innerHTML = `
-        <div class="profile-avatar">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
+        <div class="profile-avatar">${p.avatar ? `<img alt="" src="${escapeHtml(p.avatar)}" />` : escapeHtml(p.name.charAt(0).toUpperCase())}</div>
         <div class="profile-name">${escapeHtml(p.name)}</div>
         ${profiles.length > 1 ? `<span class="profile-del" title="Löschen" data-del="${p.id}">✕</span>` : ""}`;
       card.addEventListener("click", (e) => {
@@ -1275,6 +1304,7 @@
         detailed.posterUrl = detailed.posterUrl || seriesLight.posterUrl;
         detailed.backdropUrl = detailed.backdropUrl || seriesLight.backdropUrl;
         detailed.mediaKind = "movie";
+        detailed = await enrichMeta(detailed);
 
         if (detailed.posterUrl || detailed.backdropUrl) {
           storeArt(
@@ -1322,7 +1352,8 @@
       detailed.mediaKind = detailed.mediaKind || "series";
 
       await hydrateSeasons(detailed, text, detailed.detailPath);
-      detailed = await window.TvMaze.enrich(detailed);
+        detailed = await window.TvMaze.enrich(detailed);
+        detailed = await enrichMeta(detailed);
 
       if (detailed.posterUrl || detailed.backdropUrl) {
         storeArt(
@@ -1675,6 +1706,7 @@
       state.activeSkip = null;
       state.dismissedSkipTypes = new Set();
       hideSkipSegment();
+      refreshSkipPlan();
     });
     video.addEventListener("play", () => showTvControls(true));
     video.addEventListener("pause", () => updateSeekUi());
@@ -1915,6 +1947,16 @@
               return;
             }
           }
+          if (/firestream/i.test(name) || /firestream/i.test(url)) {
+            $("playerStatus").textContent = "Firestream wird geladen…";
+            const r = window.verflixed?.extractFirestream
+              ? await window.verflixed.extractFirestream(url, episodePage)
+              : null;
+            if (r?.ok && r.hls) {
+              await playHls(r.hls, url);
+              return;
+            }
+          }
         } catch (e) {
           lastErr = e;
         }
@@ -2042,6 +2084,27 @@
     return state.current?.id || state.lastPlay?.ep?.seriesId || "";
   }
 
+  async function refreshSkipPlan() {
+    const video = $("video");
+    const ep = state.lastPlay?.ep;
+    const series = state.current;
+    if (!video || !ep || !series || !video.duration) return;
+    const durationMs = video.duration * 1000;
+    try {
+      state.crowdSkip = window.VfCrowdSkip
+        ? await window.VfCrowdSkip.skipSegments(series, ep.seasonNumber || 1, ep.number || 1, durationMs)
+        : [];
+    } catch (_) {
+      state.crowdSkip = [];
+    }
+    state.skipPlan = window.VfSkipMarks?.buildPlan?.(
+      series.id,
+      ep.number || 1,
+      durationMs,
+      state.crowdSkip,
+    );
+  }
+
   function maybeShowSkipSegment() {
     const video = $("video");
     const ep = state.lastPlay?.ep;
@@ -2058,16 +2121,11 @@
     const posMs = video.currentTime * 1000;
     const sid = seriesIdForSkip();
     const dismissed = state.dismissedSkipTypes || new Set();
-    const intro = window.VfSkipMarks?.introSegment?.(sid, durationMs, ep.number || 1);
-    const credits = window.VfSkipMarks?.creditsSegment?.(sid, durationMs);
-    const hit =
-      (intro && !dismissed.has("INTRO") && posMs >= intro.startMs && posMs < intro.endMs && intro) ||
-      (credits &&
-        !dismissed.has("CREDITS") &&
-        posMs >= credits.startMs &&
-        posMs < credits.endMs &&
-        credits) ||
-      null;
+    const plan = state.skipPlan || window.VfSkipMarks?.buildPlan?.(sid, ep.number || 1, durationMs, state.crowdSkip || []);
+    const segs = plan?.segments || [];
+    const hit = segs.find(
+      (s) => !dismissed.has(s.type) && posMs >= s.startMs && posMs < s.endMs,
+    ) || null;
     if (!hit) {
       hideSkipSegment();
       return;
@@ -2870,19 +2928,26 @@
     }
 
     if ($("btnAddProfile")) {
-      $("btnAddProfile").onclick = () => {
-        const name = prompt("Profilname:", "Profil");
-        if (!name) return;
-        window.VfProfiles.createProfile(name);
-        syncProfileChip();
-        applyChromePrefs();
-        paintSettingsToggles();
-        renderProfileGrid();
-        refreshBrowseFromState();
-        if (state.current) {
-          updateDetailFavButton();
-          updatePlayContinueButton();
-          renderEpisodes();
+      $("btnAddProfile").onclick = () => openProfileEditor(null);
+    }
+    if ($("btnEditProfile")) {
+      $("btnEditProfile").onclick = () => openProfileEditor(window.VfProfiles.activeProfile()?.id);
+    }
+    if ($("btnCancelEditor")) $("btnCancelEditor").onclick = () => closeProfileEditor();
+    if ($("btnSaveEditor")) $("btnSaveEditor").onclick = () => saveProfileEditor();
+    if ($("btnDeleteEditorProfile")) {
+      $("btnDeleteEditorProfile").onclick = () => {
+        const id = state.editingProfileId;
+        if (!id) return;
+        if (!confirm("Profil löschen?")) return;
+        try {
+          window.VfProfiles.deleteProfile(id);
+          closeProfileEditor();
+          syncProfileChip();
+          renderProfileGrid();
+          refreshBrowseFromState();
+        } catch (err) {
+          alert(err.message || err);
         }
       };
     }
@@ -2994,6 +3059,100 @@
     bindPlayerUi();
   }
 
+  function renderEditorCategories() {
+    const host = $("editorCategoryChips");
+    if (!host || !window.ContentGate) return;
+    const blocked = state.editorBlocked || new Set();
+    host.innerHTML = "";
+    for (const g of window.ContentGate.GENRES) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const enabled = !blocked.has(g.id);
+      chip.className = "chip category-chip" + (enabled ? " active" : " off");
+      chip.textContent = g.label;
+      chip.onclick = () => {
+        if (blocked.has(g.id)) blocked.delete(g.id);
+        else blocked.add(g.id);
+        state.editorBlocked = blocked;
+        renderEditorCategories();
+      };
+      host.appendChild(chip);
+    }
+  }
+
+  function paintAvatarGrid(list, selected) {
+    const host = $("avatarGrid");
+    if (!host) return;
+    host.innerHTML = "";
+    for (const opt of list.slice(0, 80)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "avatar-opt" + (opt.url === selected ? " selected" : "");
+      b.innerHTML = `<img alt="" src="${escapeHtml(opt.url)}" />`;
+      b.onclick = () => {
+        state.editorAvatar = opt.url;
+        paintAvatarGrid(list, opt.url);
+      };
+      host.appendChild(b);
+    }
+  }
+
+  async function openProfileEditor(profileId) {
+    const editor = $("profileEditor");
+    if (!editor) return;
+    const create = !profileId;
+    const p = profileId ? window.VfProfiles.listProfiles().find((x) => x.id === profileId) : null;
+    state.editingProfileId = profileId || null;
+    state.editorAvatar = p?.avatar || window.VfProfiles.diceBearUrl?.(p?.name || "Profil");
+    state.editorBlocked = new Set(
+      create
+        ? window.ContentGate?.DEFAULT_BLOCKED || ["horror", "anime"]
+        : window.VfProfiles.blockedGenres(profileId),
+    );
+    if ($("profileEditorTitle")) $("profileEditorTitle").textContent = create ? "Profil anlegen" : "Profil bearbeiten";
+    if ($("profileEditorName")) $("profileEditorName").value = p?.name || "";
+    if ($("btnDeleteEditorProfile")) $("btnDeleteEditorProfile").hidden = create;
+    const dice = window.VfProfiles.presetAvatars?.(p?.name || "Verflixed") || [];
+    const favs = window.VfProfiles.listFavorites().filter((f) => f.posterUrl).map((f) => ({
+      id: f.id,
+      url: f.posterUrl,
+      source: "favorite",
+    }));
+    paintAvatarGrid([...favs, ...dice], state.editorAvatar);
+    renderEditorCategories();
+    editor.classList.remove("hidden");
+    try {
+      const people = (await window.Tmdb?.popularPersonAvatars?.(2)) || [];
+      paintAvatarGrid([...favs, ...people, ...dice], state.editorAvatar);
+    } catch (_) {}
+  }
+
+  function closeProfileEditor() {
+    $("profileEditor")?.classList.add("hidden");
+    state.editingProfileId = null;
+  }
+
+  function saveProfileEditor() {
+    const name = $("profileEditorName")?.value?.trim();
+    if (!name) {
+      alert("Name fehlt");
+      return;
+    }
+    if (state.editingProfileId) {
+      window.VfProfiles.renameProfile(state.editingProfileId, name, state.editorAvatar);
+      window.VfProfiles.setBlockedGenres(state.editingProfileId, [...(state.editorBlocked || [])]);
+    } else {
+      const p = window.VfProfiles.createProfile(name, state.editorAvatar);
+      window.VfProfiles.setBlockedGenres(p.id, [...(state.editorBlocked || [])]);
+      window.VfProfiles.switchProfile(p.id);
+    }
+    closeProfileEditor();
+    syncProfileChip();
+    paintSettingsToggles();
+    renderProfileGrid();
+    refreshBrowseFromState();
+  }
+
   function hideSplash() {
     const splash = $("splash");
     if (!splash) return;
@@ -3016,8 +3175,8 @@
     hideSplash();
   }
 
-  localStorage.setItem("vf_app_version", "1.13.0");
-  localStorage.setItem("vf_version_code", "45");
+  localStorage.setItem("vf_app_version", "1.14.0");
+  localStorage.setItem("vf_version_code", "46");
   applyChromePrefs();
   applyUiScale();
   syncBaseUrlInputs();
@@ -3030,13 +3189,14 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.13.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.14.0";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.13.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.14.0";
     }
     setHomeMode("library");
+    refreshCalendarRows();
     // Prefetch catalogs in background so search/library resolve better
     Promise.all([
       loadSeriesCatalog().catch(() => {}),

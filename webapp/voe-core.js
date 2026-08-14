@@ -405,13 +405,89 @@ async function extractVidaraHls(embedUrl, referer = null) {
   }
 }
 
+/**
+ * Firestream (firestream.to) — same flow as Android FirestreamExtractor:
+ * token-blob resolve, then /d/{slug} CDN MP4 fallback.
+ */
+async function extractFirestream(embedUrl, referer = null) {
+  if (!embedUrl || !/firestream/i.test(embedUrl)) return { ok: false, error: "not firestream" };
+  let origin = "https://firestream.to";
+  let slug = "";
+  try {
+    const u = new URL(embedUrl);
+    origin = u.origin;
+    slug = (u.pathname.match(/\/(?:e|v|d|embed)\/([A-Za-z0-9_-]+)/i) || [])[1] ||
+      u.pathname.split("/").filter(Boolean).pop() ||
+      "";
+  } catch {
+    slug = String(embedUrl).split("/").pop() || "";
+  }
+  if (!slug) return { ok: false, error: "no slug" };
+
+  const pick = (...cands) => {
+    for (const raw of cands) {
+      const url = String(raw || "").trim();
+      if (!url.startsWith("http")) continue;
+      const lower = url.toLowerCase();
+      if (/\.mp4|\.m3u8|x-amz-|signature=|\/encodings\/|\/video/.test(lower)) return url;
+    }
+    return null;
+  };
+
+  try {
+    const page = await fetchText(`${origin}/e/${slug}`, {
+      Referer: referer || `${origin}/`,
+      "Accept-Encoding": "identity",
+    });
+    const html = page.text || "";
+    const blob = (html.match(/id=["']token-blob["'][^>]*>([^<]+)</i) || [])[1];
+    const videoRaw = (html.match(/id=["']video-data["'][^>]*>([\s\S]*?)<\/script>/i) || [])[1];
+    if (videoRaw) {
+      try {
+        const video = JSON.parse(videoRaw).video || {};
+        const hit = pick(video.signedVideoUrl, video.signedVideoSdUrl);
+        if (hit) return { ok: true, hls: hit, pageUrl: embedUrl, provider: "firestream" };
+      } catch (_) {}
+    }
+    if (blob) {
+      const res = await fetchTextPost(
+        `${origin}/api/videos/${slug}/resolve`,
+        JSON.stringify({ blob }),
+        {
+          "Content-Type": "application/json",
+          Origin: origin,
+          Referer: `${origin}/e/${slug}`,
+          Accept: "application/json",
+        },
+      );
+      try {
+        const data = JSON.parse(res.text || "{}");
+        const hit = pick(data.signedVideoUrl, data.signedVideoSdUrl, data.streaming_url);
+        if (hit) return { ok: true, hls: hit, pageUrl: embedUrl, provider: "firestream" };
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  try {
+    const dl = await fetchText(`${origin}/d/${slug}`, {
+      Referer: `${origin}/e/${slug}`,
+      "Accept-Encoding": "identity",
+    });
+    const matches = [...String(dl.text || "").matchAll(/https:\/\/[a-z0-9.-]*firestream\.to\/[^"'\\\s<>]+video\.(?:mp4|m3u8)[^"'\\\s<>]*/gi)].map((m) => m[0]);
+    const preferred = matches.find((u) => !/download/i.test(u)) || matches[0];
+    if (preferred) return { ok: true, hls: preferred, pageUrl: embedUrl, provider: "firestream" };
+  } catch (_) {}
+
+  return { ok: false, error: "firestream resolve failed" };
+}
+
 function scoreHosterName(name, url = "") {
   const n = `${name || ""} ${url || ""}`.toLowerCase();
   let s = 0;
   if (/\bvoe\b/.test(n)) s += 100;
   if (/vidara|vidnest/.test(n)) s += 70;
   if (/vidsonic/.test(n)) s += 40;
-  if (/firestream/.test(n)) s += 30;
+  if (/firestream/.test(n)) s += 80;
   if (/playmate/.test(n)) s += 20;
   if (/\bhd\b/.test(n)) s += 5;
   return s;
@@ -420,6 +496,7 @@ function scoreHosterName(name, url = "") {
 module.exports = {
   extractVoeHls,
   extractVidaraHls,
+  extractFirestream,
   extractSourceFromHtml,
   decodeVoeString,
   fetchText,

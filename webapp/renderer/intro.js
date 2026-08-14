@@ -284,9 +284,28 @@ window.VfIntro = (() => {
     });
   }
 
+  let audioEl = null;
   let audioCtx = null;
 
   function sting() {
+    try {
+      if (audioEl) {
+        try {
+          audioEl.pause();
+          audioEl.currentTime = 0;
+        } catch (_) {}
+      }
+      audioEl = new Audio("splash_tudum.ogg");
+      audioEl.volume = 1;
+      const play = audioEl.play();
+      if (play && play.catch) play.catch(() => synthSting());
+      return;
+    } catch (_) {
+      synthSting();
+    }
+  }
+
+  function synthSting() {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
