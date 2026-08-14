@@ -1,8 +1,8 @@
 {
-  "versionCode": 48,
-  "versionName": "1.15.0",
+  "versionCode": 49,
+  "versionName": "1.16.0",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "25699502fb84de17336efc89d46b025187d85e77092506fab3590dec458e756a",
-  "changelog": "1.15.0: Cinematisches 3D-Intro (Perspektive, Extrusion, Reflexion) und neuer tiefer TA\u2013DUMM-Sting ohne piepsige H\u00f6hen. Plus Fokus-Scale ohne Sektions-Bleed."
+  "sha256": "7d6aeaec65271fb25e83eba9c5ce7fecc4eea8fd9e0237bbc193205436e8f958",
+  "changelog": "1.16.0: Echtes gerendertes 3D-Intro als Video (brand_intro.mp4) mit organischem TA-DUMM. Serien-Quelle standardmaessig serienstream.cx, in den Einstellungen aenderbar und speicherbar."
 }

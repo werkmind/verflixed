@@ -503,7 +503,7 @@ class VerflixedIntroView @JvmOverloads constructor(
     }
 
     companion object {
-        const val DEFAULT_DURATION_MS = 3200L
+        const val DEFAULT_DURATION_MS = 3400L
         const val HOLD_AFTER_MS = 220L
 
         private const val KIND_FRONT = 0

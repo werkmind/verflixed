@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.15.0" />
-  <meta name="vf-version-code" content="48" />
+  <meta name="vf-version" content="1.16.0" />
+  <meta name="vf-version-code" content="49" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -17,6 +17,7 @@
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="false">
+    <video id="splashIntroVideo" class="intro-video" muted playsinline preload="auto" src="brand_intro.mp4"></video>
     <canvas id="splashIntro" class="intro-canvas" aria-label="Verflixed"></canvas>
     <div id="splashProgress" class="splash-progress" aria-hidden="true"></div>
   </div>
@@ -120,13 +121,18 @@
           <div class="settings-card">
             <label>Serien-Quellen-URL</label>
             <div class="base-row tight">
-              <input id="seriesBaseUrl" type="url" placeholder="https://aniworld.to" />
+              <input id="seriesBaseUrl" type="url" placeholder="https://serienstream.cx" />
+              <button id="btnSaveSeriesBase" class="btn ghost">Speichern</button>
             </div>
             <label style="margin-top:12px;display:block;">Filme-Quellen-URL</label>
             <div class="base-row tight">
               <input id="moviesBaseUrl" type="url" placeholder="https://filmpalast.to" />
               <button id="btnSaveBase2" class="btn ghost">Speichern</button>
             </div>
+            <div class="base-row tight" style="margin-top:10px;">
+              <button id="btnResetBases" class="btn ghost" type="button">Standard wiederherstellen</button>
+            </div>
+            <p id="baseSaveStatus" class="muted" style="margin-top:8px;font-size:0.85rem;"></p>
             <label style="margin-top:14px;display:block;">Layout</label>
             <button id="btnToggleNavLayout" class="btn ghost" type="button">Layout: Sidebar</button>
             <label style="margin-top:14px;display:block;">Bibliothek</label>
@@ -151,6 +157,7 @@
           <div class="player-shell" id="playerShell">
             <video id="video" playsinline></video>
             <div id="playerBrandGate" class="player-brand-gate hidden" aria-hidden="true">
+              <video id="playerIntroVideo" class="intro-video" muted playsinline preload="auto" src="brand_intro.mp4"></video>
               <canvas id="playerIntro" class="intro-canvas compact" aria-hidden="true"></canvas>
               <div id="playerBrandStatus" class="player-brand-status"></div>
             </div>

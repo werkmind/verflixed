@@ -3,7 +3,7 @@
  * Perspective-projected 3D V + deep original sting (ogg, WebAudio fallback).
  */
 window.VfIntro = (() => {
-  const DEFAULT_DURATION_MS = 3200;
+  const DEFAULT_DURATION_MS = 3400;
   const HOLD_AFTER_MS = 220;
 
   const FACE_TOP = [183, 219, 255];
@@ -362,13 +362,69 @@ window.VfIntro = (() => {
 
   const playing = new WeakMap();
 
+  /** Rendered 3D opener that ships with the app (audio baked in). */
+  const VIDEO_IDS = { splashIntro: "splashIntroVideo", playerIntro: "playerIntroVideo" };
+
+  function videoFor(canvas) {
+    const id = canvas && VIDEO_IDS[canvas.id];
+    return id ? document.getElementById(id) : null;
+  }
+
+  function stopVideo(video) {
+    if (!video) return;
+    try {
+      video.pause();
+      video.currentTime = 0;
+    } catch (_) {}
+    video.classList.remove("active");
+  }
+
+  function playVideo(video) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener("ended", onEnd);
+        video.removeEventListener("error", onErr);
+        ok ? resolve() : reject(new Error("intro video failed"));
+      };
+      const onEnd = () => done(true);
+      const onErr = () => done(false);
+      video.addEventListener("ended", onEnd);
+      video.addEventListener("error", onErr);
+      try {
+        video.currentTime = 0;
+        video.muted = false;
+        video.volume = 1;
+        video.classList.add("active");
+        const p = video.play();
+        if (p && p.catch) {
+          p.catch(() => {
+            // Autoplay with audio blocked (browser/PWA): keep the picture,
+            // run it muted and let the WebAudio sting carry the sound.
+            video.muted = true;
+            sting();
+            const retry = video.play();
+            if (retry && retry.catch) retry.catch(() => done(false));
+          });
+        }
+      } catch (_) {
+        done(false);
+      }
+      // Safety net if 'ended' never fires (codec stall).
+      setTimeout(() => done(true), DEFAULT_DURATION_MS + 1200);
+    });
+  }
+
   function stop(canvas) {
+    stopVideo(videoFor(canvas));
     const rec = canvas && playing.get(canvas);
     if (rec?.raf) cancelAnimationFrame(rec.raf);
     if (canvas) playing.delete(canvas);
   }
 
-  function play(canvas, opts = {}) {
+  function playCanvas(canvas, opts = {}) {
     if (!canvas) return Promise.resolve();
     stop(canvas);
     const duration = opts.durationMs || DEFAULT_DURATION_MS;
@@ -388,6 +444,24 @@ window.VfIntro = (() => {
       };
       rec.raf = requestAnimationFrame(tick);
     });
+  }
+
+  /**
+   * Prefer the rendered 3D opener (its audio is baked in). Only if the video
+   * cannot play do we fall back to the canvas animation + synth sting.
+   */
+  async function play(canvas, opts = {}) {
+    const video = videoFor(canvas);
+    if (video && !opts.forceCanvas) {
+      try {
+        await playVideo(video);
+        return;
+      } catch (_) {
+        stopVideo(video);
+      }
+    }
+    sting();
+    await playCanvas(canvas, opts);
   }
 
   let audioEl = null;

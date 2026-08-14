@@ -35,6 +35,8 @@ function createWindow() {
 
 app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
+// The brand opener carries its own audio and must start without a click.
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
 app.whenReady().then(() => {
   // Persist site partition + default session CORS/media tweaks

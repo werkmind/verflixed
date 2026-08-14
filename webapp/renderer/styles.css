@@ -54,6 +54,18 @@ button { color: inherit; }
   height: 100%;
   display: block;
 }
+/* Rendered 3D opener; the canvas intro stays as fallback underneath. */
+.intro-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+  display: none;
+  z-index: 2;
+}
+.intro-video.active { display: block; }
 .splash-progress {
   position: absolute;
   left: 50%;

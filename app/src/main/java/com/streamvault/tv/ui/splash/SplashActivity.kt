@@ -4,11 +4,13 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.animation.PathInterpolator
+import android.widget.VideoView
 import com.streamvault.tv.ui.util.ScaledAppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.prefs.UserPrefs
+import com.streamvault.tv.ui.brand.BrandIntroPlayer
 import com.streamvault.tv.ui.brand.BrandSting
 import com.streamvault.tv.ui.brand.VerflixedIntroView
 import com.streamvault.tv.ui.home.HomeActivity
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
  */
 class SplashActivity : ScaledAppCompatActivity() {
     private val sting by lazy { BrandSting(this) }
+    private var introPlayer: BrandIntroPlayer? = null
     private var navigated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,9 +40,16 @@ class SplashActivity : ScaledAppCompatActivity() {
 
         val intro = findViewById<VerflixedIntroView>(R.id.splashIntro)
         val progress = findViewById<View>(R.id.splashProgress)
+        val video = findViewById<VideoView>(R.id.splashIntroVideo)
 
-        sting.play()
-        intro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
+        // Rendered 3D opener first; canvas + sting only if it cannot decode.
+        introPlayer = BrandIntroPlayer(video)
+        introPlayer?.play(
+            onFallback = {
+                sting.play()
+                intro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
+            },
+        )
 
         progress.animate()
             .alpha(1f)
@@ -79,6 +89,7 @@ class SplashActivity : ScaledAppCompatActivity() {
 
     override fun onDestroy() {
         sting.stop()
+        introPlayer?.stop()
         super.onDestroy()
     }
 }

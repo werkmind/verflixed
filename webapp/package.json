@@ -1,7 +1,7 @@
 {
   "name": "verflixed-webapp",
-  "version": "1.15.0",
-  "description": "Verflixed – Serien & Filme (1:1 Port der Fire-TV-APK 1.15.0)",
+  "version": "1.16.0",
+  "description": "Verflixed – Serien & Filme (1:1 Port der Fire-TV-APK 1.16.0)",
   "main": "main.js",
   "author": "Verflixed",
   "license": "MIT",

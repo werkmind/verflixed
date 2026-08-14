@@ -40,6 +40,7 @@ import com.streamvault.tv.data.model.Series
 import com.streamvault.tv.data.skip.EpisodeSkipPlan
 import com.streamvault.tv.data.skip.SkipSegment
 import com.streamvault.tv.databinding.ActivityPlayerBinding
+import com.streamvault.tv.ui.brand.BrandIntroPlayer
 import com.streamvault.tv.ui.brand.BrandSting
 import com.streamvault.tv.ui.brand.VerflixedIntroView
 import com.streamvault.tv.ui.util.FocusFx
@@ -89,6 +90,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
 
     /** Branded pre-roll that hides raw loading / WebView switching until playback starts. */
     private val brandSting by lazy { BrandSting(this) }
+    private var playerIntroVideo: BrandIntroPlayer? = null
     private var brandGateShown = false
     private var brandGateMinUntilMs = 0L
 
@@ -1075,9 +1077,14 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.playerBrandGate.alpha = 1f
         binding.playerBrandStatus.alpha = 0f
         binding.playerBrandStatus.text = titleHint?.takeIf { it.isNotBlank() } ?: ""
-        binding.playerIntro.compact = true
-        binding.playerIntro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
-        brandSting.play(0.9f)
+        playerIntroVideo = BrandIntroPlayer(binding.playerIntroVideo)
+        playerIntroVideo?.play(
+            onFallback = {
+                binding.playerIntro.compact = true
+                binding.playerIntro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
+                brandSting.play(0.9f)
+            },
+        )
         brandGateMinUntilMs = System.currentTimeMillis() +
             VerflixedIntroView.DEFAULT_DURATION_MS - 250L
         handler.post(brandStatusTick)
@@ -1102,6 +1109,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
         handler.removeCallbacks(brandGateTimeout)
         brandSting.stop()
         binding.playerIntro.stop()
+        playerIntroVideo?.stop()
         binding.playerBrandGate.animate()
             .alpha(0f)
             .setDuration(if (force) 220L else 320L)
@@ -1784,6 +1792,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
         persistProgress(forceCompleted = false)
         player?.playWhenReady = false
         brandSting.stop()
+        playerIntroVideo?.stop()
         super.onStop()
     }
 
@@ -1795,6 +1804,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
         handler.removeCallbacks(brandGateTimeout)
         brandSting.stop()
         binding.playerIntro.stop()
+        playerIntroVideo?.stop()
         persistProgress(forceCompleted = false)
         runCatching {
             binding.webPlayer.apply {

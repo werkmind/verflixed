@@ -4,6 +4,19 @@
   const PROGRESS_SAVE_MS = 15000;
   const SEEK_STEP_S = 10;
 
+  const DEFAULT_SERIES_BASE = "https://serienstream.cx";
+  const DEFAULT_MOVIES_BASE = "https://filmpalast.to";
+
+  /** Early builds shipped AniWorld as the series default; move those installs over. */
+  function migrateLegacySeriesBase() {
+    const legacy = /aniworld\.(to|cc|tv)/i;
+    for (const key of ["vf_base_series", "vf_base"]) {
+      const v = localStorage.getItem(key);
+      if (v && legacy.test(v)) localStorage.setItem(key, DEFAULT_SERIES_BASE);
+    }
+  }
+  migrateLegacySeriesBase();
+
   const state = {
     mediaKind: localStorage.getItem("vf_media_kind") || "series",
     homeMode: "library",
@@ -11,8 +24,8 @@
     seriesBaseUrl:
       localStorage.getItem("vf_base_series") ||
       localStorage.getItem("vf_base") ||
-      "https://aniworld.to",
-    moviesBaseUrl: localStorage.getItem("vf_base_movies") || "https://filmpalast.to",
+      DEFAULT_SERIES_BASE,
+    moviesBaseUrl: localStorage.getItem("vf_base_movies") || DEFAULT_MOVIES_BASE,
     baseUrl: "",
     series: [],
     movies: [],
@@ -410,7 +423,6 @@
     const canvas = $("playerIntro");
     window.VfIntro?.stop?.(canvas);
     window.VfIntro?.play?.(canvas, { compact: true });
-    window.VfIntro?.sting?.();
   }
 
   function hideBrandGate() {
@@ -484,13 +496,21 @@
     if ($("baseUrlSettings")) $("baseUrlSettings").value = active;
   }
 
+  function normalizeBase(raw) {
+    const v = (raw || "").trim().replace(/\/+$/, "");
+    if (!v) return "";
+    return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  }
+
   function persistBasesFromInputs() {
-    const seriesIn = ($("seriesBaseUrl")?.value || "").trim().replace(/\/$/, "");
-    const moviesIn = ($("moviesBaseUrl")?.value || "").trim().replace(/\/$/, "");
-    const activeIn = ($("baseUrl")?.value || "").trim().replace(/\/$/, "");
+    const seriesIn = normalizeBase($("seriesBaseUrl")?.value);
+    const moviesIn = normalizeBase($("moviesBaseUrl")?.value);
+    const activeIn = normalizeBase($("baseUrl")?.value);
 
     if (seriesIn) state.seriesBaseUrl = seriesIn;
     if (moviesIn) state.moviesBaseUrl = moviesIn;
+    if (!state.seriesBaseUrl) state.seriesBaseUrl = DEFAULT_SERIES_BASE;
+    if (!state.moviesBaseUrl) state.moviesBaseUrl = DEFAULT_MOVIES_BASE;
 
     if (activeIn) {
       if (state.mediaKind === "movie") state.moviesBaseUrl = activeIn;
@@ -2914,10 +2934,29 @@
       persistBasesFromInputs();
       state.seriesLoaded = false;
       state.moviesLoaded = false;
+      const note = $("baseSaveStatus");
+      if (note) {
+        note.textContent = `Gespeichert: Serien ${state.seriesBaseUrl} · Filme ${state.moviesBaseUrl}`;
+      }
       refreshCatalog();
     };
     if ($("btnSaveBase")) $("btnSaveBase").onclick = saveBases;
     if ($("btnSaveBase2")) $("btnSaveBase2").onclick = saveBases;
+    if ($("btnSaveSeriesBase")) $("btnSaveSeriesBase").onclick = saveBases;
+    if ($("btnResetBases")) {
+      $("btnResetBases").onclick = () => {
+        if ($("seriesBaseUrl")) $("seriesBaseUrl").value = DEFAULT_SERIES_BASE;
+        if ($("moviesBaseUrl")) $("moviesBaseUrl").value = DEFAULT_MOVIES_BASE;
+        saveBases();
+      };
+    }
+    for (const id of ["seriesBaseUrl", "moviesBaseUrl", "baseUrl"]) {
+      const el = $(id);
+      if (!el) continue;
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") saveBases();
+      });
+    }
     if ($("btnBack")) {
       $("btnBack").onclick = () => setHomeMode(state.lastContentMode || "library");
     }
@@ -3171,15 +3210,14 @@
   async function runSplash() {
     const canvas = $("splashIntro");
     try {
-      window.VfIntro?.sting?.();
       await window.VfIntro?.play?.(canvas, { compact: false });
       await new Promise((r) => setTimeout(r, window.VfIntro?.HOLD_AFTER_MS || 260));
     } catch (_) {}
     hideSplash();
   }
 
-  localStorage.setItem("vf_app_version", "1.15.0");
-  localStorage.setItem("vf_version_code", "46");
+  localStorage.setItem("vf_app_version", "1.16.0");
+  localStorage.setItem("vf_version_code", "49");
   applyChromePrefs();
   applyUiScale();
   syncBaseUrlInputs();
@@ -3192,11 +3230,11 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.15.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.16.0";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.15.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.16.0";
     }
     setHomeMode("library");
     refreshCalendarRows();
