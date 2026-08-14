@@ -176,6 +176,8 @@ class HomeActivity : ScaledAppCompatActivity() {
         binding.rows.isNestedScrollingEnabled = true
         binding.rows.setHasFixedSize(false)
         binding.rows.setItemViewCacheSize(6)
+        binding.rows.clipChildren = true
+        binding.rows.clipToPadding = false
         // Keep focused row visible for D-pad TV navigation
         binding.rows.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
             override fun onChildViewAttachedToWindow(view: View) = Unit
@@ -1136,7 +1138,7 @@ private class RowsAdapter(
             sharedPool?.let { list.setRecycledViewPool(it) }
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = false
+            list.clipChildren = true
             list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
@@ -1197,6 +1199,7 @@ private class PosterAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PosterVH {
         val layout = if (viewType == 1) R.layout.item_poster_card else R.layout.item_poster
         val view = LayoutInflater.from(parent.context).inflate(layout, parent, false)
+        FocusFx.clipMediaTile(view)
         return PosterVH(view)
     }
 

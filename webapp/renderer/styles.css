@@ -26,6 +26,7 @@
 html, body {
   margin: 0;
   min-height: 100%;
+  overflow-x: hidden;
   background:
     radial-gradient(130% 90% at 50% 12%, #0d1424 0%, #080d18 42%, #04060a 100%);
   color: var(--text);
@@ -96,6 +97,7 @@ button { color: inherit; }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 .side-nav {
@@ -286,14 +288,21 @@ main {
   flex: 1;
   width: min(1400px, 100%);
   margin: 0 auto;
+  overflow: visible;
 }
-.view { display: none; }
+.view { display: none; overflow: visible; }
 .view.active { display: block; }
 .status { color: var(--muted); margin: 8px 0 16px; font-size: 14px; }
 .muted { color: var(--muted); font-size: 14px; }
 .hidden { display: none !important; }
 
-.rows { display: flex; flex-direction: column; gap: clamp(18px, 3vw, 28px); }
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 3vw, 28px);
+  overflow: visible;
+}
+.shelf { overflow: visible; }
 .shelf-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .row-title { font-size: clamp(18px, 2vw, 22px); font-weight: 800; margin: 0; }
 .shelf-count { color: var(--muted); font-size: 13px; }
@@ -304,7 +313,10 @@ main {
   grid-auto-columns: var(--tile-w);
   gap: 12px;
   overflow-x: auto;
-  padding: 4px 2px 14px;
+  overflow-y: hidden;
+  padding: 18px 14px 24px;
+  margin: -10px -10px 0;
+  isolation: isolate;
   scroll-snap-type: x mandatory;
   scrollbar-width: thin;
   scrollbar-color: #3a4560 transparent;
@@ -321,6 +333,8 @@ main {
   text-align: left;
   cursor: pointer;
   scroll-snap-align: start;
+  overflow: visible;
+  transform-origin: center center;
 }
 .card-media {
   position: relative;
@@ -330,12 +344,6 @@ main {
   box-shadow: var(--shadow);
   border: 1px solid transparent;
   transition: transform 0.18s ease, border-color 0.18s ease;
-}
-.card:hover .card-media,
-.card:focus-visible .card-media {
-  transform: scale(1.03);
-  border-color: var(--accent);
-  outline: none;
 }
 .card img {
   width: 100%;
@@ -458,6 +466,8 @@ main {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+  overflow: visible;
+  padding: 8px 4px;
 }
 .profile-card {
   position: relative;
@@ -499,7 +509,7 @@ main {
   gap: 8px;
   max-height: 220px;
   overflow: auto;
-  padding: 4px;
+  padding: 10px 8px;
 }
 .avatar-opt {
   width: 56px;
@@ -563,16 +573,25 @@ main {
 
 /* Detail */
 .detail-hero-bg {
+  position: relative;
   margin: 0 calc(-1 * var(--pad)) 18px;
+  border-radius: 0 0 18px 18px;
+  overflow: visible;
+}
+.detail-hero-art {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
   background-size: cover;
   background-position: center top;
-  border-radius: 0 0 18px 18px;
-  overflow: hidden;
-  transition: background-image 0.35s ease;
+  pointer-events: none;
 }
 .detail-hero-scrim {
+  position: relative;
+  z-index: 1;
   background: linear-gradient(180deg, rgba(7, 9, 15, 0.55), rgba(7, 9, 15, 0.92) 70%, var(--bg));
-  padding: 14px var(--pad) 8px;
+  padding: 14px var(--pad) 12px;
 }
 .detail-hero {
   display: grid;
@@ -613,8 +632,8 @@ main {
   gap: 10px;
   margin: 16px 0 4px;
   overflow-x: auto;
-  overflow-y: visible;
-  padding: 6px 4px 10px 0;
+  overflow-y: hidden;
+  padding: 10px 8px 14px 4px;
   -webkit-overflow-scrolling: touch;
 }
 .detail-actions .btn {
@@ -623,7 +642,14 @@ main {
 #btnLanguage[hidden] {
   display: none !important;
 }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  overflow: visible;
+  padding: 6px 4px;
+}
 .chip {
   background: #1c2230;
   border: 1px solid var(--line);
@@ -643,6 +669,9 @@ main {
   grid-template-columns: 1fr;
   gap: 10px;
   max-width: 920px;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 10px 8px 56px;
 }
 .episode {
   width: 100%;
@@ -668,6 +697,7 @@ main {
   cursor: pointer;
   border-radius: 8px;
   overflow: hidden;
+  transition: transform 0.24s var(--ease-glide);
 }
 .ep-play:focus-visible { outline: 2px solid var(--accent-soft); }
 .episode img {
@@ -1079,6 +1109,11 @@ main {
     box-shadow 0.3s var(--ease-glide);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
+.card:hover,
+.card:focus-visible {
+  outline: none;
+  z-index: 2;
+}
 .card:hover .card-media,
 .card:focus-visible .card-media {
   transform: scale(1.045) translateZ(0);
@@ -1132,12 +1167,17 @@ main {
   position: relative;
   height: clamp(220px, 32vw, 280px);
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 8px;
-  isolation: isolate;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  transform: translateZ(0);
+}
+.home-hero-art {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  pointer-events: none;
 }
 .home-hero img {
   position: absolute;
@@ -1187,6 +1227,8 @@ main {
   display: flex;
   gap: 10px;
   margin-top: 12px;
+  overflow: visible;
+  padding: 6px 8px 4px 0;
 }
 .shelf {
   animation: shelfEnter 0.42s var(--ease-glide) both;
@@ -1239,8 +1281,8 @@ main {
 .episode:hover,
 .episode:focus-within {
   border-color: rgba(127, 184, 255, 0.45);
-  transform: scale(1.01);
 }
-.episode-list {
-  padding-bottom: 56px;
+.episode:hover .ep-play,
+.episode:focus-within .ep-play {
+  transform: scale(1.03);
 }

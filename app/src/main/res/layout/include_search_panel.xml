@@ -3,6 +3,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clipChildren="true"
+    android:clipToPadding="false"
     android:orientation="horizontal"
     android:paddingStart="20dp"
     android:paddingTop="8dp"
@@ -34,7 +36,9 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:clipChildren="true"
             android:clipToPadding="false"
+            android:padding="8dp"
             android:overScrollMode="never" />
     </LinearLayout>
 
@@ -43,6 +47,10 @@
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="0.58"
+        android:clipChildren="true"
         android:clipToPadding="false"
-        android:paddingStart="8dp" />
+        android:paddingStart="8dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="20dp" />
 </LinearLayout>

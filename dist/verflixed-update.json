@@ -1,8 +1,8 @@
 {
-  "versionCode": 41,
-  "versionName": "1.10.1",
+  "versionCode": 48,
+  "versionName": "1.15.0",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "71930859bde217ec928f27f911280cd12f5b6adf957895062d939cb4eec66cd8",
-  "changelog": "1.10.1: Smarteres Weiterschauen (nach zuletzt Gesehenem), Filme: Neu erschienen zuerst (echte Release-Jahre), Weiterschauen-Verwaltung, Zufallsfolge, frischere Empfehlungen"
+  "sha256": "25699502fb84de17336efc89d46b025187d85e77092506fab3590dec458e756a",
+  "changelog": "1.15.0: Cinematisches 3D-Intro (Perspektive, Extrusion, Reflexion) und neuer tiefer TA\u2013DUMM-Sting ohne piepsige H\u00f6hen. Plus Fokus-Scale ohne Sektions-Bleed."
 }

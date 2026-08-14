@@ -71,6 +71,10 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.episodeList.itemAnimator = null
         binding.episodeList.setHasFixedSize(true)
         binding.episodeList.isFocusable = false
+        binding.episodeList.clipChildren = true
+        binding.episodeList.clipToPadding = false
+        binding.seasonTabs.clipChildren = true
+        binding.seasonTabs.clipToPadding = false
         binding.seasonTabs.itemAnimator = null
         listOf(
             binding.btnPlay,

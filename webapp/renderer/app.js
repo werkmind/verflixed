@@ -726,8 +726,10 @@
       .filter(Boolean)
       .join("  ·  ");
     hero.innerHTML = `
-      <img alt="" />
-      <div class="home-hero-scrim"></div>
+      <div class="home-hero-art" aria-hidden="true">
+        <img alt="" />
+        <div class="home-hero-scrim"></div>
+      </div>
       <div class="home-hero-copy">
         <h2 class="home-hero-title">${escapeHtml(s.title || "")}</h2>
         <p class="home-hero-meta">${escapeHtml(meta)}</p>
@@ -1165,7 +1167,7 @@
 
   function applyDetailHero(seasonNum) {
     const hero = seasonHeroArt(seasonNum);
-    const heroEl = $("detailHero");
+    const heroEl = $("detailHeroArt") || $("detailHero");
     if (hero) heroEl.style.backgroundImage = `url("${hero}")`;
     else heroEl.style.backgroundImage = "";
     bindImg(
@@ -1255,7 +1257,8 @@
     $("detailMeta").textContent = isMovieItem(seriesLight) ? "Lade Film…" : "Lade Staffeln…";
     $("detailOverview").textContent = "";
     bindImg($("detailPoster"), tileArt(seriesLight));
-    $("detailHero").style.backgroundImage = "";
+    const heroArt = $("detailHeroArt") || $("detailHero");
+    if (heroArt) heroArt.style.backgroundImage = "";
     $("seasonTabs").innerHTML = "";
     $("seasonTabs").style.display = "";
     $("episodeList").innerHTML = "";
@@ -3175,7 +3178,7 @@
     hideSplash();
   }
 
-  localStorage.setItem("vf_app_version", "1.14.0");
+  localStorage.setItem("vf_app_version", "1.15.0");
   localStorage.setItem("vf_version_code", "46");
   applyChromePrefs();
   applyUiScale();
@@ -3189,11 +3192,11 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.14.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.15.0";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.14.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.15.0";
     }
     setHomeMode("library");
     refreshCalendarRows();

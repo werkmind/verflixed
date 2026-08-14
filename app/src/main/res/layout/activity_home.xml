@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_app"
-    android:clipChildren="false"
+    android:clipChildren="true"
     android:clipToPadding="false">
 
     <!-- ===== SIDEBAR (default) ===== -->
@@ -16,6 +16,8 @@
         android:background="#EE0A0D14"
         android:clipChildren="false"
         android:clipToPadding="false"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
         android:elevation="10dp"
         android:gravity="center_horizontal"
         android:orientation="vertical"
@@ -287,10 +289,12 @@
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="false"
+        android:clipChildren="true"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
+        android:paddingStart="8dp"
         android:paddingTop="10dp"
+        android:paddingEnd="8dp"
         android:paddingBottom="28dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

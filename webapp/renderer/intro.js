@@ -1,23 +1,27 @@
 /**
  * Canvas port of Android VerflixedIntroView + BrandSting.
- * Fake-3D extruded V, Prime-like atmosphere, letter-by-letter wordmark.
+ * Perspective-projected 3D V + deep original sting (ogg, WebAudio fallback).
  */
 window.VfIntro = (() => {
-  const DEFAULT_DURATION_MS = 2450;
-  const HOLD_AFTER_MS = 260;
+  const DEFAULT_DURATION_MS = 3200;
+  const HOLD_AFTER_MS = 220;
 
-  const FACE_TOP = [159, 208, 255];
+  const FACE_TOP = [183, 219, 255];
   const FACE_MID = [47, 128, 255];
-  const FACE_BOTTOM = [16, 64, 143];
-  const SIDE_DARK = [10, 30, 68];
-  const SIDE_DEEP = [4, 11, 28];
-  const SIDE_LIGHT = [27, 95, 196];
-  const RIM_LIGHT = [220, 235, 255];
-  const SWEEP_HOT = [232, 243, 255];
+  const SIDE_DARK = [8, 26, 64];
+  const SIDE_DEEP = [3, 8, 20];
+  const SIDE_LIGHT = [28, 98, 200];
   const ACCENT_SOFT = [143, 182, 232];
-  const ATMO_CORE = [11, 23, 48];
+  const ATMO_CORE = [12, 24, 52];
   const ATMO_MID = [6, 12, 28];
-  const ATMO_EDGE = [2, 4, 9];
+  const ATMO_EDGE = [1, 3, 8];
+  const LIGHT = norm3(0.32, -0.72, 0.62);
+  const DUST = [
+    -1.4, -0.8, 0.6, 1.2, -0.4, -0.5, -0.9, 0.7, 0.9,
+    1.5, 0.3, 0.2, -1.1, 0.1, -0.8, 0.4, -1.1, 0.7,
+    0.8, 0.9, -0.3, -0.3, -0.6, 1.1, 1.6, -0.9, 0.4,
+    -1.6, 0.5, 0.1, 0.2, 1.0, -0.9, -0.6, -1.2, -0.2,
+  ];
 
   function bezierEase(x1, y1, x2, y2) {
     return (t) => {
@@ -61,50 +65,152 @@ window.VfIntro = (() => {
     return `rgb(${c[0]},${c[1]},${c[2]})`;
   }
 
-  function buildV(ctx, size) {
+  function norm3(x, y, z) {
+    const len = Math.hypot(x, y, z) || 1;
+    return { x: x / len, y: y / len, z: z / len };
+  }
+
+  function rotate(p, rotX, rotY) {
+    const cy = Math.cos(rotY);
+    const sy = Math.sin(rotY);
+    const x1 = p.x * cy + p.z * sy;
+    const z1 = -p.x * sy + p.z * cy;
+    const cx = Math.cos(rotX);
+    const sx = Math.sin(rotX);
+    return { x: x1, y: p.y * cx - z1 * sx, z: p.y * sx + z1 * cx };
+  }
+
+  function project(p, focal, camZ) {
+    const d = focal / Math.max(0.35, camZ + p.z);
+    return { x: p.x * d, y: p.y * d };
+  }
+
+  function normal(a, b, c) {
+    const ux = b.x - a.x;
+    const uy = b.y - a.y;
+    const uz = b.z - a.z;
+    const vx = c.x - a.x;
+    const vy = c.y - a.y;
+    const vz = c.z - a.z;
+    return norm3(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+  }
+
+  function outline(size) {
     const halfW = size * 0.62;
     const top = -size * 0.6;
     const bottom = size * 0.62;
     const thick = size * 0.3;
-    ctx.beginPath();
-    ctx.moveTo(-halfW, top);
-    ctx.lineTo(-halfW + thick, top);
-    ctx.lineTo(0, bottom - thick * 0.55);
-    ctx.lineTo(halfW - thick, top);
-    ctx.lineTo(halfW, top);
-    ctx.lineTo(thick * 0.3, bottom);
-    ctx.lineTo(-thick * 0.3, bottom);
-    ctx.closePath();
+    return [
+      { x: -halfW, y: top },
+      { x: -halfW + thick, y: top },
+      { x: 0, y: bottom - thick * 0.55 },
+      { x: halfW - thick, y: top },
+      { x: halfW, y: top },
+      { x: thick * 0.3, y: bottom },
+      { x: -thick * 0.3, y: bottom },
+    ];
   }
 
-  function drawAtmosphere(ctx, w, h, k) {
+  function buildFaces(size, half) {
+    const ring = outline(size);
+    const at = (i, z) => ({ x: ring[i].x, y: ring[i].y, z });
+    const faces = [];
+    const front = (a, b, c, d) => faces.push({ a, b, c, d, kind: "front" });
+    const back = (a, b, c, d) => faces.push({ a, b, c, d, kind: "back" });
+    front(at(0, half), at(1, half), at(2, half), at(2, half));
+    front(at(0, half), at(2, half), at(6, half), at(6, half));
+    front(at(2, half), at(3, half), at(4, half), at(5, half));
+    front(at(2, half), at(5, half), at(6, half), at(6, half));
+    back(at(0, -half), at(6, -half), at(2, -half), at(1, -half));
+    back(at(2, -half), at(6, -half), at(5, -half), at(4, -half));
+    back(at(2, -half), at(4, -half), at(3, -half), at(3, -half));
+    for (let i = 0; i < ring.length; i++) {
+      const j = (i + 1) % ring.length;
+      faces.push({
+        a: at(i, half),
+        b: at(j, half),
+        c: at(j, -half),
+        d: at(i, -half),
+        kind: "side",
+      });
+    }
+    return faces;
+  }
+
+  function shadeColor(kind, shade) {
+    const base = kind === "front" ? FACE_MID : kind === "back" ? SIDE_DEEP : SIDE_DARK;
+    const hi = kind === "front" ? FACE_TOP : kind === "back" ? SIDE_DARK : SIDE_LIGHT;
+    return lerpColor(base, hi, shade);
+  }
+
+  function drawSolidV(ctx, size, rotX, rotY, camZ, focal, alpha, reflect) {
+    const half = size * 0.34;
+    const faces = buildFaces(size, half);
+    const lit = [];
+    for (const face of faces) {
+      const r0 = rotate(face.a, rotX, rotY);
+      const r1 = rotate(face.b, rotX, rotY);
+      const r2 = rotate(face.c, rotX, rotY);
+      const r3 = rotate(face.d, rotX, rotY);
+      const n = normal(r0, r1, r2);
+      if (n.z <= 0.02 && !reflect) continue;
+      const shade = Math.max(0, Math.min(1, 0.18 + 0.82 * Math.max(0, n.x * LIGHT.x + n.y * LIGHT.y + n.z * LIGHT.z)));
+      lit.push({
+        p0: project(r0, focal, camZ),
+        p1: project(r1, focal, camZ),
+        p2: project(r2, focal, camZ),
+        p3: project(r3, focal, camZ),
+        z: (r0.z + r1.z + r2.z + r3.z) * 0.25,
+        shade,
+        kind: face.kind,
+      });
+    }
+    lit.sort((a, b) => a.z - b.z);
+    const fade = reflect ? 0.22 : 1;
+    const ySign = reflect ? -1 : 1;
+    const yOff = reflect ? size * 1.55 : 0;
+    for (const f of lit) {
+      ctx.beginPath();
+      ctx.moveTo(f.p0.x, yOff + f.p0.y * ySign);
+      ctx.lineTo(f.p1.x, yOff + f.p1.y * ySign);
+      ctx.lineTo(f.p2.x, yOff + f.p2.y * ySign);
+      ctx.lineTo(f.p3.x, yOff + f.p3.y * ySign);
+      ctx.closePath();
+      ctx.fillStyle = rgb(shadeColor(f.kind, f.shade));
+      ctx.globalAlpha = alpha * fade;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (!reflect && alpha > 0.4) {
+      ctx.save();
+      ctx.translate(0, size * 0.02);
+      drawSolidV(ctx, size, rotX, rotY, camZ + 0.15, focal, alpha * 0.18, true);
+      ctx.restore();
+    }
+  }
+
+  function drawAtmosphere(ctx, w, h, k, shaftK) {
     if (k <= 0) return;
-    const g = ctx.createRadialGradient(w / 2, h * 0.42, 0, w / 2, h * 0.42, h * 1.05);
-    g.addColorStop(0, rgba(ATMO_CORE, 0.78 * k));
-    g.addColorStop(0.55, rgba(ATMO_MID, 0.78 * k));
-    g.addColorStop(1, rgba(ATMO_EDGE, 0.78 * k));
+    const g = ctx.createRadialGradient(w / 2, h * 0.4, 0, w / 2, h * 0.4, h * 1.15);
+    g.addColorStop(0, rgba(ATMO_CORE, 0.86 * k));
+    g.addColorStop(0.52, rgba(ATMO_MID, 0.86 * k));
+    g.addColorStop(1, rgba(ATMO_EDGE, 0.86 * k));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
-    const hg = ctx.createLinearGradient(0, h * 0.62, 0, h * 0.92);
+    if (shaftK > 0) {
+      const sg = ctx.createLinearGradient(w * 0.28, 0, w * 0.72, h);
+      sg.addColorStop(0.2, "rgba(47,128,255,0)");
+      sg.addColorStop(0.5, `rgba(47,128,255,${0.14 * shaftK})`);
+      sg.addColorStop(0.8, "rgba(47,128,255,0)");
+      ctx.fillStyle = sg;
+      ctx.fillRect(w * 0.22, 0, w * 0.56, h * 0.72);
+    }
+    const hg = ctx.createLinearGradient(0, h * 0.58, 0, h * 0.96);
     hg.addColorStop(0, "rgba(47,128,255,0)");
-    hg.addColorStop(0.5, `rgba(47,128,255,${0.18 * k})`);
+    hg.addColorStop(0.48, `rgba(47,128,255,${0.2 * k})`);
     hg.addColorStop(1, "rgba(47,128,255,0)");
     ctx.fillStyle = hg;
-    ctx.fillRect(0, h * 0.55, w, h * 0.45);
-  }
-
-  function drawBackglow(ctx, cx, cy, markSize, flyIn, sweepK) {
-    const glowAlpha = 0.47 * flyIn * (0.55 + 0.45 * easeInOut(sweepK));
-    if (glowAlpha <= 0) return;
-    const r = markSize * (2.5 + 0.5 * flyIn);
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0, `rgba(47,128,255,${glowAlpha})`);
-    g.addColorStop(0.45, `rgba(47,128,255,${glowAlpha * 0.35})`);
-    g.addColorStop(1, "rgba(47,128,255,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(0, h * 0.52, w, h * 0.48);
   }
 
   function drawFrame(canvas, progress, opts) {
@@ -130,91 +236,91 @@ window.VfIntro = (() => {
       return Math.max(0, Math.min(1, (progress - from) / (to - from)));
     };
 
-    drawAtmosphere(ctx, w, h, easeOut(seg(0, 0.5)));
+    drawAtmosphere(ctx, w, h, easeOut(seg(0, 0.48)), easeInOut(seg(0.08, 0.55)));
 
     const markSize = Math.min(w, h) * (compact ? 0.3 : 0.34);
     const cx = w / 2;
-    const cy = h / 2 - markSize * (compact ? 0.16 : 0.24);
-    const flyIn = easeOut(seg(0, 0.42));
-    const settle = easeOut(seg(0.78, 1));
+    const cy = h / 2 - markSize * (compact ? 0.14 : 0.2);
+    const flyIn = easeOut(seg(0, 0.5));
+    const settle = easeOut(seg(0.82, 1));
     const depth = 1 - flyIn;
-    const scale = 0.62 + 0.44 * flyIn - 0.06 * settle * Math.sin(settle * Math.PI);
-    const rotY = -30 * depth;
-    const markAlpha = Math.min(1, seg(0.02, 0.3) * 1.2);
+    const rotY = 0.98 * depth + 0.2;
+    const rotX = 0.42 * depth + 0.11;
+    const camZ = 3.55 - 1.35 * flyIn;
+    const focal = markSize * 1.22;
+    const scale = 0.78 + 0.26 * flyIn - 0.03 * settle * Math.sin(settle * Math.PI);
+    const markAlpha = Math.min(1, seg(0.02, 0.28) * 1.25);
 
-    drawBackglow(ctx, cx, cy, markSize, flyIn, seg(0.3, 0.7));
+    const floorA = 0.28 * flyIn;
+    if (floorA > 0) {
+      const rw = markSize * (1.85 + 0.25 * Math.sin(rotY));
+      const rh = markSize * 0.28;
+      const fg = ctx.createRadialGradient(cx, cy + markSize * 0.92, 0, cx, cy + markSize * 0.92, rw);
+      fg.addColorStop(0, `rgba(58,140,255,${floorA})`);
+      fg.addColorStop(1, "rgba(58,140,255,0)");
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + markSize * 0.78, rw, rh, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < DUST.length; i += 3) {
+      const p = project(
+        rotate({ x: DUST[i] * markSize, y: DUST[i + 1] * markSize, z: DUST[i + 2] * markSize }, rotX, rotY),
+        focal,
+        camZ,
+      );
+      const twinkle = 0.45 + 0.55 * Math.abs(Math.sin(progress * 6 + i));
+      ctx.fillStyle = `rgba(255,255,255,${0.35 * flyIn * twinkle})`;
+      ctx.beginPath();
+      ctx.arc(cx + p.x, cy + p.y, 1.4 + 1.1 * twinkle, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const glowA = 0.5 * flyIn * (0.5 + 0.5 * easeInOut(seg(0.28, 0.68)));
+    if (glowA > 0) {
+      const r = markSize * (2.7 + 0.4 * flyIn);
+      const gg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      gg.addColorStop(0, `rgba(47,128,255,${glowA})`);
+      gg.addColorStop(0.42, `rgba(47,128,255,${glowA * 0.32})`);
+      gg.addColorStop(1, "rgba(47,128,255,0)");
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.transform(scale * (1 - Math.abs(rotY) / 150), 0, 0, scale, 0, 0);
-    ctx.transform(1, -0.045 - 0.1 * depth, 0, 1, 0, 0);
+    ctx.scale(scale, scale);
+    drawSolidV(ctx, markSize, rotX, rotY, camZ, focal, markAlpha, false);
 
-    const extrude = markSize * (0.22 * depth + 0.085);
-    const steps = 12;
-    for (let i = steps; i >= 1; i--) {
-      const k = i / steps;
-      ctx.save();
-      ctx.translate(extrude * k * 0.95, extrude * k * 0.75);
-      buildV(ctx, markSize);
-      const a = lerpColor(SIDE_DARK, SIDE_DEEP, k);
-      const b = lerpColor(SIDE_LIGHT, SIDE_DARK, k);
-      const lg = ctx.createLinearGradient(-markSize, -markSize, markSize, markSize);
-      lg.addColorStop(0, rgb(a));
-      lg.addColorStop(1, rgb(b));
-      ctx.fillStyle = lg;
-      ctx.globalAlpha = markAlpha * ((70 + 110 * (1 - k)) / 255);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    ctx.save();
-    ctx.translate(extrude * 0.5, extrude * 1.35);
-    buildV(ctx, markSize);
-    ctx.fillStyle = `rgba(0,0,0,${markAlpha * 0.35})`;
-    ctx.fill();
-    ctx.restore();
-
-    buildV(ctx, markSize);
-    const face = ctx.createLinearGradient(-markSize * 0.7, -markSize, markSize * 0.7, markSize);
-    face.addColorStop(0, rgb(FACE_TOP));
-    face.addColorStop(0.55, rgb(FACE_MID));
-    face.addColorStop(1, rgb(FACE_BOTTOM));
-    ctx.fillStyle = face;
-    ctx.globalAlpha = markAlpha;
-    ctx.fill();
-
-    ctx.save();
-    buildV(ctx, markSize);
-    ctx.clip();
-    ctx.translate(-extrude * 0.05, -extrude * 0.1);
-    buildV(ctx, markSize);
-    const rim = ctx.createLinearGradient(0, -markSize, 0, 0);
-    rim.addColorStop(0, rgba(RIM_LIGHT, markAlpha * 0.47));
-    rim.addColorStop(1, "rgba(220,235,255,0)");
-    ctx.fillStyle = rim;
-    ctx.globalAlpha = 1;
-    ctx.fill();
-    ctx.restore();
-
-    const sweepK = seg(0.32, 0.66);
+    const sweepK = seg(0.46, 0.68);
     if (sweepK > 0 && sweepK < 1) {
       const eased = easeInOut(sweepK);
-      const bandW = markSize * 0.85;
-      const x = -markSize * 1.7 + eased * markSize * 3.4;
+      const ring = outline(markSize);
+      ctx.beginPath();
+      ring.forEach((p, i) => {
+        const pr = project(rotate({ x: p.x, y: p.y, z: markSize * 0.34 }, rotX, rotY), focal, camZ);
+        if (i === 0) ctx.moveTo(pr.x, pr.y);
+        else ctx.lineTo(pr.x, pr.y);
+      });
+      ctx.closePath();
       ctx.save();
-      buildV(ctx, markSize);
       ctx.clip();
+      const bandW = markSize * 0.9;
+      const x = -markSize * 1.8 + eased * markSize * 3.6;
       const sg = ctx.createLinearGradient(x - bandW, 0, x + bandW, 0);
-      sg.addColorStop(0, "rgba(232,243,255,0)");
-      sg.addColorStop(0.5, rgba(SWEEP_HOT, 0.75 * Math.sin(sweepK * Math.PI)));
-      sg.addColorStop(1, "rgba(232,243,255,0)");
+      sg.addColorStop(0, "rgba(242,248,255,0)");
+      sg.addColorStop(0.5, `rgba(242,248,255,${0.78 * Math.sin(sweepK * Math.PI)})`);
+      sg.addColorStop(1, "rgba(242,248,255,0)");
       ctx.fillStyle = sg;
-      ctx.fillRect(x - bandW, -markSize * 1.6, bandW * 2, markSize * 3.2);
+      ctx.fillRect(x - bandW, -markSize * 1.8, bandW * 2, markSize * 3.6);
       ctx.restore();
     }
     ctx.restore();
 
-    const textSize = markSize * (compact ? 0.34 : 0.4);
+    const textSize = markSize * (compact ? 0.32 : 0.38);
     ctx.font = `700 ${textSize}px "Segoe UI", ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "alphabetic";
     const tracking = textSize * 0.26;
@@ -222,18 +328,18 @@ window.VfIntro = (() => {
     const widths = letters.map((ch) => ctx.measureText(ch).width);
     const total = widths.reduce((a, b) => a + b, 0) + tracking * (letters.length - 1);
     let x = cx - total / 2;
-    const baseline = cy + markSize * 1.16;
+    const baseline = cy + markSize * 1.22;
     letters.forEach((ch, i) => {
-      const start = 0.44 + (i / letters.length) * 0.3;
-      const k = easeOut(seg(start, start + 0.2));
+      const start = 0.6 + (i / letters.length) * 0.26;
+      const k = easeOut(seg(start, start + 0.18));
       if (k > 0) {
         ctx.save();
         ctx.globalAlpha = Math.min(1, k * 1.25);
         ctx.fillStyle = "#fff";
-        const rise = (1 - k) * textSize * 0.55;
+        const rise = (1 - k) * textSize * 0.45;
         const mid = x + widths[i] / 2;
         ctx.translate(mid, baseline + rise);
-        ctx.scale(1, 0.86 + 0.14 * k);
+        ctx.scale(1, 0.88 + 0.12 * k);
         ctx.fillText(ch, -widths[i] / 2, 0);
         ctx.restore();
       }
@@ -241,13 +347,13 @@ window.VfIntro = (() => {
     });
 
     if (!compact) {
-      const tk = easeOut(seg(0.7, 0.95));
+      const tk = easeOut(seg(0.78, 0.96));
       if (tk > 0) {
         ctx.globalAlpha = 0.78 * tk;
         ctx.fillStyle = rgb(ACCENT_SOFT);
         ctx.font = `400 ${textSize * 0.46}px "Segoe UI", ui-sans-serif, system-ui, sans-serif`;
         ctx.textAlign = "center";
-        ctx.fillText(tagline, cx, baseline + textSize * (1.15 - 0.25 * tk));
+        ctx.fillText(tagline, cx, baseline + textSize * (1.12 - 0.22 * tk));
         ctx.textAlign = "start";
         ctx.globalAlpha = 1;
       }
@@ -297,8 +403,8 @@ window.VfIntro = (() => {
       }
       audioEl = new Audio("splash_tudum.ogg");
       audioEl.volume = 1;
-      const play = audioEl.play();
-      if (play && play.catch) play.catch(() => synthSting());
+      const playP = audioEl.play();
+      if (playP && playP.catch) playP.catch(() => synthSting());
       return;
     } catch (_) {
       synthSting();
@@ -313,64 +419,65 @@ window.VfIntro = (() => {
       const ctx = audioCtx;
       if (ctx.state === "suspended") ctx.resume().catch(() => {});
       const now = ctx.currentTime;
-
       const master = ctx.createGain();
-      master.gain.value = 0.85;
-      master.connect(ctx.destination);
+      master.gain.value = 0.95;
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1400;
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 22;
+      master.connect(hp);
+      hp.connect(lp);
+      lp.connect(ctx.destination);
 
-      const whoosh = ctx.createOscillator();
-      const whooshG = ctx.createGain();
-      const whooshF = ctx.createBiquadFilter();
-      whoosh.type = "sawtooth";
-      whoosh.frequency.setValueAtTime(420, now);
-      whoosh.frequency.exponentialRampToValueAtTime(90, now + 0.38);
-      whooshF.type = "lowpass";
-      whooshF.frequency.setValueAtTime(1800, now);
-      whooshF.frequency.exponentialRampToValueAtTime(280, now + 0.4);
-      whooshG.gain.setValueAtTime(0.0001, now);
-      whooshG.gain.exponentialRampToValueAtTime(0.18, now + 0.05);
-      whooshG.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
-      whoosh.connect(whooshF);
-      whooshF.connect(whooshG);
-      whooshG.connect(master);
-      whoosh.start(now);
-      whoosh.stop(now + 0.45);
-
-      function hit(t, freq, dur, gain) {
+      function tone(t, freq, dur, gain, type) {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
-        const f = ctx.createBiquadFilter();
-        osc.type = "triangle";
+        osc.type = type;
         osc.frequency.setValueAtTime(freq, t);
-        osc.frequency.exponentialRampToValueAtTime(freq * 0.42, t + dur);
-        f.type = "lowpass";
-        f.frequency.setValueAtTime(900, t);
-        f.frequency.exponentialRampToValueAtTime(180, t + dur);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(18, freq * 0.88), t + dur);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(gain, t + 0.018);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
         g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        osc.connect(f);
-        f.connect(g);
+        osc.connect(g);
         g.connect(master);
         osc.start(t);
         osc.stop(t + dur + 0.02);
       }
 
-      hit(now + 0.32, 98, 0.55, 0.42);
-      hit(now + 0.58, 73, 0.85, 0.5);
+      function hit(t, sub, body, gain, decay) {
+        tone(t, sub, decay * 3.2, gain * 0.72, "sine");
+        tone(t, body, decay * 2.4, gain * 0.38, "sine");
+        tone(t, body * 1.5, decay * 1.4, gain * 0.1, "triangle");
+        tone(t, 180, 0.04, gain * 0.16, "sine");
+      }
 
-      const shimmer = ctx.createOscillator();
-      const shG = ctx.createGain();
-      shimmer.type = "sine";
-      shimmer.frequency.setValueAtTime(880, now + 0.55);
-      shimmer.frequency.exponentialRampToValueAtTime(1320, now + 1.4);
-      shG.gain.setValueAtTime(0.0001, now + 0.55);
-      shG.gain.exponentialRampToValueAtTime(0.07, now + 0.7);
-      shG.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
-      shimmer.connect(shG);
-      shG.connect(master);
-      shimmer.start(now + 0.55);
-      shimmer.stop(now + 1.85);
+      const noise = ctx.createBufferSource();
+      const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.6), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let b = 0;
+      for (let i = 0; i < data.length; i++) {
+        b = Math.max(-1, Math.min(1, b + (Math.random() * 2 - 1) * 0.03));
+        data[i] = b;
+      }
+      noise.buffer = buf;
+      const ng = ctx.createGain();
+      const nf = ctx.createBiquadFilter();
+      nf.type = "lowpass";
+      nf.frequency.setValueAtTime(220, now);
+      nf.frequency.exponentialRampToValueAtTime(80, now + 0.5);
+      ng.gain.setValueAtTime(0.0001, now);
+      ng.gain.exponentialRampToValueAtTime(0.14, now + 0.08);
+      ng.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      noise.connect(nf);
+      nf.connect(ng);
+      ng.connect(master);
+      noise.start(now);
+      noise.stop(now + 0.6);
+
+      hit(now + 0.5, 46.25, 92.5, 0.95, 0.3);
+      hit(now + 0.78, 34.65, 69.3, 1.1, 0.58);
     } catch (_) {}
   }
 

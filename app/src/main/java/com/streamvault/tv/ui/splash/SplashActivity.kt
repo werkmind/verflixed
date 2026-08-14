@@ -43,7 +43,7 @@ class SplashActivity : ScaledAppCompatActivity() {
 
         progress.animate()
             .alpha(1f)
-            .setStartDelay(1150)
+            .setStartDelay(1500)
             .setDuration(420)
             .setInterpolator(PathInterpolator(0.16f, 1f, 0.3f, 1f))
             .start()

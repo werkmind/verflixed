@@ -2,7 +2,13 @@ package com.streamvault.tv.ui.util
 
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.PathInterpolator
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
+import androidx.core.widget.NestedScrollView
+import androidx.recyclerview.widget.RecyclerView
+import com.streamvault.tv.R
 import com.streamvault.tv.data.prefs.UserPrefs
 
 /**
@@ -16,6 +22,7 @@ object FocusFx {
     private val easeIn = PathInterpolator(0.4f, 0f, 0.2f, 1f)
 
     fun bindScale(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
+        allowFocusScale(view)
         val previous = view.onFocusChangeListener
         view.setOnFocusChangeListener { v, hasFocus ->
             previous?.onFocusChange(v, hasFocus)
@@ -23,8 +30,62 @@ object FocusFx {
         }
     }
 
+    /**
+     * Scale may paint into a host's padding, never out of the section.
+     * Intermediate button/chip wrappers are unclipped; RecyclerViews, scroll
+     * ports and screen roots stay clipped so posters/episodes cannot bleed.
+     */
+    fun allowFocusScale(view: View) {
+        var host = view.parent as? ViewGroup ?: return
+        while (true) {
+            host.clipToPadding = false
+            if (isSectionClipHost(host)) {
+                host.clipChildren = true
+                return
+            }
+            host.clipChildren = false
+            host = host.parent as? ViewGroup ?: return
+        }
+    }
+
+    /** Keep artwork/text inside the rounded tile while the tile itself scales. */
+    fun clipMediaTile(view: View) {
+        view.clipToOutline = true
+        (view as? ViewGroup)?.let {
+            it.clipChildren = true
+            it.clipToPadding = true
+        }
+    }
+
+    private fun isSectionClipHost(host: ViewGroup): Boolean {
+        if (host is RecyclerView ||
+            host is HorizontalScrollView ||
+            host is ScrollView ||
+            host is NestedScrollView
+        ) {
+            return true
+        }
+        return when (host.id) {
+            R.id.episodeList,
+            R.id.rowList,
+            R.id.rows,
+            R.id.heroContainer,
+            R.id.searchResults,
+            R.id.searchKeyboard,
+            R.id.seasonTabs,
+            R.id.profileList,
+            R.id.homeRoot,
+            R.id.detailRoot,
+            R.id.playerRoot,
+            R.id.playerChrome,
+            -> true
+            else -> false
+        }
+    }
+
     /** Reusable so adapters can drive focus motion without extra listeners. */
     fun animateFocus(v: View, hasFocus: Boolean, focusedScale: Float = 1.06f) {
+        allowFocusScale(v)
         val scale = if (hasFocus) focusedScale else 1f
         val elevation = if (hasFocus) 18f else 0f
         v.animate().cancel()
