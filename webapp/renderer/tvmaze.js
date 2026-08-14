@@ -173,6 +173,7 @@ window.TvMaze = (() => {
       posterUrl: series.posterUrl || poster,
       backdropUrl: series.backdropUrl || backdrop,
       year: series.year || (show.premiered ? Number(show.premiered.slice(0, 4)) : null),
+      imdbId: series.imdbId || (show.externals?.imdb?.startsWith?.("tt") ? show.externals.imdb : null),
       seasons,
     };
   }

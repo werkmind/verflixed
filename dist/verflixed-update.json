@@ -1,8 +1,8 @@
 {
-  "versionCode": 37,
-  "versionName": "1.9.0",
+  "versionCode": 38,
+  "versionName": "1.9.1",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "119eb34107957fcd300d0e390a5c190a86cd67dec14b0de356011b1947aea63b",
-  "changelog": "1.9.0: TheIntroDB/SkipDB Skip-Buttons; Favoriten-Cache aller Staffeln; Detail-Scroll/Filme/Progressbars; F\u00fcr-dich-Reihe"
+  "sha256": "6021d7c3e80d65ff7d77feac08de4b129eb813c39b17cac43c65a99ddd2b480e",
+  "changelog": "1.9.1: Keine API-Keys/Konto \u2013 TVMaze + Wikidata fest verdrahtet, TMDb-Feld entfernt"
 }

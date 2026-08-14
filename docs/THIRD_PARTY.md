@@ -6,6 +6,14 @@ Most repos under https://github.com/topics/cloudflare-turnstile-bypass are
 **Python / Playwright / paid solver APIs**. They do **not** run inside a Fire TV
 WebView and are not integrated.
 
+## Metadata IDs (no account, no API key)
+
+- [TVMaze](https://www.tvmaze.com/api) — show/episode art + `externals.imdb`
+- [Wikidata](https://www.wikidata.org) — IMDb (P345) + TMDB ids (P4983 / P4947)
+
+TMDb’s official API requires a developer account. Verflixed does **not** ask for
+or ship a TMDb key. Skip DBs accept IMDb ids from TVMaze/Wikidata instead.
+
 ## Skip timestamps (intro / recap / credits)
 
 Crowd-sourced **read-only** APIs (no auto-skip — the player shows a button):

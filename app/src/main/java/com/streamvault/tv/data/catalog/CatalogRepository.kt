@@ -7,6 +7,7 @@ import com.streamvault.tv.data.db.FavoriteEntity
 import com.streamvault.tv.data.db.StreamCacheEntity
 import com.streamvault.tv.data.db.WatchProgressEntity
 import com.streamvault.tv.data.meta.TvMazeClient
+import com.streamvault.tv.data.meta.WikidataClient
 import com.streamvault.tv.data.model.CalendarEntry
 import com.streamvault.tv.data.model.Catalog
 import com.streamvault.tv.data.model.CatalogFilters
@@ -42,6 +43,7 @@ class CatalogRepository(
     private val db: AppDatabase,
     private val tmdb: TmdbClient,
     private val tvMaze: TvMazeClient,
+    private val wikidata: WikidataClient,
     private val calendar: CalendarClient,
     private val profiles: ProfileRepository,
     private val moshi: Moshi,
@@ -1729,7 +1731,11 @@ class CatalogRepository(
 
     private suspend fun enrichSeries(series: Series): Series {
         var enriched = tvMaze.enrich(series)
-        enriched = tmdb.enrich(enriched)
+        enriched = wikidata.enrich(enriched)
+        // TMDb only if a legacy key is already stored — never required, never prompted.
+        if (prefs.tmdbApiKey.isNotBlank()) {
+            enriched = tmdb.enrich(enriched)
+        }
         return enriched
     }
 

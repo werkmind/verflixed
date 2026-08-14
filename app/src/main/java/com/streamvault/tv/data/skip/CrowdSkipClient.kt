@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class CrowdSkipClient(
     private val http: OkHttpClient,
+    private val skipMarks: SkipMarksStore? = null,
 ) {
     private val cache = ConcurrentHashMap<String, List<SkipSegment>>()
 
@@ -33,8 +34,12 @@ class CrowdSkipClient(
         durationMs: Long,
     ): List<SkipSegment> = withContext(Dispatchers.IO) {
         val tmdb = series.tmdbId?.takeIf { it > 0 }
+            ?: skipMarks?.rememberedTmdbId(series.id)
         val imdb = series.imdbId?.trim()?.takeIf { it.startsWith("tt") }
+            ?: skipMarks?.rememberedImdbId(series.id)
         if (tmdb == null && imdb == null) return@withContext emptyList()
+        if (tmdb != null) skipMarks?.rememberTmdbId(series.id, tmdb)
+        if (imdb != null) skipMarks?.rememberImdbId(series.id, imdb)
 
         val key = "${tmdb ?: imdb}:$seasonNumber:$episodeNumber:${durationMs / 1000}"
         cache[key]?.let { return@withContext it }

@@ -1298,11 +1298,21 @@ class PlayerActivity : AppCompatActivity() {
         hideSkipSegment()
         lifecycleScope.launch {
             val app = application as VerflixedApp
-            val absEp = absoluteEpisodeNumber(s, ep)
+            val resolved = withContext(Dispatchers.IO) {
+                var cur = s
+                if (cur.imdbId.isNullOrBlank() && cur.tmdbId == null) {
+                    cur = runCatching { app.container.wikidata.enrich(cur) }.getOrDefault(cur)
+                }
+                cur
+            }
+            if (resolved.imdbId != s.imdbId || resolved.tmdbId != s.tmdbId) {
+                series = resolved
+            }
+            val absEp = absoluteEpisodeNumber(resolved, ep)
             val crowd = withContext(Dispatchers.IO) {
                 val ani = runCatching {
                     app.container.aniSkip.skipSegments(
-                        series = s,
+                        series = resolved,
                         episodeNumber = ep.number,
                         durationMs = dur,
                         absoluteEpisodeNumber = absEp,
@@ -1310,7 +1320,7 @@ class PlayerActivity : AppCompatActivity() {
                 }.getOrDefault(emptyList())
                 val db = runCatching {
                     app.container.crowdSkip.skipSegments(
-                        series = s,
+                        series = resolved,
                         seasonNumber = ep.seasonNumber,
                         episodeNumber = ep.number,
                         durationMs = dur,

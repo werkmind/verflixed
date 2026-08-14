@@ -30,10 +30,6 @@ class SetupActivity : AppCompatActivity() {
 
         binding.inputBaseUrl.setText(prefs.seriesBaseUrl.ifBlank { UserPrefs.DEFAULT_SERIES_BASE })
         binding.inputMoviesBaseUrl.setText(prefs.moviesBaseUrl.ifBlank { UserPrefs.DEFAULT_MOVIES_BASE })
-        if (prefs.tmdbApiKey.isNotBlank()) {
-            binding.inputTmdbKey.setText(prefs.tmdbApiKey)
-        }
-
         binding.btnContinue.setOnClickListener { submit() }
         binding.inputBaseUrl.requestFocus()
     }
@@ -57,7 +53,6 @@ class SetupActivity : AppCompatActivity() {
             app.container.prefs.seriesBaseUrl = seriesUrl
             app.container.prefs.moviesBaseUrl = moviesUrl
             app.container.prefs.mediaKind = UserPrefs.KIND_SERIES
-            app.container.prefs.tmdbApiKey = binding.inputTmdbKey.text?.toString().orEmpty()
             app.container.prefs.markSetupDone()
 
             val seriesOk = runCatching { app.container.catalog.validateBaseUrl(seriesUrl).getOrThrow() }.isSuccess

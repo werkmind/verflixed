@@ -57,20 +57,17 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:hint="@string/setup_hint_movies"
-            android:imeOptions="actionNext"
+            android:imeOptions="actionDone"
             android:inputType="textUri"
-            android:nextFocusDown="@id/inputTmdbKey" />
+            android:nextFocusDown="@id/btnContinue" />
 
         <EditText
             android:id="@+id/inputTmdbKey"
             style="@style/SvEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:hint="@string/setup_tmdb_hint"
-            android:imeOptions="actionDone"
-            android:inputType="textVisiblePassword"
-            android:nextFocusDown="@id/btnContinue" />
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/errorText"

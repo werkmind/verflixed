@@ -2715,8 +2715,8 @@
     setTimeout(hideSplash, 1600);
   }
 
-  localStorage.setItem("vf_app_version", "1.9.0");
-  localStorage.setItem("vf_version_code", "37");
+  localStorage.setItem("vf_app_version", "1.9.1");
+  localStorage.setItem("vf_version_code", "38");
   applyChromePrefs();
   syncBaseUrlInputs();
   updateSearchPlaceholder();

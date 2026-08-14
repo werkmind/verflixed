@@ -27,6 +27,23 @@ class SkipMarksStore(context: Context) {
         sp.edit().putInt(malKey(seriesId), malId).apply()
     }
 
+    fun rememberedImdbId(seriesId: String): String? =
+        sp.getString(imdbKey(seriesId), null)?.trim()?.takeIf { it.startsWith("tt") }
+
+    fun rememberImdbId(seriesId: String, imdbId: String) {
+        val id = imdbId.trim()
+        if (!id.startsWith("tt")) return
+        sp.edit().putString(imdbKey(seriesId), id).apply()
+    }
+
+    fun rememberedTmdbId(seriesId: String): Int? =
+        sp.getInt(tmdbKey(seriesId), 0).takeIf { it > 0 }
+
+    fun rememberTmdbId(seriesId: String, tmdbId: Int) {
+        if (tmdbId <= 0) return
+        sp.edit().putInt(tmdbKey(seriesId), tmdbId).apply()
+    }
+
     fun recordCreditsLead(seriesId: String, leadMs: Long) {
         appendSample(creditsKey(seriesId), leadMs.coerceIn(15_000L, 8 * 60_000L))
     }
@@ -161,4 +178,6 @@ class SkipMarksStore(context: Context) {
     private fun creditsKey(seriesId: String) = "credits:$seriesId"
     private fun introKey(seriesId: String) = "intro:$seriesId"
     private fun malKey(seriesId: String) = "mal:$seriesId"
+    private fun imdbKey(seriesId: String) = "imdb:$seriesId"
+    private fun tmdbKey(seriesId: String) = "tmdb:$seriesId"
 }

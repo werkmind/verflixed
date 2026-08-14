@@ -13,6 +13,7 @@ import com.streamvault.tv.data.catalog.VidaraExtractor
 import com.streamvault.tv.data.catalog.VoeExtractor
 import com.streamvault.tv.data.db.AppDatabase
 import com.streamvault.tv.data.meta.TvMazeClient
+import com.streamvault.tv.data.meta.WikidataClient
 import com.streamvault.tv.data.prefs.UserPrefs
 import com.streamvault.tv.data.profile.ProfileRepository
 import com.streamvault.tv.data.skip.AniSkipClient
@@ -60,8 +61,9 @@ class AppContainer(context: Context) {
     val parser = CatalogParser(moshi)
     val tmdb = TmdbClient(http, moshi, prefs)
     val tvMaze = TvMazeClient(http, moshi)
+    val wikidata = WikidataClient(http)
     val aniSkip = AniSkipClient(http, moshi, skipMarks)
-    val crowdSkip = CrowdSkipClient(http)
+    val crowdSkip = CrowdSkipClient(http, skipMarks)
     val calendar = CalendarClient(http, prefs, moshi)
     val profiles = ProfileRepository(db, prefs)
     val updates = UpdateChecker(http, moshi, prefs)
@@ -77,6 +79,7 @@ class AppContainer(context: Context) {
         db = db,
         tmdb = tmdb,
         tvMaze = tvMaze,
+        wikidata = wikidata,
         calendar = calendar,
         profiles = profiles,
         moshi = moshi,
