@@ -1,8 +1,8 @@
 {
-  "versionCode": 38,
-  "versionName": "1.9.1",
+  "versionCode": 39,
+  "versionName": "1.9.2",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "6021d7c3e80d65ff7d77feac08de4b129eb813c39b17cac43c65a99ddd2b480e",
-  "changelog": "1.9.1: Keine API-Keys/Konto \u2013 TVMaze + Wikidata fest verdrahtet, TMDb-Feld entfernt"
+  "sha256": "a89492577e6a4f77eeaf58cbc11330dc91b977136a83019d05436fc5c1c75004",
+  "changelog": "1.9.2: TMDb fest eingebaut (\u00f6ffentlicher Kodi-Scraper-Key, kein Konto)"
 }

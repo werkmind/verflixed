@@ -11,8 +11,10 @@ WebView and are not integrated.
 - [TVMaze](https://www.tvmaze.com/api) — show/episode art + `externals.imdb`
 - [Wikidata](https://www.wikidata.org) — IMDb (P345) + TMDB ids (P4983 / P4947)
 
-TMDb’s official API requires a developer account. Verflixed does **not** ask for
-or ship a TMDb key. Skip DBs accept IMDb ids from TVMaze/Wikidata instead.
+TMDb is used with a **built-in public scraper key** (same model as Plex/Kodi):
+users never create a TMDb account. The key is Team Kodi’s published
+`TMDB_CLOWNCAR` from their GPL TMDb scraper. This product uses the TMDb API
+but is not endorsed or certified by TMDb.
 
 ## Skip timestamps (intro / recap / credits)
 

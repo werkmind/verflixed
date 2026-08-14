@@ -1,11 +1,14 @@
 # Verflixed – Installation
 
-## Fire TV APK (1.9.1)
+## Fire TV APK (1.9.2)
 
 | | Link |
 |---|---|
-| **GitHub direkt** | https://github.com/werkmind/verflixed/releases/download/v1.9.1/Verflixed-FireTV.apk |
+| **GitHub direkt** | https://github.com/werkmind/verflixed/releases/download/v1.9.2/Verflixed-FireTV.apk |
 | **Latest** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk |
+
+### 1.9.2
+- TMDb fest eingebaut (öffentlicher Kodi-Scraper-Key, wie Plex — kein Nutzer-Konto)
 
 ### 1.9.1
 - Keine API-Keys / kein Konto: TVMaze + Wikidata fest verdrahtet, TMDb-Feld entfernt

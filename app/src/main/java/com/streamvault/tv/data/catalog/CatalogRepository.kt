@@ -1732,10 +1732,8 @@ class CatalogRepository(
     private suspend fun enrichSeries(series: Series): Series {
         var enriched = tvMaze.enrich(series)
         enriched = wikidata.enrich(enriched)
-        // TMDb only if a legacy key is already stored — never required, never prompted.
-        if (prefs.tmdbApiKey.isNotBlank()) {
-            enriched = tmdb.enrich(enriched)
-        }
+        // Built-in public TMDb scraper key (Plex/Kodi model) — no user account.
+        enriched = tmdb.enrich(enriched)
         return enriched
     }
 
