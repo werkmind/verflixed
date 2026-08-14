@@ -1,6 +1,7 @@
 package com.streamvault.tv.data.catalog
 
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import com.streamvault.tv.data.calendar.CalendarClient
 import com.streamvault.tv.data.db.AppDatabase
 import com.streamvault.tv.data.db.FavoriteEntity
@@ -58,6 +59,11 @@ class CatalogRepository(
     @Volatile private var memoryMoviesCatalog: Catalog? = null
     @Volatile private var memoryKind: String? = null
     private val seriesAdapter get() = moshi.adapter(Series::class.java)
+    private val rowsAdapter by lazy {
+        moshi.adapter<List<HomeRow>>(
+            Types.newParameterizedType(List::class.java, HomeRow::class.java)
+        )
+    }
     private val genreMembers = mutableMapOf<String, Set<String>>()
     private val genreSeriesCache = mutableMapOf<String, List<Series>>()
     /** Live-search / deep-link hits that are not in the home catalog slice. */
@@ -600,6 +606,30 @@ class CatalogRepository(
     fun onContentFiltersChanged() {
         genreMembers.clear()
         genreSeriesCache.clear()
+        cacheDir.listFiles()?.forEach { if (it.name.startsWith("rows-")) it.delete() }
+    }
+
+    // ---- Row snapshots: stale-while-revalidate for instant Home paint ----
+
+    private fun rowsSnapshotFile(key: String) = File(cacheDir, "rows-$key.json")
+
+    /** Last successfully built rows for [key] — paint these instantly, refresh behind. */
+    suspend fun peekRowsSnapshot(key: String): List<HomeRow>? = withContext(Dispatchers.IO) {
+        runCatching {
+            val f = rowsSnapshotFile(key)
+            if (!f.isFile || f.length() < 2) return@runCatching null
+            rowsAdapter.fromJson(f.readText())?.takeIf { rows -> rows.any { it.items.isNotEmpty() } }
+        }.getOrNull()
+    }
+
+    /** Persist rows for instant next paint. Seasons are stripped (row UI never needs them). */
+    suspend fun saveRowsSnapshot(key: String, rows: List<HomeRow>) = withContext(Dispatchers.IO) {
+        runCatching {
+            val slim = rows.map { row ->
+                row.copy(items = row.items.take(24).map { it.copy(seasons = emptyList()) })
+            }
+            rowsSnapshotFile(key).writeText(rowsAdapter.toJson(slim))
+        }
     }
 
     private suspend fun seriesIdsForGenre(genreId: String): Set<String> =

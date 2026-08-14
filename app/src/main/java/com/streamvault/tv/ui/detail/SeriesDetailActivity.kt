@@ -405,10 +405,10 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         }
         binding.cacheStatus.visibility = View.VISIBLE
         binding.cacheStatus.text = when (status) {
-            "caching" -> "Medien werden für dieses Profil vorbereitet… $cached/$total"
-            "ready" -> "Bereit • $cached Episoden im Profil-Cache"
-            "partial" -> "Teilweise bereit • $cached/$total"
-            else -> if (total > 0) "Cache • $cached/$total" else ""
+            "caching" -> "◌  Wird vorbereitet · $cached/$total"
+            "ready" -> "●  Offline bereit · $cached Episoden"
+            "partial" -> "◐  Teilweise bereit · $cached/$total"
+            else -> if (total > 0) "◌  Cache · $cached/$total" else ""
         }
     }
 

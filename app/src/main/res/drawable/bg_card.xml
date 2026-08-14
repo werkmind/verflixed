@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Overlay card (next-episode banner, captcha hint): dark glass over video. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface_elevated" />
+            <gradient
+                android:angle="270"
+                android:startColor="#F2202A40"
+                android:endColor="#F2141B2C" />
             <corners android:radius="12dp" />
             <stroke
                 android:width="2dp"
@@ -11,11 +15,14 @@
     </item>
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface" />
+            <gradient
+                android:angle="270"
+                android:startColor="#EE1B2334"
+                android:endColor="#EE10141F" />
             <corners android:radius="12dp" />
             <stroke
                 android:width="1dp"
-                android:color="@color/sv_card_stroke" />
+                android:color="#26FFFFFF" />
         </shape>
     </item>
 </selector>

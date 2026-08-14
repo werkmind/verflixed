@@ -108,6 +108,8 @@ class VerflixedIntroView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
 
+        drawAtmosphere(canvas, w, h)
+
         val markSize = min(w, h) * if (compact) 0.30f else 0.34f
         val cx = w / 2f
         // Leave room under the mark for the wordmark.
@@ -118,31 +120,45 @@ class VerflixedIntroView @JvmOverloads constructor(
         val depth = 1f - flyIn
         // Overshoot then settle for a springy, premium landing.
         val scale = (0.62f + 0.44f * flyIn) - 0.06f * settle * sin(settle * Math.PI.toFloat())
-        val rotY = -26f * depth
+        val rotY = -30f * depth
         val markAlpha = min(1f, seg(0.02f, 0.30f) * 1.2f)
 
         drawBackglow(canvas, cx, cy, markSize, flyIn)
 
         canvas.withSave {
             translate(cx, cy)
-            // Fake perspective: horizontal squash + vertical shear as it turns in.
+            // Camera: horizontal squash while turning in, plus a slight downward
+            // tilt (skew) that keeps a hint of perspective even after settling.
             scale(scale * (1f - abs(rotY) / 150f), scale)
+            skew(0f, -0.045f - 0.10f * depth)
             buildV(markSize)
 
-            // Extruded side faces: offset copies fading with depth.
-            val extrude = markSize * (0.16f * depth + 0.045f)
-            val steps = 7
+            // Extruded body: layered slices swept down-right like a lit solid.
+            // Depth stays visible after the landing (never collapses fully flat).
+            val extrude = markSize * (0.22f * depth + 0.085f)
+            val steps = 12
             for (i in steps downTo 1) {
                 val k = i / steps.toFloat()
                 sidePath.reset()
-                sidePath.addPath(vPath, -extrude * k * 1.15f, extrude * k * 0.55f)
+                sidePath.addPath(vPath, extrude * k * 0.95f, extrude * k * 0.75f)
+                // Back slices darken toward the vanishing side; front slices catch light.
                 sideFill.shader = LinearGradient(
                     -markSize, -markSize, markSize, markSize,
-                    SIDE_DARK, SIDE_LIGHT, Shader.TileMode.CLAMP,
+                    lerpColor(SIDE_DARK, SIDE_DEEP, k),
+                    lerpColor(SIDE_LIGHT, SIDE_DARK, k),
+                    Shader.TileMode.CLAMP,
                 )
-                sideFill.alpha = (markAlpha * (52 + 90 * (1f - k))).toInt().coerceIn(0, 255)
+                sideFill.alpha = (markAlpha * (70 + 110 * (1f - k))).toInt().coerceIn(0, 255)
                 drawPath(sidePath, sideFill)
             }
+
+            // Bottom contact shadow so the mark sits IN the scene, not on it.
+            sidePath.reset()
+            sidePath.addPath(vPath, extrude * 0.5f, extrude * 1.35f)
+            sideFill.shader = null
+            sideFill.color = Color.BLACK
+            sideFill.alpha = (markAlpha * 90).toInt()
+            drawPath(sidePath, sideFill)
 
             faceFill.shader = LinearGradient(
                 -markSize * 0.7f, -markSize, markSize * 0.7f, markSize,
@@ -153,14 +169,50 @@ class VerflixedIntroView @JvmOverloads constructor(
             faceFill.alpha = (markAlpha * 255).toInt().coerceIn(0, 255)
             drawPath(vPath, faceFill)
 
+            // Top bevel: thin bright edge along the upper rim (Prime-like rim light).
+            sidePath.reset()
+            sidePath.addPath(vPath, -extrude * 0.05f, -extrude * 0.10f)
+            sweepPaint.shader = LinearGradient(
+                0f, -markSize, 0f, 0f,
+                RIM_LIGHT, Color.TRANSPARENT, Shader.TileMode.CLAMP,
+            )
+            sweepPaint.alpha = (markAlpha * 120).toInt()
+            withSave {
+                clipPath(vPath)
+                drawPath(sidePath, sweepPaint)
+            }
+
             drawSpecularSweep(this, markSize)
         }
 
         drawWordmark(canvas, cx, cy, markSize, h)
     }
 
+    /** Prime-style stage: deep navy-to-black radial wash + soft horizon band. */
+    private fun drawAtmosphere(canvas: Canvas, w: Float, h: Float) {
+        val k = easeOut.getInterpolation(seg(0f, 0.5f))
+        if (k <= 0f) return
+        bloomPaint.shader = RadialGradient(
+            w / 2f, h * 0.42f, h * 1.05f,
+            intArrayOf(ATMO_CORE, ATMO_MID, ATMO_EDGE),
+            floatArrayOf(0f, 0.55f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        bloomPaint.alpha = (200 * k).toInt().coerceIn(0, 255)
+        canvas.drawRect(0f, 0f, w, h, bloomPaint)
+        // Horizon glow under the mark — the "floor" the logo lands on.
+        bloomPaint.shader = LinearGradient(
+            0f, h * 0.62f, 0f, h * 0.92f,
+            intArrayOf(Color.TRANSPARENT, HORIZON, Color.TRANSPARENT),
+            floatArrayOf(0f, 0.5f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        bloomPaint.alpha = (90 * k).toInt()
+        canvas.drawRect(0f, h * 0.55f, w, h, bloomPaint)
+    }
+
     private fun drawBackglow(canvas: Canvas, cx: Float, cy: Float, markSize: Float, flyIn: Float) {
-        val glowAlpha = (110 * flyIn * (0.55f + 0.45f * easeInOut.getInterpolation(seg(0.30f, 0.7f)))).toInt()
+        val glowAlpha = (120 * flyIn * (0.55f + 0.45f * easeInOut.getInterpolation(seg(0.30f, 0.7f)))).toInt()
         if (glowAlpha <= 0) return
         val r = markSize * (2.5f + 0.5f * flyIn)
         bloomPaint.shader = RadialGradient(
@@ -171,6 +223,17 @@ class VerflixedIntroView @JvmOverloads constructor(
         )
         bloomPaint.alpha = glowAlpha.coerceIn(0, 255)
         canvas.drawCircle(cx, cy, r, bloomPaint)
+    }
+
+    private fun lerpColor(from: Int, to: Int, t: Float): Int {
+        val k = t.coerceIn(0f, 1f)
+        fun ch(a: Int, b: Int) = (a + ((b - a) * k)).toInt().coerceIn(0, 255)
+        return Color.argb(
+            ch(Color.alpha(from), Color.alpha(to)),
+            ch(Color.red(from), Color.red(to)),
+            ch(Color.green(from), Color.green(to)),
+            ch(Color.blue(from), Color.blue(to)),
+        )
     }
 
     /** Chevron "V" with a thick stroke look, built as an outline for extrusion. */
@@ -267,15 +330,21 @@ class VerflixedIntroView @JvmOverloads constructor(
     companion object {
         const val DEFAULT_DURATION_MS = 2450L
 
-        private const val FACE_TOP = 0xFF8FC4FF.toInt()
+        private const val FACE_TOP = 0xFF9FD0FF.toInt()
         private const val FACE_MID = 0xFF2F80FF.toInt()
-        private const val FACE_BOTTOM = 0xFF1348A8.toInt()
+        private const val FACE_BOTTOM = 0xFF10408F.toInt()
         private const val SIDE_DARK = 0xFF0A1E44.toInt()
+        private const val SIDE_DEEP = 0xFF040B1C.toInt()
         private const val SIDE_LIGHT = 0xFF1B5FC4.toInt()
+        private const val RIM_LIGHT = 0xFFDCEBFF.toInt()
         private const val SWEEP_HOT = 0xFFE8F3FF.toInt()
         private const val GLOW_INNER = 0x662F80FF
         private const val GLOW_MID = 0x222F80FF
         private const val ACCENT_SOFT = 0xFF8FB6E8.toInt()
+        private const val ATMO_CORE = 0xFF0B1730.toInt()
+        private const val ATMO_MID = 0xFF060C1C.toInt()
+        private const val ATMO_EDGE = 0xFF020409.toInt()
+        private const val HORIZON = 0x2E2F80FF
 
         /** Keep the mark visible a beat after the sting resolves. */
         const val HOLD_AFTER_MS = 260L

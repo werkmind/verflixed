@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stage background: subtle top-lit navy wash instead of flat black-blue.
+     Radial keeps the center slightly lifted, like tvOS ambient depth. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/sv_bg_deep" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.5"
+                android:centerY="0.18"
+                android:gradientRadius="130%p"
+                android:startColor="#FF0D1424"
+                android:centerColor="#FF080D18"
+                android:endColor="#FF04060A" />
+        </shape>
+    </item>
+</layer-list>

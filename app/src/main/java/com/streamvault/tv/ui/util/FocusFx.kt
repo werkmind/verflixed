@@ -2,19 +2,18 @@ package com.streamvault.tv.ui.util
 
 import android.content.Context
 import android.view.View
-import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
 import com.streamvault.tv.data.prefs.UserPrefs
 
 /**
- * TV focus motion: soft spring scale + lift. Tuned short (≤220ms) so D-pad
- * scrolling never feels laggy, with a slight overshoot so focus reads instantly
- * on large screens.
+ * Apple-TV-like focus motion: one smooth ease, no bounce, GPU-layer backed.
+ * Focus grows gently and lifts with a soft shadow; unfocus glides back a touch
+ * slower so movement reads calm instead of twitchy.
  */
 object FocusFx {
-    private val easeOut = PathInterpolator(0.16f, 1f, 0.3f, 1f)
+    /** tvOS-style standard curve — fast start, long soft landing. */
+    private val glide = PathInterpolator(0.23f, 1f, 0.32f, 1f)
     private val easeIn = PathInterpolator(0.4f, 0f, 0.2f, 1f)
-    private val spring = OvershootInterpolator(1.35f)
 
     fun bindScale(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
         val previous = view.onFocusChangeListener
@@ -27,16 +26,16 @@ object FocusFx {
     /** Reusable so adapters can drive focus motion without extra listeners. */
     fun animateFocus(v: View, hasFocus: Boolean, focusedScale: Float = 1.06f) {
         val scale = if (hasFocus) focusedScale else 1f
-        val elevation = if (hasFocus) 14f else 0f
+        val elevation = if (hasFocus) 18f else 0f
         v.animate().cancel()
         v.animate()
             .scaleX(scale)
             .scaleY(scale)
             .translationZ(elevation)
-            .setDuration(if (hasFocus) 190 else 130)
-            .setInterpolator(if (hasFocus) spring else easeIn)
+            .setDuration(if (hasFocus) 280 else 320)
+            .setInterpolator(glide)
+            .withLayer()
             .start()
-        v.elevation = elevation
     }
 
     fun pulse(view: View) {
@@ -44,21 +43,23 @@ object FocusFx {
         view.animate()
             .scaleX(1.03f)
             .scaleY(1.03f)
-            .setDuration(110)
-            .setInterpolator(easeOut)
+            .setDuration(120)
+            .setInterpolator(glide)
+            .withLayer()
             .withEndAction {
                 view.animate()
                     .scaleX(1f)
                     .scaleY(1f)
-                    .setDuration(140)
-                    .setInterpolator(easeIn)
+                    .setDuration(220)
+                    .setInterpolator(glide)
+                    .withLayer()
                     .start()
             }
             .start()
     }
 
     /** Staggered entrance for freshly bound rows/cards. */
-    fun enter(view: View, index: Int, distanceDp: Float = 14f) {
+    fun enter(view: View, index: Int, distanceDp: Float = 12f) {
         val d = view.resources.displayMetrics.density
         view.animate().cancel()
         view.alpha = 0f
@@ -66,9 +67,10 @@ object FocusFx {
         view.animate()
             .alpha(1f)
             .translationY(0f)
-            .setStartDelay((index.coerceIn(0, 8) * 34).toLong())
-            .setDuration(300)
-            .setInterpolator(easeOut)
+            .setStartDelay((index.coerceIn(0, 8) * 28).toLong())
+            .setDuration(360)
+            .setInterpolator(glide)
+            .withLayer()
             .start()
     }
 
@@ -76,15 +78,15 @@ object FocusFx {
     fun crossfade(view: View, apply: () -> Unit) {
         view.animate().cancel()
         view.animate()
-            .alpha(0.35f)
-            .setDuration(120)
+            .alpha(0.42f)
+            .setDuration(110)
             .setInterpolator(easeIn)
             .withEndAction {
                 apply()
                 view.animate()
                     .alpha(1f)
-                    .setDuration(240)
-                    .setInterpolator(easeOut)
+                    .setDuration(280)
+                    .setInterpolator(glide)
                     .start()
             }
             .start()

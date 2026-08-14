@@ -92,7 +92,15 @@ class PlayerActivity : ScaledAppCompatActivity() {
     private var brandGateShown = false
     private var brandGateMinUntilMs = 0L
 
-    private val brandGateTimeout = Runnable { hideBrandGate(force = true) }
+    private val brandGateTimeout = Runnable {
+        // Resolving is dragging on. If the web resolver is active, switch to the
+        // interactive captcha view; otherwise just lift the gate.
+        if (usingWebPlayer && !handedOffToExo) {
+            enterCaptchaMode(force = true)
+        } else {
+            hideBrandGate(force = true)
+        }
+    }
 
     /** Mirrors resolve status under the logo so we keep one source of truth. */
     private val brandStatusTick = object : Runnable {
@@ -754,11 +762,20 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.webPlayer.visibility = View.VISIBLE
         binding.webPlayer.isFocusable = true
         binding.webPlayer.isFocusableInTouchMode = true
-        // Captcha-first: focus WebView immediately, hide spinner, show hint.
-        enterCaptchaMode(force = true)
-        binding.playerLoading.visibility = View.GONE
-        binding.resolveStatus.visibility = View.VISIBLE
-        binding.resolveStatus.text = getString(R.string.player_captcha_status)
+        // Resolve silently BEHIND the brand gate. The site page only becomes
+        // visible when a captcha is actually detected (or the safety timeout hits) —
+        // never as a raw page flash between intro and stream.
+        if (brandGateShown) {
+            binding.playerLoading.visibility = View.GONE
+            binding.resolveStatus.visibility = View.VISIBLE
+            binding.resolveStatus.text = "Stream wird vorbereitet…"
+        } else {
+            // Gate already lifted (retry paths): captcha-first UX as before.
+            enterCaptchaMode(force = true)
+            binding.playerLoading.visibility = View.GONE
+            binding.resolveStatus.visibility = View.VISIBLE
+            binding.resolveStatus.text = getString(R.string.player_captcha_status)
+        }
         binding.nextEpisodeBanner.visibility = View.GONE
         hideError()
         showModeBar(false)

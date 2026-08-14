@@ -15,6 +15,7 @@
     <application
         android:name=".VerflixedApp"
         android:allowBackup="true"
+        android:hardwareAccelerated="true"
         android:banner="@drawable/app_banner"
         android:icon="@mipmap/ic_launcher"
         android:logo="@mipmap/ic_launcher"

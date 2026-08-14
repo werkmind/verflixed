@@ -1,21 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Episode row / info card: quiet glass with a top sheen; focus lifts the fill. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface_elevated" />
+            <gradient
+                android:angle="270"
+                android:startColor="#402F80FF"
+                android:endColor="#22203A66" />
             <corners android:radius="12dp" />
             <stroke
-                android:width="3dp"
+                android:width="2dp"
                 android:color="@color/sv_focus_ring" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface" />
+            <gradient
+                android:angle="270"
+                android:startColor="#16FFFFFF"
+                android:endColor="#08FFFFFF" />
             <corners android:radius="12dp" />
             <stroke
                 android:width="1dp"
-                android:color="@color/sv_card_stroke" />
+                android:color="#1FFFFFFF" />
         </shape>
     </item>
 </selector>

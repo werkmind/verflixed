@@ -8,7 +8,10 @@
     </item>
     <item android:state_focused="true">
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_focus_fill" />
+            <gradient
+                android:angle="270"
+                android:startColor="#4A3F8CFF"
+                android:endColor="#2E2F80FF" />
             <corners android:radius="10dp" />
             <stroke
                 android:width="2dp"
@@ -17,11 +20,14 @@
     </item>
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface_elevated" />
+            <gradient
+                android:angle="270"
+                android:startColor="#FF222B3E"
+                android:endColor="#FF171E2D" />
             <corners android:radius="10dp" />
             <stroke
                 android:width="1dp"
-                android:color="@color/sv_card_stroke" />
+                android:color="#24FFFFFF" />
         </shape>
     </item>
 </selector>

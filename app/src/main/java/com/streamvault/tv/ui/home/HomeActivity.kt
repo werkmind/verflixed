@@ -175,6 +175,7 @@ class HomeActivity : ScaledAppCompatActivity() {
         }
         binding.rows.isNestedScrollingEnabled = true
         binding.rows.setHasFixedSize(false)
+        binding.rows.setItemViewCacheSize(6)
         // Keep focused row visible for D-pad TV navigation
         binding.rows.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
             override fun onChildViewAttachedToWindow(view: View) = Unit
@@ -359,10 +360,26 @@ class HomeActivity : ScaledAppCompatActivity() {
         target.requestFocus()
     }
 
+    private var skeletonPulse: android.animation.ObjectAnimator? = null
+
     private fun showSkeleton(show: Boolean) {
         binding.skeletonHost.visibility = if (show) View.VISIBLE else View.GONE
         binding.progress.visibility = View.GONE
-        if (show) binding.rows.alpha = 0.35f else binding.rows.alpha = 1f
+        binding.rows.alpha = if (show) 0.35f else 1f
+        skeletonPulse?.cancel()
+        skeletonPulse = null
+        if (show) {
+            skeletonPulse = android.animation.ObjectAnimator.ofFloat(
+                binding.skeletonHost, View.ALPHA, 1f, 0.45f
+            ).apply {
+                duration = 700
+                repeatMode = android.animation.ValueAnimator.REVERSE
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                start()
+            }
+        } else {
+            binding.skeletonHost.alpha = 1f
+        }
     }
 
     private fun onSearchKey(key: String) {
@@ -481,6 +498,7 @@ class HomeActivity : ScaledAppCompatActivity() {
                 binding.rows.visibility = View.VISIBLE
                 binding.heroContainer.visibility = View.GONE
                 binding.tabSearch.nextFocusDownId = R.id.rows
+                rowsAdapter.submit(emptyList(), null)
                 load(force = false)
             }
             HomeMode.SERIES -> {
@@ -495,6 +513,7 @@ class HomeActivity : ScaledAppCompatActivity() {
                     prefs.browsePage = 0
                 }
                 updateSearchHint()
+                rowsAdapter.submit(emptyList(), null)
                 load(force = true)
             }
             HomeMode.MOVIES -> {
@@ -509,6 +528,7 @@ class HomeActivity : ScaledAppCompatActivity() {
                     prefs.browsePage = 0
                 }
                 updateSearchHint()
+                rowsAdapter.submit(emptyList(), null)
                 load(force = true)
             }
         }
@@ -532,14 +552,37 @@ class HomeActivity : ScaledAppCompatActivity() {
     @Suppress("UNUSED_PARAMETER")
     private fun toggleChip(chip: GenreChip) = Unit
 
+    private fun snapshotKey(m: HomeMode): String? = when (m) {
+        HomeMode.LIBRARY -> "library"
+        HomeMode.SERIES -> "series"
+        HomeMode.MOVIES -> "movies"
+        else -> null
+    }
+
     private fun load(force: Boolean) {
         if (mode == HomeMode.SEARCH) return
         val repo = (application as VerflixedApp).container.catalog
-        showSkeleton(true)
         binding.emptyText.visibility = View.GONE
         loadJob?.cancel()
         val requestedMode = mode
+        val key = snapshotKey(requestedMode)
+        var paintedSnapshot = false
         loadJob = lifecycleScope.launch {
+            // Instant paint: last known rows for this tab, refreshed silently behind.
+            if (key != null && rowsAdapter.itemCount == 0) {
+                repo.peekRowsSnapshot(key)?.let { snap ->
+                    if (mode == requestedMode) {
+                        paintedSnapshot = true
+                        showSkeleton(false)
+                        val featured = snap.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
+                        if (featured != null) heroSeries = featured
+                        rowsAdapter.submit(snap, featured)
+                        if (featured != null) updateHero(featured)
+                        prefetchRowImages(snap)
+                    }
+                }
+            }
+            if (!paintedSnapshot && rowsAdapter.itemCount == 0) showSkeleton(true)
             runCatching {
                 when (requestedMode) {
                     HomeMode.LIBRARY -> repo.getLibraryRows()
@@ -562,6 +605,10 @@ class HomeActivity : ScaledAppCompatActivity() {
                 if (featured != null) heroSeries = featured
                 rowsAdapter.submit(rows, featured)
                 if (featured != null) updateHero(featured)
+                prefetchRowImages(rows)
+                if (key != null && rows.any { it.items.isNotEmpty() }) {
+                    lifecycleScope.launch { repo.saveRowsSnapshot(key, rows) }
+                }
                 if (rows.all { it.items.isEmpty() }) {
                     binding.emptyText.text = when (requestedMode) {
                         HomeMode.LIBRARY -> getString(R.string.library_empty)
@@ -574,12 +621,29 @@ class HomeActivity : ScaledAppCompatActivity() {
             }.onFailure {
                 if (mode != requestedMode || mode == HomeMode.SEARCH) return@onFailure
                 showSkeleton(false)
+                if (paintedSnapshot || rowsAdapter.itemCount > 0) return@onFailure
                 val msg = it.toVfMessage()
                 if (msg.isBlank()) return@onFailure
                 binding.emptyText.text = msg
                 binding.emptyText.visibility = View.VISIBLE
                 Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    /** Warm Glide's disk/memory cache for the first visible cards of each row. */
+    private fun prefetchRowImages(rows: List<HomeRow>) {
+        val urls = rows.asSequence()
+            .flatMap { it.items.asSequence().take(10) }
+            .mapNotNull { it.posterUrl ?: it.backdropUrl }
+            .distinct()
+            .take(60)
+            .toList()
+        if (urls.isEmpty()) return
+        val glide = Glide.with(this)
+        urls.forEach { url ->
+            glide.load(com.streamvault.tv.data.catalog.SiteImages.preferJpeg(url))
+                .preload()
         }
     }
 
@@ -948,6 +1012,11 @@ private class RowsAdapter(
     /** Stagger the entrance only for the first paint after a (re)load. */
     private var animateGeneration = 0
     private val animatedPositions = mutableSetOf<Int>()
+    /** One poster-view pool for all rows: no re-inflate while scrolling vertically. */
+    private val posterPool = RecyclerView.RecycledViewPool().apply {
+        setMaxRecycledViews(0, 24)
+        setMaxRecycledViews(1, 24)
+    }
 
     companion object {
         private const val TYPE_HERO = 0
@@ -985,7 +1054,7 @@ private class RowsAdapter(
             HeroVH(view, onHeroPlay, onHeroInfo, browseModeProvider)
         } else {
             val view = LayoutInflater.from(parent.context).inflate(R.layout.item_row, parent, false)
-            RowVH(view, onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
+            RowVH(view, onClick, onFocused, prefsProvider, browseModeProvider, resolveArt, posterPool)
         }
     }
 
@@ -1053,20 +1122,25 @@ private class RowsAdapter(
         onFocused: (Series) -> Unit,
         prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
         browseModeProvider: () -> Boolean,
-        resolveArt: (Series, (Series) -> Unit) -> Unit
+        resolveArt: (Series, (Series) -> Unit) -> Unit,
+        sharedPool: RecyclerView.RecycledViewPool? = null,
     ) : RecyclerView.ViewHolder(itemView) {
         private val title: TextView = itemView.findViewById(R.id.rowTitle)
         private val list: RecyclerView = itemView.findViewById(R.id.rowList)
         private val posterAdapter = PosterAdapter(onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
 
         init {
-            list.layoutManager = LinearLayoutManager(itemView.context, RecyclerView.HORIZONTAL, false)
+            list.layoutManager = LinearLayoutManager(itemView.context, RecyclerView.HORIZONTAL, false).apply {
+                initialPrefetchItemCount = 8
+            }
+            sharedPool?.let { list.setRecycledViewPool(it) }
             list.adapter = posterAdapter
             list.itemAnimator = null
             list.clipChildren = false
             list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
+            list.setItemViewCacheSize(10)
         }
 
         fun bind(row: HomeRow) {
