@@ -16,7 +16,7 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 640,
-    backgroundColor: "#0b0d12",
+    backgroundColor: "#04060a",
     title: "Verflixed",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -32,6 +32,9 @@ function createWindow() {
     return { action: "deny" };
   });
 }
+
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
 
 app.whenReady().then(() => {
   // Persist site partition + default session CORS/media tweaks

@@ -27,73 +27,47 @@ html, body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(1200px 600px at 8% -12%, #122038 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #0d1a2e 0%, transparent 45%),
-    var(--bg);
+    radial-gradient(130% 90% at 50% 12%, #0d1424 0%, #080d18 42%, #04060a 100%);
   color: var(--text);
 }
 button, input { font: inherit; }
 button { color: inherit; }
 
-/* ===== Splash ===== */
+/* ===== Splash / brand intro (APK VerflixedIntroView) ===== */
 .splash {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  display: grid;
-  place-items: center;
   background: #000;
-  transition: opacity 0.45s ease, visibility 0.45s ease;
+  transition: opacity 0.45s cubic-bezier(0.23, 1, 0.32, 1), visibility 0.45s ease;
 }
 .splash.hide {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
-.splash-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
+.intro-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
-.splash-logo {
-  width: 120px;
-  height: 120px;
-  filter: drop-shadow(0 0 18px rgba(47, 128, 255, 0.45));
-}
-.splash-v-stroke {
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: splashDraw 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-.splash-v-fill {
-  animation: splashFill 0.7s ease 0.55s forwards;
-}
-.splash-title {
-  font-weight: 800;
-  letter-spacing: 0.32em;
-  font-size: 18px;
-  opacity: 0;
-  animation: splashFade 0.5s ease 0.7s forwards;
-}
-.splash-bar {
+.splash-progress {
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
   width: 140px;
   height: 3px;
+  margin-left: -70px;
   border-radius: 99px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background: linear-gradient(90deg, transparent, #2f80ff, transparent);
   background-size: 200% 100%;
   opacity: 0;
-  animation: splashFade 0.4s ease 0.85s forwards, splashShimmer 1.2s linear 0.85s infinite;
+  animation: splashBarIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) 1.15s forwards,
+    splashShimmer 1.2s linear 1.15s infinite;
 }
-@keyframes splashDraw {
-  to { stroke-dashoffset: 0; }
-}
-@keyframes splashFill {
-  to { opacity: 1; }
-}
-@keyframes splashFade {
-  to { opacity: 1; }
-}
+@keyframes splashBarIn { to { opacity: 1; } }
 @keyframes splashShimmer {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
@@ -112,6 +86,9 @@ button { color: inherit; }
 }
 #app.nav-topbar .side-nav { display: none; }
 #app.nav-sidebar .top-tabs { display: none; }
+/* Sidebar matches Fire TV: no desktop brand chrome, source URL lives in settings. */
+#app.nav-sidebar .topbar { display: none; }
+#app.nav-sidebar main { padding-top: 10px; }
 
 .app-body {
   flex: 1;
@@ -196,8 +173,8 @@ button { color: inherit; }
 }
 .nav-btn.active {
   color: #fff;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  box-shadow: 0 6px 18px rgba(229, 9, 20, 0.35);
+  background: linear-gradient(180deg, #3f8cff, #2568d8);
+  box-shadow: 0 6px 18px rgba(47, 128, 255, 0.32);
 }
 
 .topbar {
@@ -557,18 +534,20 @@ main {
 }
 .detail-hero {
   display: grid;
-  grid-template-columns: minmax(160px, 280px) 1fr;
-  gap: clamp(14px, 2vw, 24px);
-  align-items: end;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: clamp(16px, 2vw, 24px);
+  align-items: start;
   margin-top: 10px;
 }
 .detail-hero img {
-  width: 100%;
-  aspect-ratio: 16/9;
+  width: 128px;
+  height: 192px;
+  aspect-ratio: 2/3;
   object-fit: cover;
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: #0e121a;
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .detail-copy h1 {
   margin: 0 0 6px;
@@ -1104,4 +1083,122 @@ main {
 @keyframes vfSkelPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
+}
+
+/* Home hero (item_home_hero) */
+.home-hero {
+  position: relative;
+  height: clamp(220px, 32vw, 280px);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  isolation: isolate;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transform: translateZ(0);
+}
+.home-hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.home-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(4, 6, 10, 0.82) 0%, rgba(4, 6, 10, 0.35) 55%, transparent 80%),
+    linear-gradient(180deg, transparent 30%, rgba(4, 6, 10, 0.88) 100%);
+}
+.home-hero-copy {
+  position: absolute;
+  left: 36px;
+  right: 36px;
+  bottom: 18px;
+  max-width: 720px;
+}
+.home-hero-title {
+  margin: 0;
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+.home-hero-meta {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.home-hero-overview {
+  margin: 8px 0 0;
+  color: #c9d3e4;
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.home-hero-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.shelf {
+  animation: shelfEnter 0.42s var(--ease-glide) both;
+}
+@keyframes shelfEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.player-brand-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  background: #000;
+}
+.player-brand-gate.hidden { display: none; }
+.player-brand-status {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 46px;
+  text-align: center;
+  color: var(--muted2);
+  font-size: 13px;
+}
+
+#app:has(#view-player.active) .side-nav,
+#app:has(#view-player.active) .topbar { display: none; }
+#app:has(#view-player.active) main {
+  padding: 0;
+  width: 100%;
+  max-width: none;
+}
+#view-player.view.active {
+  padding: 0;
+  max-width: none;
+  width: 100%;
+}
+#view-player.view.active .player-shell {
+  border-radius: 0;
+  max-height: none;
+  height: calc(100vh - 0px);
+  aspect-ratio: auto;
+}
+
+.episode {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--sheen);
+}
+.episode:hover,
+.episode:focus-within {
+  border-color: rgba(127, 184, 255, 0.45);
+  transform: scale(1.01);
+}
+.episode-list {
+  padding-bottom: 56px;
 }

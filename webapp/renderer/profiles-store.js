@@ -226,6 +226,18 @@ window.VfProfiles = (() => {
       .filter((s) => s.detailPath);
   }
 
+  function removeFromContinueWatching(seriesId) {
+    if (!seriesId) return;
+    const s = load();
+    const id = s.activeProfileId;
+    const map = s.progress[id];
+    if (!map) return;
+    for (const [epId, p] of Object.entries(map)) {
+      if (p?.seriesId === seriesId && !p.completed) delete map[epId];
+    }
+    save(s);
+  }
+
   function cacheArt(seriesId, poster, backdrop) {
     const s = load();
     s.artCache[seriesId] = {
@@ -460,6 +472,7 @@ window.VfProfiles = (() => {
     setEpisodeWatched,
     continueForSeries,
     continueRow,
+    removeFromContinueWatching,
     progressMap,
     cacheArt,
     cachedArt,

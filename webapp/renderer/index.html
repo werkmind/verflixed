@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Verflixed" />
-  <meta name="vf-version" content="1.12.0" />
-  <meta name="vf-version-code" content="44" />
+  <meta name="vf-version" content="1.13.0" />
+  <meta name="vf-version-code" content="45" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -17,22 +17,8 @@
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="false">
-    <div class="splash-inner">
-      <svg id="splashLogo" class="splash-logo" viewBox="0 0 120 120" aria-label="Verflixed">
-        <defs>
-          <linearGradient id="splashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#5aa8ff"/>
-            <stop offset="100%" stop-color="#2f80ff"/>
-          </linearGradient>
-        </defs>
-        <path id="splashVPath" class="splash-v-stroke" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
-          d="M22 28 L60 96 L98 28" pathLength="100"/>
-        <path class="splash-v-fill" fill="url(#splashGrad)" opacity="0"
-          d="M22 28 L60 96 L98 28 L82 28 L60 68 L38 28 Z"/>
-      </svg>
-      <div class="splash-title">VERFLIXED</div>
-      <div class="splash-bar"></div>
-    </div>
+    <canvas id="splashIntro" class="intro-canvas" aria-label="Verflixed"></canvas>
+    <div id="splashProgress" class="splash-progress" aria-hidden="true"></div>
   </div>
 
   <div id="app" class="nav-sidebar">
@@ -97,6 +83,7 @@
       <main>
         <section id="view-library" class="view active">
           <div id="libraryStatus" class="status"></div>
+          <div id="librarySkeleton" class="skeleton-host hidden" aria-hidden="true"></div>
           <div id="libraryRows" class="rows"></div>
         </section>
 
@@ -161,7 +148,11 @@
         <section id="view-player" class="view">
           <div class="player-shell" id="playerShell">
             <video id="video" playsinline></video>
-            <div id="playerOverlay" class="player-overlay">
+            <div id="playerBrandGate" class="player-brand-gate hidden" aria-hidden="true">
+              <canvas id="playerIntro" class="intro-canvas compact" aria-hidden="true"></canvas>
+              <div id="playerBrandStatus" class="player-brand-status"></div>
+            </div>
+            <div id="playerOverlay" class="player-overlay hidden">
               <div id="playerTitle">Kein Stream</div>
               <div id="playerStatus">Wähle eine Episode</div>
             </div>
@@ -201,6 +192,7 @@
                   <div class="detail-actions">
                     <button id="btnPlayContinue" class="btn primary">Play</button>
                     <button id="btnToggleFav" class="btn ghost">＋ Meine Liste</button>
+                    <button id="btnSeasonWatched" class="btn ghost" type="button">Staffel als gesehen</button>
                     <button id="btnLanguage" class="btn ghost" type="button" hidden>DE</button>
                     <button id="btnMore" class="btn ghost" type="button" title="Mehr Optionen">⋯</button>
                   </div>
@@ -240,6 +232,7 @@
   <script src="content-gate.js"></script>
   <script src="vf-updates.js"></script>
   <script src="skip-marks.js"></script>
+  <script src="intro.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

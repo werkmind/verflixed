@@ -400,6 +400,28 @@
     }
   }
 
+  function showBrandGate(status) {
+    const gate = $("playerBrandGate");
+    if (!gate) return;
+    gate.classList.remove("hidden");
+    gate.setAttribute("aria-hidden", "false");
+    if ($("playerBrandStatus")) $("playerBrandStatus").textContent = status || "";
+    $("playerOverlay")?.classList.add("hidden");
+    const canvas = $("playerIntro");
+    window.VfIntro?.stop?.(canvas);
+    window.VfIntro?.play?.(canvas, { compact: true });
+    window.VfIntro?.sting?.();
+  }
+
+  function hideBrandGate() {
+    const gate = $("playerBrandGate");
+    if (!gate) return;
+    gate.classList.add("hidden");
+    gate.setAttribute("aria-hidden", "true");
+    window.VfIntro?.stop?.($("playerIntro"));
+    if ($("playerBrandStatus")) $("playerBrandStatus").textContent = "";
+  }
+
   function leavePlayer() {
     stopProgressTimer();
     stopHls();
@@ -415,6 +437,7 @@
     state.controlsVisible = false;
     state.lastBackExitAt = 0;
     hideNextPrompt();
+    hideBrandGate();
     showTvControls(false);
     if (state.current) showView("detail");
     else setHomeMode(state.lastContentMode || "library");
@@ -681,16 +704,66 @@
     return el;
   }
 
+  function renderFeaturedHero(host, item) {
+    if (!host || !item) return;
+    const s = item.series || item;
+    const art = s.backdropUrl || s.posterUrl || tileArt(s) || placeholder;
+    const hero = document.createElement("article");
+    hero.className = "home-hero";
+    hero.tabIndex = 0;
+    const meta = [s.year, s.mediaKind === "movie" ? "Film" : "Serie", (s.genres || []).slice(0, 2).join(" · ")]
+      .filter(Boolean)
+      .join("  ·  ");
+    hero.innerHTML = `
+      <img alt="" />
+      <div class="home-hero-scrim"></div>
+      <div class="home-hero-copy">
+        <h2 class="home-hero-title">${escapeHtml(s.title || "")}</h2>
+        <p class="home-hero-meta">${escapeHtml(meta)}</p>
+        ${s.overview ? `<p class="home-hero-overview">${escapeHtml(s.overview)}</p>` : ""}
+        <div class="home-hero-actions">
+          <button type="button" class="btn primary" data-act="play">Play</button>
+          <button type="button" class="btn ghost" data-act="info">Mehr Infos</button>
+        </div>
+      </div>`;
+    bindImg(hero.querySelector("img"), art, placeholder);
+    const open = () => openDetail(s);
+    const play = async (e) => {
+      e?.stopPropagation?.();
+      await openDetail(s);
+      const ep = state.current && window.VfProfiles.continueForSeries(state.current);
+      if (ep) playEpisode(ep);
+    };
+    hero.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      open();
+    });
+    hero.querySelector("[data-act=play]").onclick = play;
+    hero.querySelector("[data-act=info]").onclick = (e) => {
+      e.stopPropagation();
+      open();
+    };
+    host.appendChild(hero);
+  }
+
   function renderRowsInto(host, rows) {
     if (!host) return;
     host.innerHTML = "";
     const blocked = window.VfProfiles?.blockedGenres?.() || [];
-    for (const g of rows) {
+    let delay = 0;
+    let featured = false;
+    for (let g of rows) {
       if (!g.items?.length) continue;
       g = { ...g, items: window.ContentGate ? window.ContentGate.filterList(g.items, blocked) : g.items };
       if (!g.items.length) continue;
+      if (!featured) {
+        renderFeaturedHero(host, g.items[0]);
+        featured = true;
+      }
       const wrap = document.createElement("section");
       wrap.className = "shelf";
+      wrap.style.animationDelay = `${delay}ms`;
+      delay += 70;
       wrap.innerHTML = `<div class="shelf-head"><h2 class="row-title">${escapeHtml(g.title)}</h2><span class="shelf-count">${g.items.length}</span></div>`;
       const scroller = document.createElement("div");
       scroller.className = "scroller";
@@ -975,8 +1048,18 @@
   }
 
   function showSkeleton(kind, show) {
-    const sk = $(kind === "movie" ? "moviesSkeleton" : "seriesSkeleton");
-    const rows = $(kind === "movie" ? "moviesRows" : "seriesRows");
+    const sk =
+      kind === "movie"
+        ? $("moviesSkeleton")
+        : kind === "library"
+          ? $("librarySkeleton")
+          : $("seriesSkeleton");
+    const rows =
+      kind === "movie"
+        ? $("moviesRows")
+        : kind === "library"
+          ? $("libraryRows")
+          : $("seriesRows");
     if (!sk) return;
     if (show) {
       fillSkeleton(sk);
@@ -1058,7 +1141,7 @@
     else heroEl.style.backgroundImage = "";
     bindImg(
       $("detailPoster"),
-      hero || state.current?.posterUrl || state.current?.backdropUrl,
+      state.current?.posterUrl || tileArt(state.current) || hero,
       tileArt(state.current),
     );
   }
@@ -1069,6 +1152,44 @@
     const fav = window.VfProfiles.isFavorite(state.current.id);
     btn.textContent = fav ? "✓ Meine Liste" : "＋ Meine Liste";
     btn.classList.toggle("fav-on", fav);
+  }
+
+  function updateSeasonWatchedButton() {
+    const btn = $("btnSeasonWatched");
+    if (!btn || !state.current) return;
+    if (isMovieItem(state.current)) {
+      const ep = (state.current.seasons || []).flatMap((s) => s.episodes || [])[0];
+      const seen = !!(ep && window.VfProfiles.getProgress(ep.id)?.completed);
+      btn.textContent = seen ? "Als ungesehen" : "Als gesehen";
+      btn.hidden = false;
+      return;
+    }
+    const eps =
+      state.current.seasons.find((s) => s.number === state.season)?.episodes || [];
+    const allSeen =
+      eps.length > 0 && eps.every((ep) => window.VfProfiles.getProgress(ep.id)?.completed);
+    btn.textContent = allSeen ? "Staffel ungesehen" : "Staffel als gesehen";
+    btn.hidden = false;
+  }
+
+  function toggleSeasonWatched() {
+    if (!state.current) return;
+    if (isMovieItem(state.current)) {
+      const ep = (state.current.seasons || []).flatMap((s) => s.episodes || [])[0];
+      if (!ep) return;
+      const seen = !!window.VfProfiles.getProgress(ep.id)?.completed;
+      window.VfProfiles.setEpisodeWatched(ep, !seen);
+    } else {
+      const eps =
+        state.current.seasons.find((s) => s.number === state.season)?.episodes || [];
+      const allSeen =
+        eps.length > 0 && eps.every((ep) => window.VfProfiles.getProgress(ep.id)?.completed);
+      eps.forEach((ep) => window.VfProfiles.setEpisodeWatched(ep, !allSeen));
+    }
+    renderEpisodes();
+    updateSeasonWatchedButton();
+    updatePlayContinueButton();
+    refreshBrowseFromState();
   }
 
   function updatePlayContinueButton() {
@@ -1184,8 +1305,9 @@
         applyDetailHero(state.season);
         updateDetailFavButton();
         updatePlayContinueButton();
+        updateSeasonWatchedButton();
         await refreshAvailableLanguages(detailed, workingHtml, workingUrl);
-        warmEpisodeStreamsLight(detailed);
+        if (window.VfProfiles.isFavorite(detailed.id)) warmEpisodeStreamsLight(detailed);
         return;
       }
 
@@ -1228,9 +1350,10 @@
       applyDetailHero(state.season);
       updateDetailFavButton();
       updatePlayContinueButton();
+      updateSeasonWatchedButton();
       renderSeasons();
       renderEpisodes();
-      warmEpisodeStreamsLight(detailed);
+      if (window.VfProfiles.isFavorite(detailed.id)) warmEpisodeStreamsLight(detailed);
       const firstEp = detailed.seasons[0]?.episodes?.[0];
       const probeUrl = firstEp?.streamPageUrl || detailed.detailPath;
       if (probeUrl) {
@@ -1367,6 +1490,8 @@
         const wasWatched = prog?.completed;
         window.VfProfiles.setEpisodeWatched(ep, !wasWatched);
         renderEpisodes();
+        updateSeasonWatchedButton();
+        updatePlayContinueButton();
         refreshBrowseFromState();
       };
       list.appendChild(row);
@@ -1382,13 +1507,13 @@
     }
     const bit = label ? ` · ${label}` : "";
     if (status === "caching") {
-      el.textContent = `Streams cachen (HLS/MP4): ${cached}/${total}${bit}`;
+      el.textContent = `◌  Wird vorbereitet · ${cached}/${total}${bit}`;
     } else if (status === "ready") {
-      el.textContent = `Streams bereit: ${cached}/${total}`;
+      el.textContent = `●  Offline bereit · ${cached} Episoden`;
     } else if (status === "partial") {
-      el.textContent = `Streams teilweise: ${cached}/${total}`;
+      el.textContent = `◐  Teilweise bereit · ${cached}/${total}`;
     } else {
-      el.textContent = "";
+      el.textContent = total > 0 ? `◌  Cache · ${cached}/${total}` : "";
     }
   }
 
@@ -1700,7 +1825,6 @@
     state.nextPromptDismissed = false;
     hideNextPrompt();
     showTvControls(false);
-    $("playerOverlay").classList.remove("hidden");
     const movieMode =
       state.mediaKind === "movie" ||
       state.current?.mediaKind === "movie" ||
@@ -1709,6 +1833,11 @@
       ? state.current?.title || ep.title || ""
       : `${state.current?.title || ""} · S${ep.seasonNumber}E${ep.number}`;
     $("playerStatus").textContent = movieMode ? "Film laden…" : "Episode laden…";
+    if (state.advancingToNext) {
+      $("playerOverlay")?.classList.add("hidden");
+    } else {
+      showBrandGate(movieMode ? "Film wird vorbereitet…" : "Stream wird vorbereitet…");
+    }
     state.lastPlay = { ep, series: state.current };
 
     try {
@@ -1802,6 +1931,7 @@
       }
       throw lastErr || new Error("Kein Stream-Link verfügbar");
     } catch (e) {
+      hideBrandGate();
       $("playerOverlay").classList.remove("hidden");
       $("playerStatus").textContent = `Fehler: ${e.message || e}`;
       showTvControls(false);
@@ -2126,6 +2256,7 @@
     $("playerOverlay").classList.add("hidden");
     video.src = url;
     await video.play().catch(() => {});
+    hideBrandGate();
     await resumeFromProgress(video, state.lastPlay?.ep);
     state.playerReady = true;
     startProgressTimer();
@@ -2166,6 +2297,7 @@
       state.hls.attachMedia(video);
       state.hls.on(Hls.Events.MANIFEST_PARSED, async () => {
         $("playerStatus").textContent = "";
+        hideBrandGate();
         await video.play().catch(() => {});
         await resumeFromProgress(video, state.lastPlay?.ep);
         state.playerReady = true;
@@ -2175,6 +2307,7 @@
       });
       state.hls.on(Hls.Events.ERROR, (_, data) => {
         if (data?.fatal) {
+          hideBrandGate();
           $("playerOverlay").classList.remove("hidden");
           $("playerStatus").textContent = "Wiedergabefehler";
           showTvControls(false);
@@ -2183,6 +2316,7 @@
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
       await video.play().catch(() => {});
+      hideBrandGate();
       await resumeFromProgress(video, state.lastPlay?.ep);
       state.playerReady = true;
       startProgressTimer();
@@ -2657,6 +2791,32 @@
         warmEpisodeStreams(s, { forceRefresh: true });
       },
     });
+    if (!isMovieItem(s)) {
+      items.push({
+        label: "Zufällige Folge abspielen",
+        run: () => {
+          const eps = allEpisodesOrdered().filter((ep) => !ep.upcoming);
+          const pick = eps[Math.floor(Math.random() * eps.length)];
+          if (pick) playEpisode(pick);
+        },
+      });
+    }
+    items.push({
+      label: "Aus „Weiterschauen“ entfernen",
+      run: () => {
+        window.VfProfiles.removeFromContinueWatching(s.id);
+        updatePlayContinueButton();
+        refreshBrowseFromState();
+      },
+    });
+    items.push({
+      label: "Stream-Cache dieser Serie leeren",
+      run: () => {
+        window.VfProfiles.clearSeriesStreams(s.id);
+        if ($("cacheStatus")) $("cacheStatus").textContent = "";
+        renderEpisodes();
+      },
+    });
     menu.innerHTML = "";
     items.forEach((it) => {
       const b = document.createElement("button");
@@ -2725,6 +2885,10 @@
           renderEpisodes();
         }
       };
+    }
+
+    if ($("btnSeasonWatched")) {
+      $("btnSeasonWatched").onclick = () => toggleSeasonWatched();
     }
 
     if ($("btnPlayContinue")) {
@@ -2830,32 +2994,6 @@
     bindPlayerUi();
   }
 
-  function playSplashBoom() {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(90, now);
-      osc.frequency.exponentialRampToValueAtTime(38, now + 0.55);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.45, now + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.75);
-      setTimeout(() => {
-        try {
-          ctx.close();
-        } catch (_) {}
-      }, 900);
-    } catch (_) {}
-  }
-
   function hideSplash() {
     const splash = $("splash");
     if (!splash) return;
@@ -2868,13 +3006,18 @@
     }, 500);
   }
 
-  function runSplash() {
-    playSplashBoom();
-    setTimeout(hideSplash, 1600);
+  async function runSplash() {
+    const canvas = $("splashIntro");
+    try {
+      window.VfIntro?.sting?.();
+      await window.VfIntro?.play?.(canvas, { compact: false });
+      await new Promise((r) => setTimeout(r, window.VfIntro?.HOLD_AFTER_MS || 260));
+    } catch (_) {}
+    hideSplash();
   }
 
-  localStorage.setItem("vf_app_version", "1.12.0");
-  localStorage.setItem("vf_version_code", "44");
+  localStorage.setItem("vf_app_version", "1.13.0");
+  localStorage.setItem("vf_version_code", "45");
   applyChromePrefs();
   applyUiScale();
   syncBaseUrlInputs();
@@ -2887,11 +3030,11 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.7.5";
+      const v = (await window.verflixed?.getVersion?.()) || "1.13.0";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.7.5";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.13.0";
     }
     setHomeMode("library");
     // Prefetch catalogs in background so search/library resolve better
