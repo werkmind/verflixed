@@ -39,6 +39,8 @@
     nextPromptDismissed: false,
     nextAutoAtMs: 0,
     advancingToNext: false,
+    activeSkip: null,
+    dismissedSkipTypes: new Set(),
     seriesLoading: false,
     moviesLoading: false,
     seriesLoadPromise: null,
@@ -1366,15 +1368,22 @@
     video.controls = false;
     video.addEventListener("timeupdate", () => {
       updateSeekUi();
+      maybeShowSkipSegment();
       maybeShowNext();
     });
-    video.addEventListener("loadedmetadata", updateSeekUi);
+    video.addEventListener("loadedmetadata", () => {
+      updateSeekUi();
+      state.activeSkip = null;
+      state.dismissedSkipTypes = new Set();
+      hideSkipSegment();
+    });
     video.addEventListener("play", () => showTvControls(true));
     video.addEventListener("pause", () => updateSeekUi());
     video.addEventListener("ended", () => {
       saveCurrentProgress(true);
       stopProgressTimer();
       hideNextPrompt();
+      hideSkipSegment();
       const next = state.lastPlay?.ep ? nextEpisodeAfter(state.lastPlay.ep) : null;
       if (next) {
         playNextEpisode(true);
@@ -1386,6 +1395,13 @@
 
     $("btnPlayNext")?.addEventListener("click", () => playNextEpisode(false));
     $("btnSkipNext")?.addEventListener("click", () => dismissNextPrompt(true));
+    $("btnSkipSegment")?.addEventListener("click", () => skipActiveSegment());
+    $("btnSkipSegment")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        skipActiveSegment();
+      }
+    });
 
     const bar = $("seekBar");
     if (bar) {
@@ -1461,6 +1477,12 @@
 
       if (e.key === "Escape" || e.key === "BrowserBack" || e.code === "BrowserBack") {
         e.preventDefault();
+        if (state.activeSkip && !$("btnSkipSegment")?.classList.contains("hidden")) {
+          if (!state.dismissedSkipTypes) state.dismissedSkipTypes = new Set();
+          state.dismissedSkipTypes.add(state.activeSkip.type);
+          hideSkipSegment();
+          return;
+        }
         if (state.nextPromptVisible) {
           dismissNextPrompt(true);
           return;
@@ -1707,7 +1729,83 @@
     $("nextEpBanner")?.classList.add("hidden");
   }
 
+  function hideSkipSegment() {
+    state.activeSkip = null;
+    $("btnSkipSegment")?.classList.add("hidden");
+  }
+
+  function seriesIdForSkip() {
+    return state.current?.id || state.lastPlay?.ep?.seriesId || "";
+  }
+
+  function maybeShowSkipSegment() {
+    const video = $("video");
+    const ep = state.lastPlay?.ep;
+    if (!video || !ep || state.nextPromptVisible || isMovieItem(state.current)) {
+      hideSkipSegment();
+      return;
+    }
+    const dur = video.duration;
+    if (!dur || !Number.isFinite(dur) || video.paused) {
+      hideSkipSegment();
+      return;
+    }
+    const durationMs = dur * 1000;
+    const posMs = video.currentTime * 1000;
+    const sid = seriesIdForSkip();
+    const dismissed = state.dismissedSkipTypes || new Set();
+    const intro = window.VfSkipMarks?.introSegment?.(sid, durationMs, ep.number || 1);
+    const credits = window.VfSkipMarks?.creditsSegment?.(sid, durationMs);
+    const hit =
+      (intro && !dismissed.has("INTRO") && posMs >= intro.startMs && posMs < intro.endMs && intro) ||
+      (credits &&
+        !dismissed.has("CREDITS") &&
+        posMs >= credits.startMs &&
+        posMs < credits.endMs &&
+        credits) ||
+      null;
+    if (!hit) {
+      hideSkipSegment();
+      return;
+    }
+    if (state.activeSkip?.type === hit.type && !$("btnSkipSegment")?.classList.contains("hidden")) {
+      return;
+    }
+    state.activeSkip = hit;
+    const btn = $("btnSkipSegment");
+    if (btn) {
+      btn.textContent = hit.label;
+      btn.classList.remove("hidden");
+    }
+  }
+
+  function skipActiveSegment() {
+    const video = $("video");
+    const seg = state.activeSkip;
+    if (!video || !seg) return;
+    const sid = seriesIdForSkip();
+    if (!state.dismissedSkipTypes) state.dismissedSkipTypes = new Set();
+    state.dismissedSkipTypes.add(seg.type);
+    if ((seg.type === "INTRO" || seg.type === "RECAP") && sid) {
+      window.VfSkipMarks?.recordIntroEnd?.(sid, seg.endMs);
+    }
+    const dur = video.duration || 0;
+    const targetSec =
+      seg.type === "CREDITS" ? dur : Math.min(dur || seg.endMs / 1000, seg.endMs / 1000);
+    try {
+      video.currentTime = Math.max(0, targetSec);
+    } catch (_) {}
+    hideSkipSegment();
+    if (seg.type === "CREDITS") maybeShowNext();
+  }
+
   function dismissNextPrompt(keepPlaying) {
+    const video = $("video");
+    const sid = seriesIdForSkip();
+    if (video && sid && video.duration) {
+      const leftMs = (video.duration - video.currentTime) * 1000;
+      if (leftMs > 15_000) window.VfSkipMarks?.recordCreditsLeadAtLeast?.(sid, leftMs);
+    }
     state.nextPromptDismissed = true;
     hideNextPrompt();
     if (keepPlaying && $("playerStatus")) {
@@ -1726,6 +1824,7 @@
     if (!state.nextPromptVisible) {
       state.nextPromptVisible = true;
       state.nextAutoAtMs = Date.now() + 10_000;
+      hideSkipSegment();
       const banner = $("nextEpBanner");
       banner?.classList.remove("hidden");
       if ($("nextEpTitle")) {
@@ -1753,17 +1852,24 @@
     const dur = video.duration;
     if (!dur || !Number.isFinite(dur) || video.paused) return;
     const leftMs = (dur - video.currentTime) * 1000;
+    const sid = seriesIdForSkip();
+    const lead =
+      window.VfSkipMarks?.nextPromptLeadMs?.(sid, dur * 1000) || 60_000;
     const next = nextEpisodeAfter(ep);
     if (!next) {
       hideNextPrompt();
       return;
     }
     if (state.nextPromptDismissed) {
-      if (leftMs > 60_000) state.nextPromptDismissed = false;
+      if (leftMs > lead) state.nextPromptDismissed = false;
       return;
     }
-    if (leftMs > 0 && leftMs <= 60_000) showNextPrompt(next);
-    else if (leftMs > 60_000) hideNextPrompt();
+    if (state.activeSkip && state.activeSkip.type !== "CREDITS") {
+      hideNextPrompt();
+      return;
+    }
+    if (leftMs > 0 && leftMs <= lead) showNextPrompt(next);
+    else if (leftMs > lead) hideNextPrompt();
   }
 
   async function playNextEpisode(auto) {
@@ -1775,10 +1881,21 @@
       hideNextPrompt();
       return;
     }
+    if (!auto) {
+      const video = $("video");
+      const sid = seriesIdForSkip();
+      if (video && sid && video.duration && video.currentTime > 0) {
+        const lead = Math.max(15_000, Math.min(8 * 60_000, (video.duration - video.currentTime) * 1000));
+        window.VfSkipMarks?.recordCreditsLead?.(sid, lead);
+      }
+    }
     state.advancingToNext = true;
     saveCurrentProgress(true);
     hideNextPrompt();
+    hideSkipSegment();
     state.nextPromptDismissed = false;
+    state.dismissedSkipTypes = new Set();
+    state.activeSkip = null;
     try {
       await playEpisode(next);
     } finally {
@@ -2569,8 +2686,8 @@
     setTimeout(hideSplash, 1600);
   }
 
-  localStorage.setItem("vf_app_version", "1.7.5");
-  localStorage.setItem("vf_version_code", "31");
+  localStorage.setItem("vf_app_version", "1.8.0");
+  localStorage.setItem("vf_version_code", "36");
   applyChromePrefs();
   syncBaseUrlInputs();
   updateSearchPlaceholder();

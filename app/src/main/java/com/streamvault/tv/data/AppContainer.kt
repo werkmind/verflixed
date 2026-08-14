@@ -59,7 +59,7 @@ class AppContainer(context: Context) {
     val parser = CatalogParser(moshi)
     val tmdb = TmdbClient(http, moshi, prefs)
     val tvMaze = TvMazeClient(http, moshi)
-    val aniSkip = AniSkipClient(http, moshi)
+    val aniSkip = AniSkipClient(http, moshi, skipMarks)
     val calendar = CalendarClient(http, prefs, moshi)
     val profiles = ProfileRepository(db, prefs)
     val updates = UpdateChecker(http, moshi, prefs)

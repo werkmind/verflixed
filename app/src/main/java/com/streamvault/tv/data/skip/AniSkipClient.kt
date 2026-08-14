@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
 class AniSkipClient(
     private val http: OkHttpClient,
     moshi: Moshi,
+    private val skipMarks: SkipMarksStore? = null,
 ) {
     private val skipAdapter = moshi.adapter(AniSkipResponse::class.java)
     private val jikanAdapter = moshi.adapter(JikanSearchResponse::class.java)
@@ -28,10 +29,21 @@ class AniSkipClient(
     private val mutex = Mutex()
 
     suspend fun resolveMalId(series: Series): Int? = withContext(Dispatchers.IO) {
-        series.malId?.takeIf { it > 0 }?.let { return@withContext it }
+        series.malId?.takeIf { it > 0 }?.let {
+            skipMarks?.rememberMalId(series.id, it)
+            return@withContext it
+        }
+        skipMarks?.rememberedMalId(series.id)?.let {
+            malCache[series.id] = it
+            return@withContext it
+        }
         malCache[series.id]?.let { return@withContext it }
         mutex.withLock {
             malCache[series.id]?.let { return@withLock it }
+            skipMarks?.rememberedMalId(series.id)?.let {
+                malCache[series.id] = it
+                return@withLock it
+            }
             if (!looksAnime(series)) {
                 malCache[series.id] = null
                 return@withLock null
@@ -42,7 +54,7 @@ class AniSkipClient(
             }
             val url = "https://api.jikan.moe/v4/anime".toHttpUrl().newBuilder()
                 .addQueryParameter("q", q)
-                .addQueryParameter("limit", "5")
+                .addQueryParameter("limit", "8")
                 .build()
             val body = get(url.toString()) ?: run {
                 malCache[series.id] = null
@@ -53,19 +65,38 @@ class AniSkipClient(
                 ?.maxByOrNull { scoreTitle(q, it.title, it.titleEnglish) }
             val mal = best?.malId?.takeIf { it > 0 }
             malCache[series.id] = mal
+            if (mal != null) skipMarks?.rememberMalId(series.id, mal)
             mal
         }
     }
 
+    /**
+     * @param episodeNumber season-local number (SerienStream)
+     * @param absoluteEpisodeNumber 1-based flat index across seasons (MAL-style)
+     */
     suspend fun skipSegments(
         series: Series,
         episodeNumber: Int,
         durationMs: Long,
+        absoluteEpisodeNumber: Int = episodeNumber,
     ): List<SkipSegment> = withContext(Dispatchers.IO) {
-        if (episodeNumber <= 0) return@withContext emptyList()
+        if (episodeNumber <= 0 && absoluteEpisodeNumber <= 0) return@withContext emptyList()
         val mal = resolveMalId(series) ?: return@withContext emptyList()
+        // MAL / AniSkip usually use absolute numbering for multi-season anime.
+        val candidates = linkedSetOf<Int>().apply {
+            if (absoluteEpisodeNumber > 0) add(absoluteEpisodeNumber)
+            if (episodeNumber > 0) add(episodeNumber)
+        }
+        for (num in candidates) {
+            val segs = fetchSkip(mal, num, durationMs)
+            if (segs.isNotEmpty()) return@withContext segs
+        }
+        emptyList()
+    }
+
+    private fun fetchSkip(mal: Int, episodeNumber: Int, durationMs: Long): List<SkipSegment> {
         val cacheKey = "$mal:$episodeNumber:${durationMs / 1000}"
-        skipCache[cacheKey]?.let { return@withContext it }
+        skipCache[cacheKey]?.let { return it }
 
         val lengthSec = if (durationMs > 5_000L) (durationMs / 1000L).toInt() else 0
         val url = "https://api.aniskip.com/v2/skip-times/$mal/$episodeNumber".toHttpUrl()
@@ -77,11 +108,11 @@ class AniSkipClient(
             .addQueryParameter("types", "mixed-ed")
             .addQueryParameter("episodeLength", lengthSec.toString())
             .build()
-        val body = get(url.toString()) ?: return@withContext emptyList()
+        val body = get(url.toString()) ?: return emptyList()
         val parsed = runCatching { skipAdapter.fromJson(body) }.getOrNull()
         if (parsed?.found != true) {
             skipCache[cacheKey] = emptyList()
-            return@withContext emptyList()
+            return emptyList()
         }
         val segs = parsed.results.orEmpty().mapNotNull { row ->
             val start = ((row.interval?.startTime ?: return@mapNotNull null) * 1000.0).toLong()
@@ -96,18 +127,22 @@ class AniSkipClient(
             SkipSegment(type, start, end, source = "aniskip")
         }.sortedBy { it.startMs }
         skipCache[cacheKey] = segs
-        segs
+        return segs
     }
 
     private fun looksAnime(series: Series): Boolean {
         if (series.genres.any {
                 it.contains("anime", true) ||
                     it.contains("animation", true) ||
-                    it.equals("Zeichentrick", true)
+                    it.equals("Zeichentrick", true) ||
+                    it.contains("Manga", true)
             }
         ) return true
         val path = (series.detailPath ?: "").lowercase()
         if (path.contains("anime") || path.contains("aniworld") || path.contains("animes")) return true
+        // Common DE/EN anime hubs / title hints on stream sites.
+        val title = series.title.lowercase()
+        if (title.contains("anime")) return true
         return false
     }
 
@@ -127,7 +162,7 @@ class AniSkipClient(
         val req = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
-            .header("User-Agent", "Verflixed/1.7.9 (Android TV)")
+            .header("User-Agent", "Verflixed/1.8.0 (Android TV)")
             .get()
             .build()
         return runCatching {

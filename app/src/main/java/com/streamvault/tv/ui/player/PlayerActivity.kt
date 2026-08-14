@@ -1274,6 +1274,18 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun absoluteEpisodeNumber(s: Series, ep: Episode): Int {
+        var prior = 0
+        for (season in s.seasons.sortedBy { it.number }) {
+            if (season.number < ep.seasonNumber) {
+                prior += season.episodes.size.coerceAtLeast(0)
+            } else if (season.number == ep.seasonNumber) {
+                return prior + ep.number.coerceAtLeast(1)
+            }
+        }
+        return ep.number.coerceAtLeast(1)
+    }
+
     private fun refreshSkipPlan(force: Boolean) {
         val s = series ?: return
         val ep = episode ?: return
@@ -1286,9 +1298,15 @@ class PlayerActivity : AppCompatActivity() {
         hideSkipSegment()
         lifecycleScope.launch {
             val app = application as VerflixedApp
+            val absEp = absoluteEpisodeNumber(s, ep)
             val aniskip = withContext(Dispatchers.IO) {
                 runCatching {
-                    app.container.aniSkip.skipSegments(s, ep.number, dur)
+                    app.container.aniSkip.skipSegments(
+                        series = s,
+                        episodeNumber = ep.number,
+                        durationMs = dur,
+                        absoluteEpisodeNumber = absEp,
+                    )
                 }.getOrDefault(emptyList())
             }
             // Persist MAL id on in-memory series for this session when resolved.
@@ -1301,6 +1319,8 @@ class PlayerActivity : AppCompatActivity() {
             val plan = app.container.skipMarks.buildPlan(
                 episodeId = ep.id,
                 seriesId = s.id,
+                seasonNumber = ep.seasonNumber,
+                episodeNumber = ep.number,
                 durationMs = dur,
                 aniskip = aniskip,
             )
@@ -1356,8 +1376,16 @@ class PlayerActivity : AppCompatActivity() {
     private fun skipActiveSegment() {
         val seg = activeSkip ?: return
         val p = player ?: return
+        val s = series
         dismissedSkipTypes += seg.type
         hideSkipSegment()
+        // Learn intro length from where the user skipped (works for heuristic + AniSkip).
+        if (s != null && (seg.type == SkipSegment.Type.INTRO || seg.type == SkipSegment.Type.RECAP)) {
+            val end = seg.endMs.coerceAtLeast(p.currentPosition)
+            if (end in 8_000L..240_000L) {
+                (application as VerflixedApp).container.skipMarks.recordIntroEnd(s.id, end)
+            }
+        }
         val target = when (seg.type) {
             SkipSegment.Type.CREDITS -> p.duration.coerceAtLeast(seg.endMs)
             else -> seg.endMs
@@ -1446,6 +1474,18 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun dismissNextPrompt(keepPlaying: Boolean) {
+        val s = series
+        val p = player
+        if (s != null && p != null && p.duration > 0L) {
+            val left = (p.duration - p.currentPosition).coerceAtLeast(0L)
+            // „Weiter schauen“ ⇒ Abspann länger als unser Fenster → lernen.
+            if (left > 15_000L) {
+                (application as VerflixedApp).container.skipMarks
+                    .recordCreditsLeadAtLeast(s.id, left)
+                skipPlan = null
+                skipPlanEpisodeId = null
+            }
+        }
         nextPromptDismissed = true
         hideNextPrompt()
         if (keepPlaying) {

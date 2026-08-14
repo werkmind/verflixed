@@ -1,7 +1,7 @@
 {
   "name": "verflixed-webapp",
-  "version": "1.7.5",
-  "description": "Verflixed – Serien & Filme (Desktop parity mit Fire-TV 1.7.5)",
+  "version": "1.8.0",
+  "description": "Verflixed – Serien & Filme (Desktop parity mit Fire-TV 1.8.0)",
   "main": "main.js",
   "author": "Verflixed",
   "license": "MIT",
