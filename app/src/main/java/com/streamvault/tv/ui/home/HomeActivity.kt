@@ -927,6 +927,9 @@ private class RowsAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private val rows = mutableListOf<HomeRow>()
     private var hero: Series? = null
+    /** Stagger the entrance only for the first paint after a (re)load. */
+    private var animateGeneration = 0
+    private val animatedPositions = mutableSetOf<Int>()
 
     companion object {
         private const val TYPE_HERO = 0
@@ -937,6 +940,8 @@ private class RowsAdapter(
         rows.clear()
         rows.addAll(data.filter { it.items.isNotEmpty() })
         hero = featured ?: rows.firstOrNull()?.items?.firstOrNull()
+        animateGeneration++
+        animatedPositions.clear()
         notifyDataSetChanged()
     }
 
@@ -975,6 +980,9 @@ private class RowsAdapter(
                 val idx = if (hero != null) position - 1 else position
                 if (idx in rows.indices) holder.bind(rows[idx])
             }
+        }
+        if (animatedPositions.add(position) && position < 6) {
+            FocusFx.enter(holder.itemView, position)
         }
     }
 
@@ -1131,9 +1139,7 @@ private class PosterAdapter(
             }
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            val scale = if (hasFocus) 1.03f else 1f
-            v.animate().scaleX(scale).scaleY(scale).setDuration(160).start()
-            v.elevation = if (hasFocus) 4f else 0f
+            FocusFx.animateFocus(v, hasFocus, 1.07f)
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 val s = itemAt(pos) ?: return@setOnFocusChangeListener

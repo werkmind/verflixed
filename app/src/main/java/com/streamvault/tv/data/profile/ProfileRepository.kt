@@ -111,13 +111,29 @@ object AvatarCatalog {
     /** DiceBear PNG styles that look premium on TV. */
     val STYLES = listOf(
         "avataaars",
+        "adventurer",
+        "big-smile",
         "lorelei",
         "notionists",
+        "open-peeps",
+        "personas",
+        "micah",
+        "miniavs",
+        "fun-emoji",
         "bottts-neutral",
-        "shapes",
+        "croodles",
+        "pixel-art",
         "thumbs",
+        "shapes",
+        "rings",
+        "glass",
         "identicon",
-        "rings"
+    )
+
+    private val SEEDS = listOf(
+        "Nova", "Orbit", "Pulse", "Echo", "Vega", "Quark", "Flux", "Apex",
+        "Rune", "Pixel", "Cobalt", "Indigo", "Azure", "Neon", "Drift", "Lumen",
+        "Zenit", "Krypton", "Solar", "Nebula", "Photon", "Comet", "Aurora", "Titan",
     )
 
     fun diceBearUrl(seed: String, style: String = "avataaars"): String {
@@ -130,25 +146,29 @@ object AvatarCatalog {
         return "https://api.dicebear.com/9.x/$safeStyle/png?seed=$safeSeed&size=256&backgroundType=gradientLinear"
     }
 
-    fun presetAvatars(nameHint: String = "Verflixed"): List<AvatarOption> {
-        val seeds = listOf(
-            nameHint, "Nova", "Orbit", "Pulse", "Echo", "Vega", "Quark", "Flux",
-            "Apex", "Rune", "Pixel", "Cobalt", "Indigo", "Azure", "Neon", "Drift"
-        )
-        return STYLES.flatMap { style ->
-            seeds.take(4).map { seed ->
-                AvatarOption(
+    /**
+     * Interleaves styles so the grid shows variety in the first visible rows
+     * instead of 8 near-identical faces.
+     */
+    fun presetAvatars(nameHint: String = "Verflixed", perStyle: Int = 8): List<AvatarOption> {
+        val seeds = (listOf(nameHint) + SEEDS).distinct()
+        val out = mutableListOf<AvatarOption>()
+        for (i in 0 until perStyle) {
+            for (style in STYLES) {
+                val seed = seeds[(i * 7 + STYLES.indexOf(style)) % seeds.size]
+                out += AvatarOption(
                     id = "$style:$seed",
                     label = "$style · $seed",
                     url = diceBearUrl(seed, style),
                     source = AvatarSource.DICEBEAR
                 )
             }
-        }.distinctBy { it.url }.take(48)
+        }
+        return out.distinctBy { it.url }
     }
 }
 
-enum class AvatarSource { DICEBEAR, FAVORITE }
+enum class AvatarSource { DICEBEAR, FAVORITE, PERSON }
 
 data class AvatarOption(
     val id: String,

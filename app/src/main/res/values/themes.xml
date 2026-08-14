@@ -21,6 +21,15 @@
         <item name="android:colorControlHighlight">@color/sv_accent_soft</item>
         <item name="colorControlNormal">@color/sv_text_secondary</item>
         <item name="colorControlActivated">@color/sv_accent</item>
+        <item name="android:windowAnimationStyle">@style/Vf.WindowAnimation</item>
+    </style>
+
+    <!-- Consistent, quick activity motion (TV: never slow, never janky) -->
+    <style name="Vf.WindowAnimation" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/vf_slide_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/vf_fade_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/vf_fade_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/vf_slide_out</item>
     </style>
 
     <style name="SvButton" parent="Widget.AppCompat.Button.Borderless">

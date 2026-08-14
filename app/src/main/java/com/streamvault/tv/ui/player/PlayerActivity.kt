@@ -40,6 +40,8 @@ import com.streamvault.tv.data.model.Series
 import com.streamvault.tv.data.skip.EpisodeSkipPlan
 import com.streamvault.tv.data.skip.SkipSegment
 import com.streamvault.tv.databinding.ActivityPlayerBinding
+import com.streamvault.tv.ui.brand.BrandSting
+import com.streamvault.tv.ui.brand.VerflixedIntroView
 import com.streamvault.tv.ui.util.FocusFx
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.Dispatchers
@@ -84,6 +86,28 @@ class PlayerActivity : AppCompatActivity() {
     private val dismissedSkipTypes = mutableSetOf<SkipSegment.Type>()
     private var skipPlanEpisodeId: String? = null
     private val handler = Handler(Looper.getMainLooper())
+
+    /** Branded pre-roll that hides raw loading / WebView switching until playback starts. */
+    private val brandSting by lazy { BrandSting(this) }
+    private var brandGateShown = false
+    private var brandGateMinUntilMs = 0L
+
+    private val brandGateTimeout = Runnable { hideBrandGate(force = true) }
+
+    /** Mirrors resolve status under the logo so we keep one source of truth. */
+    private val brandStatusTick = object : Runnable {
+        override fun run() {
+            if (!brandGateShown) return
+            val txt = binding.resolveStatus.text?.toString().orEmpty()
+            if (txt.isNotBlank() && binding.playerBrandStatus.text?.toString() != txt) {
+                binding.playerBrandStatus.text = txt
+                if (binding.playerBrandStatus.alpha < 1f) {
+                    binding.playerBrandStatus.animate().alpha(1f).setDuration(260).start()
+                }
+            }
+            handler.postDelayed(this, 350L)
+        }
+    }
 
     private val progressTick = object : Runnable {
         override fun run() {
@@ -211,6 +235,7 @@ class PlayerActivity : AppCompatActivity() {
 
         setupWebPlayer()
         setupPlayerView()
+        showBrandGate(titleHint)
         binding.playerLoading.visibility = View.VISIBLE
         binding.playerError.visibility = View.GONE
         binding.playerErrorPanel.visibility = View.GONE
@@ -885,6 +910,8 @@ class PlayerActivity : AppCompatActivity() {
                 if (playbackState == Player.STATE_READY) {
                     binding.playerLoading.visibility = View.GONE
                     binding.resolveStatus.visibility = View.GONE
+                    // Playback is live — lift the branded pre-roll.
+                    hideBrandGate()
                     showModeBar(false)
                     refreshSkipPlan(force = false)
                 }
@@ -930,6 +957,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showPlayerError(msg: String) {
+        hideBrandGate(force = true)
         binding.playerLoading.visibility = View.GONE
         // Kill leaking iframe / WebView so it never stays visible under the error panel.
         runCatching {
@@ -1019,9 +1047,59 @@ class PlayerActivity : AppCompatActivity() {
             (lower.contains("turnstile") && lower.contains("cloudflare"))
     }
 
+    /**
+     * Branded pre-roll instead of a bare spinner. Also covers the HLS↔WebView
+     * switching so the user never sees the SerienStream page flash by.
+     */
+    private fun showBrandGate(titleHint: String?) {
+        if (brandGateShown) return
+        brandGateShown = true
+        binding.playerBrandGate.visibility = View.VISIBLE
+        binding.playerBrandGate.alpha = 1f
+        binding.playerBrandStatus.alpha = 0f
+        binding.playerBrandStatus.text = titleHint?.takeIf { it.isNotBlank() } ?: ""
+        binding.playerIntro.compact = true
+        binding.playerIntro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
+        brandSting.play(0.9f)
+        brandGateMinUntilMs = System.currentTimeMillis() +
+            VerflixedIntroView.DEFAULT_DURATION_MS - 250L
+        handler.post(brandStatusTick)
+        handler.removeCallbacks(brandGateTimeout)
+        // Safety: never trap the user behind the logo if resolving drags on.
+        handler.postDelayed(brandGateTimeout, 15_000L)
+    }
+
+    /**
+     * @param force skip the minimum on-screen time (captcha / errors need the UI now)
+     */
+    private fun hideBrandGate(force: Boolean = false) {
+        if (!brandGateShown) return
+        val remaining = brandGateMinUntilMs - System.currentTimeMillis()
+        if (!force && remaining > 0L) {
+            handler.removeCallbacks(brandGateTimeout)
+            handler.postDelayed({ hideBrandGate(force = true) }, remaining)
+            return
+        }
+        brandGateShown = false
+        handler.removeCallbacks(brandStatusTick)
+        handler.removeCallbacks(brandGateTimeout)
+        brandSting.stop()
+        binding.playerIntro.stop()
+        binding.playerBrandGate.animate()
+            .alpha(0f)
+            .setDuration(if (force) 220L else 320L)
+            .withEndAction {
+                binding.playerBrandGate.visibility = View.GONE
+                binding.playerBrandGate.alpha = 1f
+            }
+            .start()
+    }
+
     private fun enterCaptchaMode(force: Boolean = false) {
         if (handedOffToExo) return
         if (captchaMode && !force) return
+        // Captcha must be visible and solvable — the brand gate steps aside.
+        hideBrandGate(force = true)
         captchaMode = true
         captchaSolvedPending = false
         allowEmbeddedFallback = false
@@ -1688,6 +1766,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStop() {
         persistProgress(forceCompleted = false)
         player?.playWhenReady = false
+        brandSting.stop()
         super.onStop()
     }
 
@@ -1695,6 +1774,10 @@ class PlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(progressTick)
         handler.removeCallbacks(resolveTimeout)
         handler.removeCallbacks(captchaPoll)
+        handler.removeCallbacks(brandStatusTick)
+        handler.removeCallbacks(brandGateTimeout)
+        brandSting.stop()
+        binding.playerIntro.stop()
         persistProgress(forceCompleted = false)
         runCatching {
             binding.webPlayer.apply {

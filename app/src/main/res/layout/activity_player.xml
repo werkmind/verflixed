@@ -29,6 +29,38 @@
         android:keepScreenOn="true"
         android:visibility="gone" />
 
+    <!-- Branded pre-roll: hides raw loading + any WebView switching until playback starts.
+         Sits above the WebView but below the captcha gate handling in code. -->
+    <FrameLayout
+        android:id="@+id/playerBrandGate"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:clickable="false"
+        android:elevation="34dp"
+        android:focusable="false"
+        android:translationZ="34dp"
+        android:visibility="gone">
+
+        <com.streamvault.tv.ui.brand.VerflixedIntroView
+            android:id="@+id/playerIntro"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/playerBrandStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="46dp"
+            android:alpha="0"
+            android:gravity="center"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:textColor="@color/sv_text_muted"
+            android:textSize="13sp" />
+    </FrameLayout>
+
     <!-- Chrome ABOVE WebView; lowered/blocked while Cloudflare captcha needs D-pad input -->
     <FrameLayout
         android:id="@+id/playerChrome"

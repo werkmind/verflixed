@@ -1,8 +1,8 @@
 {
-  "versionCode": 39,
-  "versionName": "1.9.2",
+  "versionCode": 40,
+  "versionName": "1.10.0",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "a89492577e6a4f77eeaf58cbc11330dc91b977136a83019d05436fc5c1c75004",
-  "changelog": "1.9.2: TMDb fest eingebaut (\u00f6ffentlicher Kodi-Scraper-Key, kein Konto)"
+  "sha256": "57a9ab398c9573e4c21c5431056166e15e9b838ea8fe6a833d7853a45bc475da",
+  "changelog": "1.10.0: Animiertes 3D-Logo-Intro + neuer Startklang, Player-Vorspann statt Ladebalken, mehr Avatare, smoothere TV-Animationen"
 }

@@ -1953,6 +1953,21 @@ class CatalogRepository(
             }.distinctBy { it.url }.take(24)
         }
 
+    /** Portrait avatars from TMDb's popular-people DB (built-in key, no account). */
+    suspend fun personAvatarOptions(): List<com.streamvault.tv.data.profile.AvatarOption> =
+        withContext(Dispatchers.IO) {
+            runCatching { tmdb.popularPersonAvatars() }
+                .getOrDefault(emptyList())
+                .map { person ->
+                    com.streamvault.tv.data.profile.AvatarOption(
+                        id = "person:${person.url}",
+                        label = person.name,
+                        url = person.url,
+                        source = com.streamvault.tv.data.profile.AvatarSource.PERSON,
+                    )
+                }
+        }
+
     private fun cacheFile(): File = File(cacheDir, "catalog_cache.json")
     private fun moviesCacheFile(): File = File(cacheDir, "catalog_movies_cache.json")
 

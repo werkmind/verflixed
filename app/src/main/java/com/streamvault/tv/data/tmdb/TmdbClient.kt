@@ -70,6 +70,31 @@ class TmdbClient(
         )
     }
 
+    /**
+     * Portrait avatars from TMDb's popular-people DB — real faces for profile
+     * pictures without shipping any assets.
+     */
+    suspend fun popularPersonAvatars(pages: Int = 3): List<PersonAvatar> = withContext(Dispatchers.IO) {
+        val key = apiKey()
+        buildList {
+            for (page in 1..pages.coerceIn(1, 5)) {
+                val url = "https://api.themoviedb.org/3/person/popular".toHttpUrl().newBuilder()
+                    .addQueryParameter("api_key", key)
+                    .addQueryParameter("language", "de-DE")
+                    .addQueryParameter("page", page.toString())
+                    .build()
+                val body = get(url.toString()) ?: continue
+                val arr = runCatching { JSONObject(body).optJSONArray("results") }.getOrNull() ?: continue
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val path = o.optString("profile_path").takeIf { it.isNotBlank() && it != "null" } ?: continue
+                    val name = o.optString("name").takeIf { it.isNotBlank() } ?: continue
+                    add(PersonAvatar(name = name, url = "$AVATAR_BASE$path"))
+                }
+            }
+        }.distinctBy { it.url }
+    }
+
     private fun findId(imdbId: String?, movie: Boolean, apiKey: String): Int? {
         val imdb = imdbId?.trim()?.takeIf { it.startsWith("tt") } ?: return null
         val url = "https://api.themoviedb.org/3/find/$imdb".toHttpUrl().newBuilder()
@@ -124,8 +149,11 @@ class TmdbClient(
         const val APP_KEY = "af3a53eb387d57fc935e9128468b1899"
         private const val POSTER_BASE = "https://image.tmdb.org/t/p/w500"
         private const val BACKDROP_BASE = "https://image.tmdb.org/t/p/w780"
+        private const val AVATAR_BASE = "https://image.tmdb.org/t/p/w185"
     }
 }
+
+data class PersonAvatar(val name: String, val url: String)
 
 @JsonClass(generateAdapter = true)
 data class TmdbSearchResponse(

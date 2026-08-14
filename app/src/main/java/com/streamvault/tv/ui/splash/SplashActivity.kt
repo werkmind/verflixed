@@ -1,28 +1,27 @@
 package com.streamvault.tv.ui.splash
 
-import android.animation.AnimatorSet
-import android.animation.ObjectAnimator
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.View
 import android.view.animation.PathInterpolator
-import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.streamvault.tv.R
 import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.prefs.UserPrefs
+import com.streamvault.tv.ui.brand.BrandSting
+import com.streamvault.tv.ui.brand.VerflixedIntroView
 import com.streamvault.tv.ui.home.HomeActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Branded splash: official V mark (transparent) + cinematic boom → Home.
+ * Branded splash: animated 3D-style V mark + startup sting, then Home.
+ * The catalog warms up during the sting so Home lands on content, not a spinner.
  */
 class SplashActivity : AppCompatActivity() {
-    private var player: MediaPlayer? = null
+    private val sting by lazy { BrandSting(this) }
+    private var navigated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,75 +35,50 @@ class SplashActivity : AppCompatActivity() {
             prefs.moviesBaseUrl = UserPrefs.DEFAULT_MOVIES_BASE
         }
 
-        val logo = findViewById<ImageView>(R.id.splashLogo)
-        val title = findViewById<View>(R.id.splashTitle)
+        val intro = findViewById<VerflixedIntroView>(R.id.splashIntro)
         val progress = findViewById<View>(R.id.splashProgress)
 
-        logo.alpha = 0f
-        logo.scaleX = 0.82f
-        logo.scaleY = 0.82f
-        title.alpha = 0f
-        title.translationY = 22f
-        progress.alpha = 0f
+        sting.play()
+        intro.play(VerflixedIntroView.DEFAULT_DURATION_MS)
 
-        playSplashSound()
+        progress.animate()
+            .alpha(1f)
+            .setStartDelay(1150)
+            .setDuration(420)
+            .setInterpolator(PathInterpolator(0.16f, 1f, 0.3f, 1f))
+            .start()
 
-        val ease = PathInterpolator(0.16f, 1f, 0.3f, 1f)
-        val logoFade = ObjectAnimator.ofFloat(logo, View.ALPHA, 0f, 1f).setDuration(700)
-        val logoSx = ObjectAnimator.ofFloat(logo, View.SCALE_X, 0.82f, 1f).setDuration(900)
-        val logoSy = ObjectAnimator.ofFloat(logo, View.SCALE_Y, 0.82f, 1f).setDuration(900)
-        val titleFade = ObjectAnimator.ofFloat(title, View.ALPHA, 0f, 1f).setDuration(700)
-        val titleRise = ObjectAnimator.ofFloat(title, View.TRANSLATION_Y, 22f, 0f).setDuration(700)
-        val barFade = ObjectAnimator.ofFloat(progress, View.ALPHA, 0f, 1f).setDuration(420)
-        titleFade.startDelay = 420
-        titleRise.startDelay = 420
-        barFade.startDelay = 850
-        listOf(logoFade, logoSx, logoSy, titleFade, titleRise, barFade).forEach {
-            it.interpolator = ease
-        }
-        AnimatorSet().apply {
-            playTogether(logoFade, logoSx, logoSy, titleFade, titleRise, barFade)
-            start()
-        }
+        warmCatalog()
 
         lifecycleScope.launch {
-            delay(1950)
+            delay(VerflixedIntroView.DEFAULT_DURATION_MS + VerflixedIntroView.HOLD_AFTER_MS)
             goNext(prefs)
         }
     }
 
-    private fun playSplashSound() {
-        runCatching {
-            player = MediaPlayer.create(this, R.raw.splash_tudum)?.also { mp ->
-                mp.setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
-                mp.setVolume(1f, 1f)
-                mp.start()
-            }
+    /** Prefetch rows while the sting plays so Home feels instant. */
+    private fun warmCatalog() {
+        val app = application as VerflixedApp
+        app.appScope.launch {
+            runCatching { app.container.catalog.getLibraryRows() }
         }
     }
 
     private fun goNext(prefs: UserPrefs) {
+        if (navigated) return
+        navigated = true
         if (!prefs.setupDone) {
             prefs.seriesBaseUrl = prefs.seriesBaseUrl.ifBlank { UserPrefs.DEFAULT_SERIES_BASE }
             prefs.moviesBaseUrl = prefs.moviesBaseUrl.ifBlank { UserPrefs.DEFAULT_MOVIES_BASE }
             prefs.markSetupDone()
         }
         startActivity(Intent(this, HomeActivity::class.java))
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        overridePendingTransition(R.anim.vf_fade_in, R.anim.vf_fade_out)
         finish()
     }
 
     override fun onDestroy() {
-        runCatching {
-            player?.stop()
-            player?.release()
-        }
-        player = null
+        sting.stop()
         super.onDestroy()
     }
 }

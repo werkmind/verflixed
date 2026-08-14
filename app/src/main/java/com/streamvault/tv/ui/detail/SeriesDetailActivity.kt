@@ -476,8 +476,12 @@ class SeriesDetailActivity : AppCompatActivity() {
         val season = s.seasons.find { it.number == selectedSeason }
         val poster = season?.posterUrl ?: s.posterUrl
         val backdrop = season?.backdropUrl ?: season?.posterUrl ?: s.backdropUrl ?: s.posterUrl
-        PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false)
-        PosterLoader.loadHero(binding.backdrop, backdrop ?: poster, browseMode = false)
+        FocusFx.crossfade(binding.poster) {
+            PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false)
+        }
+        FocusFx.crossfade(binding.backdrop) {
+            PosterLoader.loadHero(binding.backdrop, backdrop ?: poster, browseMode = false)
+        }
     }
 
     private fun toggleFavorite() {
@@ -810,7 +814,7 @@ private class EpisodeAdapter(
         v.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) focused = holder.bound
         }
-        FocusFx.bindScale(v, 1.02f)
+        FocusFx.bindScale(v, 1.015f)
         return holder
     }
 

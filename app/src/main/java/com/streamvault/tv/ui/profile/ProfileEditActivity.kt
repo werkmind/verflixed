@@ -46,8 +46,10 @@ class ProfileEditActivity : AppCompatActivity() {
             selectedAvatarUrl = opt.url
             avatarAdapter.select(opt.url)
         }
-        binding.avatarGrid.layoutManager = GridLayoutManager(this, 6)
+        binding.avatarGrid.layoutManager = GridLayoutManager(this, 7)
         binding.avatarGrid.adapter = avatarAdapter
+        binding.avatarGrid.itemAnimator = null
+        binding.avatarGrid.setHasFixedSize(true)
 
         FocusFx.bindScale(binding.btnSaveProfile, 1.04f, prefs)
         FocusFx.bindScale(binding.btnCancelEdit, 1.04f, prefs)
@@ -69,8 +71,8 @@ class ProfileEditActivity : AppCompatActivity() {
             )
             val favs = runCatching { app.container.catalog.favoriteAvatarOptions() }
                 .getOrDefault(emptyList())
-            val options = (favs + dice).distinctBy { it.url }
-            avatarAdapter.submit(options)
+            // Show local options instantly, then fold in the online people DB.
+            avatarAdapter.submit((favs + dice).distinctBy { it.url })
 
             if (!create && editingId != null) {
                 runCatching { app.container.profiles.all().first { it.id == editingId } }
@@ -80,7 +82,14 @@ class ProfileEditActivity : AppCompatActivity() {
                         avatarAdapter.select(p.avatarUrl)
                     }
             } else {
-                selectedAvatarUrl = options.firstOrNull()?.url
+                selectedAvatarUrl = (favs + dice).firstOrNull()?.url
+                avatarAdapter.select(selectedAvatarUrl)
+            }
+
+            val people = runCatching { app.container.catalog.personAvatarOptions() }
+                .getOrDefault(emptyList())
+            if (people.isNotEmpty()) {
+                avatarAdapter.submit((favs + people + dice).distinctBy { it.url })
                 avatarAdapter.select(selectedAvatarUrl)
             }
         }
@@ -141,6 +150,13 @@ private class AvatarAdapter(
     private val items = mutableListOf<AvatarOption>()
     private var selectedUrl: String? = null
 
+    init {
+        setHasStableIds(true)
+    }
+
+    override fun getItemId(position: Int): Long =
+        items.getOrNull(position)?.url?.hashCode()?.toLong() ?: position.toLong()
+
     fun submit(data: List<AvatarOption>) {
         items.clear()
         items.addAll(data)
@@ -148,8 +164,13 @@ private class AvatarAdapter(
     }
 
     fun select(url: String?) {
+        val old = selectedUrl
         selectedUrl = url
-        notifyDataSetChanged()
+        val oldIdx = items.indexOfFirst { it.url == old }
+        val newIdx = items.indexOfFirst { it.url == url }
+        if (oldIdx >= 0) notifyItemChanged(oldIdx)
+        if (newIdx >= 0) notifyItemChanged(newIdx)
+        if (oldIdx < 0 && newIdx < 0) notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -163,9 +184,9 @@ private class AvatarAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val opt = items[position]
         val selected = opt.url == selectedUrl
-        holder.itemView.alpha = if (selected) 1f else 0.7f
-        holder.itemView.scaleX = if (selected) 1.06f else 1f
-        holder.itemView.scaleY = if (selected) 1.06f else 1f
+        holder.itemView.alpha = if (selected) 1f else 0.72f
+        holder.itemView.isSelected = selected
+        holder.itemView.contentDescription = opt.label
         Glide.with(holder.image)
             .load(opt.url)
             .placeholder(R.drawable.ic_verflixed_mark)
