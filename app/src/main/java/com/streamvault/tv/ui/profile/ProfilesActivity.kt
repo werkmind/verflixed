@@ -20,6 +20,7 @@ import com.streamvault.tv.VerflixedApp
 import com.streamvault.tv.data.db.ProfileEntity
 import com.streamvault.tv.databinding.ActivityProfilesBinding
 import com.streamvault.tv.ui.util.FocusFx
+import com.streamvault.tv.ui.util.TvLinearLayoutManager
 import com.streamvault.tv.ui.util.UiSound
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.launch
@@ -37,7 +38,7 @@ class ProfilesActivity : ScaledAppCompatActivity() {
         binding = ActivityProfilesBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.profileList.layoutManager = LinearLayoutManager(this)
+        binding.profileList.layoutManager = TvLinearLayoutManager(this)
         binding.profileList.adapter = adapter
 
         FocusFx.bindScale(binding.btnAddProfile, 1.04f, prefs)

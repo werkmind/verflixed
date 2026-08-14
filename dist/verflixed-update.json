@@ -1,8 +1,8 @@
 {
-  "versionCode": 50,
-  "versionName": "1.17.0",
+  "versionCode": 51,
+  "versionName": "1.17.1",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "7e9ffa7e2041214f193e49d52e5a0c815fb6d614a3a25a07474109c36ee84224",
-  "changelog": "1.17.0: Intro wieder exakt 1.10.1. Captcha-Fokus: Weiter-Button erreichbar. Adblock (EasyList + EasyPrivacy + uBlock-Filter) in APK und Webapp."
+  "sha256": "db8e93a7561a3662632d621e727073ba865b76a9aeacca74fe82b074d0adc9d5",
+  "changelog": "1.17.1: D-pad-Scroll bleibt in Staffel-/Episoden-/Regal-Listen statt in den Hero zu springen."
 }

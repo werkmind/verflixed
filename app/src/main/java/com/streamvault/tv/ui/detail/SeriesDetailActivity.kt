@@ -23,6 +23,7 @@ import com.streamvault.tv.databinding.ActivityDetailBinding
 import com.streamvault.tv.ui.player.PlayerActivity
 import com.streamvault.tv.ui.util.FocusFx
 import com.streamvault.tv.ui.util.PosterLoader
+import com.streamvault.tv.ui.util.TvLinearLayoutManager
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -63,10 +64,13 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding = ActivityDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.seasonTabs.layoutManager =
-            LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        val seasonLm = TvLinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        binding.seasonTabs.layoutManager = seasonLm
+        seasonLm.attachPendingFocus(binding.seasonTabs)
         binding.seasonTabs.adapter = seasonAdapter
-        binding.episodeList.layoutManager = LinearLayoutManager(this)
+        val episodeLm = TvLinearLayoutManager(this)
+        binding.episodeList.layoutManager = episodeLm
+        episodeLm.attachPendingFocus(binding.episodeList)
         binding.episodeList.adapter = episodeAdapter
         binding.episodeList.itemAnimator = null
         binding.episodeList.setHasFixedSize(true)
@@ -790,7 +794,6 @@ private class SeasonAdapter(
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_season_tab, parent, false)
         FocusFx.bindScale(v, 1.04f)
         v.nextFocusDownId = R.id.episodeList
-        v.nextFocusUpId = R.id.btnPlay
         return VH(v as TextView)
     }
 

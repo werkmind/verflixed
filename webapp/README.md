@@ -1,8 +1,8 @@
 # Verflixed Desktop Webapp
 
-Lokale Desktop-App (Electron) für **macOS**, **Windows** und **Linux** – Stand **1.17.0** (voller Port der Fire-TV-APK).
+Lokale Desktop-App (Electron) für **macOS**, **Windows** und **Linux** – Stand **1.17.1** (voller Port der Fire-TV-APK).
 
-## Features (1.17.0)
+## Features (1.17.1)
 
 - 3D-Intro + echter Brand-Sting (`splash_tudum.ogg`) wie die APK
 - Eingebetteter TMDb-Key (Kodi/Plex), Wikidata-IDs, AniSkip/TheIntroDB/SkipDB

@@ -30,6 +30,7 @@ import com.streamvault.tv.ui.profile.ProfilesActivity
 import com.streamvault.tv.ui.settings.SettingsActivity
 import com.streamvault.tv.ui.util.FocusFx
 import com.streamvault.tv.ui.util.PosterLoader
+import com.streamvault.tv.ui.util.TvLinearLayoutManager
 import com.streamvault.tv.ui.util.UiSound
 import com.streamvault.tv.util.toVfMessage
 import kotlinx.coroutines.Job
@@ -166,7 +167,9 @@ class HomeActivity : ScaledAppCompatActivity() {
         searchResultsList = findViewById(R.id.searchResults)
             ?: error("searchResults missing")
 
-        binding.rows.layoutManager = LinearLayoutManager(this)
+        val rowsLm = TvLinearLayoutManager(this)
+        binding.rows.layoutManager = rowsLm
+        rowsLm.attachPendingFocus(binding.rows)
         binding.rows.adapter = rowsAdapter
         binding.rows.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
             addDuration = 180
@@ -187,7 +190,9 @@ class HomeActivity : ScaledAppCompatActivity() {
         searchKeyboard.layoutManager = GridLayoutManager(this, 6)
         searchKeyboard.adapter = searchKeyAdapter
         searchKeyboard.itemAnimator = null
-        searchResultsList.layoutManager = LinearLayoutManager(this)
+        val searchLm = TvLinearLayoutManager(this)
+        searchResultsList.layoutManager = searchLm
+        searchLm.attachPendingFocus(searchResultsList)
         searchResultsList.adapter = searchResultsAdapter
         searchResultsList.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
             addDuration = 180
@@ -211,22 +216,6 @@ class HomeActivity : ScaledAppCompatActivity() {
         ).forEach { it.nextFocusRightId = R.id.rows }
         binding.rows.nextFocusUpId = R.id.navLibrary
         binding.rows.nextFocusLeftId = R.id.navLibrary
-
-        // Scroll-up fix: from top row / hero, DPAD_UP returns to sidebar/topbar
-        binding.rows.setOnKeyListener { _, keyCode, event ->
-            if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-            if (keyCode != android.view.KeyEvent.KEYCODE_DPAD_UP) return@setOnKeyListener false
-            val lm = binding.rows.layoutManager as? LinearLayoutManager ?: return@setOnKeyListener false
-            if (lm.findFirstCompletelyVisibleItemPosition() <= 0) {
-                binding.rows.stopScroll()
-                binding.rows.scrollToPosition(0)
-                focusActiveNav()
-                true
-            } else {
-                binding.rows.smoothScrollBy(0, -binding.rows.height / 3)
-                true
-            }
-        }
 
         binding.navScroll.isFocusable = false
         binding.navScroll.isFocusableInTouchMode = false
@@ -259,7 +248,7 @@ class HomeActivity : ScaledAppCompatActivity() {
         }
 
         binding.filterChips.layoutManager =
-            LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+            TvLinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.filterChips.adapter = chipAdapter
         binding.filterChips.visibility = View.GONE
 
@@ -1132,9 +1121,16 @@ private class RowsAdapter(
         private val posterAdapter = PosterAdapter(onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
 
         init {
-            list.layoutManager = LinearLayoutManager(itemView.context, RecyclerView.HORIZONTAL, false).apply {
-                initialPrefetchItemCount = 8
+            val lm = TvLinearLayoutManager(
+                itemView.context,
+                RecyclerView.HORIZONTAL,
+                false,
+            ) { focused, direction ->
+                moveToNeighborRow(list, focused, direction)
             }
+            list.layoutManager = lm
+            lm.attachPendingFocus(list)
+            lm.initialPrefetchItemCount = 8
             sharedPool?.let { list.setRecycledViewPool(it) }
             list.adapter = posterAdapter
             list.itemAnimator = null
@@ -1241,14 +1237,20 @@ private class PosterAdapter(
                 val parentRv = holder.itemView.parent as? RecyclerView
                 parentRv?.post {
                     if (holder.bindingAdapterPosition == pos) {
-                        parentRv.smoothScrollToPosition(pos)
+                        val child = parentRv.findViewHolderForAdapterPosition(pos)?.itemView
+                        if (child != null) {
+                            val left = child.left
+                            val right = child.right
+                            val pad = parentRv.paddingStart
+                            if (left < pad) parentRv.smoothScrollBy(left - pad, 0)
+                            else if (right > parentRv.width - parentRv.paddingEnd) {
+                                parentRv.smoothScrollBy(
+                                    right - (parentRv.width - parentRv.paddingEnd),
+                                    0,
+                                )
+                            }
+                        }
                     }
-                }
-                val row = (holder.itemView.parent as? View)?.parent as? View
-                val rowsRv = row?.parent as? RecyclerView
-                val rowHolder = row?.let { rowsRv?.getChildViewHolder(it) }
-                rowHolder?.bindingAdapterPosition?.takeIf { it >= 0 }?.let { rp ->
-                    rowsRv?.post { rowsRv.smoothScrollToPosition(rp) }
                 }
                 onFocused(s)
                 resolveArt(s) { resolved -> updateItem(resolved) }
@@ -1302,4 +1304,36 @@ private class PosterAdapter(
             }
         }
     }
+}
+
+/** Move D-pad up/down from a poster to the same column in the next shelf. */
+private fun moveToNeighborRow(list: RecyclerView, focused: View, direction: Int): View? {
+    if (direction != View.FOCUS_UP && direction != View.FOCUS_DOWN) return null
+    val rowView = list.parent as? View ?: return null
+    val rowsRv = rowView.parent as? RecyclerView ?: return null
+    val rowPos = rowsRv.getChildAdapterPosition(rowView)
+    if (rowPos == RecyclerView.NO_POSITION) return null
+    val col = list.getChildAdapterPosition(focused).coerceAtLeast(0)
+    val nextRow = if (direction == View.FOCUS_UP) rowPos - 1 else rowPos + 1
+    val count = rowsRv.adapter?.itemCount ?: 0
+    if (nextRow !in 0 until count) return null
+    val attached = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView
+    if (attached != null && attached.findViewById<RecyclerView>(R.id.rowList) == null) {
+        return null
+    }
+    rowsRv.scrollToPosition(nextRow)
+    rowsRv.post {
+        val nextRowView = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView ?: return@post
+        val nextList = nextRowView.findViewById<RecyclerView>(R.id.rowList) ?: return@post
+        val last = (nextList.adapter?.itemCount ?: 1) - 1
+        val targetPos = col.coerceIn(0, last.coerceAtLeast(0))
+        nextList.scrollToPosition(targetPos)
+        nextList.post {
+            (
+                nextList.findViewHolderForAdapterPosition(targetPos)?.itemView
+                    ?: nextList.getChildAt(0)
+                )?.requestFocus()
+        }
+    }
+    return focused
 }

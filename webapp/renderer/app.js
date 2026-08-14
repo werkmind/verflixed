@@ -3218,8 +3218,8 @@
     hideSplash();
   }
 
-  localStorage.setItem("vf_app_version", "1.17.0");
-  localStorage.setItem("vf_version_code", "50");
+  localStorage.setItem("vf_app_version", "1.17.1");
+  localStorage.setItem("vf_version_code", "51");
   applyChromePrefs();
   applyUiScale();
   syncBaseUrlInputs();
@@ -3232,11 +3232,11 @@
 
   (async () => {
     try {
-      const v = (await window.verflixed?.getVersion?.()) || "1.17.0";
+      const v = (await window.verflixed?.getVersion?.()) || "1.17.1";
       const p = (await window.verflixed?.getPlatform?.()) || "browser";
       if ($("versionLabel")) $("versionLabel").textContent = `v${v} · ${p}`;
     } catch (_) {
-      if ($("versionLabel")) $("versionLabel").textContent = "v1.17.0";
+      if ($("versionLabel")) $("versionLabel").textContent = "v1.17.1";
     }
     setHomeMode("library");
     refreshCalendarRows();
