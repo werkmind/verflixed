@@ -1,23 +1,17 @@
 # Verflixed – Installation
 
-## Fire TV APK (1.7.5)
+## Fire TV APK (1.7.6)
 
 | | Link |
 |---|---|
-| **GitHub direkt** | https://github.com/werkmind/verflixed/releases/download/v1.7.5/Verflixed-FireTV.apk |
+| **GitHub direkt** | https://github.com/werkmind/verflixed/releases/download/v1.7.6/Verflixed-FireTV.apk |
 | **Latest** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk |
 
-## Desktop Webapp (1.7.5 Parity)
+### 1.7.6
+- Cloudflare „Click“-Captcha auf dem TV lösbar (Hinweis + OK/Mitte)
+- Kein Reload mehr, der das Captcha zurücksetzt (Infinite Loading)
 
-| | Link |
-|---|---|
-| **Zip** | https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip |
+## Desktop Webapp
+https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip
 
-## Plattformen
-
-Siehe [docs/PLATFORMS.md](docs/PLATFORMS.md):
-
-- **PS4 ohne Homebrew:** nicht möglich → entfällt
-- **Samsung Smart TV:** APK läuft nicht auf Tizen → Fire TV Stick empfohlen
-
-Release: https://github.com/werkmind/verflixed/releases/tag/v1.7.5
+Plattformen: [docs/PLATFORMS.md](docs/PLATFORMS.md)

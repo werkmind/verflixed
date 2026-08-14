@@ -23,17 +23,19 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@android:color/black"
-        android:focusable="false"
-        android:focusableInTouchMode="false"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:descendantFocusability="afterDescendants"
         android:keepScreenOn="true"
         android:visibility="gone" />
 
-    <!-- Chrome ABOVE WebView so HLS/Web switch stays usable with D-pad -->
+    <!-- Chrome ABOVE WebView; lowered/blocked while Cloudflare captcha needs D-pad input -->
     <FrameLayout
         android:id="@+id/playerChrome"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false"
+        android:focusable="false"
         android:elevation="28dp"
         android:translationZ="28dp">
 
@@ -60,6 +62,27 @@
             android:shadowRadius="4"
             android:textColor="@color/sv_text_secondary"
             android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/captchaHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginStart="48dp"
+            android:layout_marginEnd="48dp"
+            android:layout_marginBottom="28dp"
+            android:background="@drawable/bg_card"
+            android:elevation="24dp"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="14dp"
+            android:text="@string/player_captcha_hint"
+            android:textColor="@color/sv_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
             android:visibility="gone" />
 
         <LinearLayout

@@ -39,6 +39,9 @@
     <string name="player_skip_credits">Überspringen</string>
     <string name="player_next_countdown">Automatisch in %1$ds</string>
     <string name="player_next_title">Als Nächstes: S%1$dE%2$d · %3$s</string>
+    <string name="player_captcha_hint">Cloudflare-Check: mit OK / Mitte die Checkbox bestätigen</string>
+    <string name="player_captcha_status">Captcha lösen – OK drücken</string>
+    <string name="player_captcha_solved">Captcha ok – Stream wird geladen…</string>
     <string name="back_again_exit">Nochmal Zurück zum Beenden</string>
     <string name="loading">Laden…</string>
     <string name="error_generic">Etwas ist schiefgelaufen.</string>
