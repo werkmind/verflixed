@@ -3,6 +3,6 @@
   "versionName": "1.8.0",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "cb907733a23cef44bc162adf1a84726d2f380a4ccdcb9f98c57b5d8537c98a84",
+  "sha256": "64245468dfb64c3ff619753512e8825d42ea7c3a8e7b5faaffa8032d33f49656",
   "changelog": "1.8.0: Smarter Abspann/Intro \u2013 lernt von Next & Weiter-schauen; Heuristik-Intro; AniSkip absolut+MAL-Persistenz; Webapp-Parity"
 }
