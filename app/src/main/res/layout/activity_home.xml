@@ -289,7 +289,7 @@
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="true"
+        android:clipChildren="false"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:paddingStart="8dp"

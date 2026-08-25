@@ -542,9 +542,9 @@ class HomeActivity : ScaledAppCompatActivity() {
     private fun toggleChip(chip: GenreChip) = Unit
 
     private fun snapshotKey(m: HomeMode): String? = when (m) {
-        HomeMode.LIBRARY -> "library"
-        HomeMode.SERIES -> "series"
-        HomeMode.MOVIES -> "movies"
+        HomeMode.LIBRARY -> "library-v3"
+        HomeMode.SERIES -> "series-v3"
+        HomeMode.MOVIES -> "movies-v3"
         else -> null
     }
 
@@ -1000,8 +1000,9 @@ private class ChipAdapter(
         val chip = items[position]
         val active = if (chip.exclude) chip.id in exclude else chip.id in include
         holder.label.text = chip.label
-        holder.label.alpha = if (active) 1f else 0.55f
+        holder.label.alpha = 1f
         holder.label.isSelected = active
+        holder.label.paint.isFakeBoldText = active
         holder.label.setOnClickListener { onClick(chip) }
     }
 
@@ -1036,7 +1037,9 @@ private class RowsAdapter(
     fun submit(data: List<HomeRow>, featured: Series? = null) {
         rows.clear()
         rows.addAll(data.filter { it.items.isNotEmpty() })
-        hero = featured ?: rows.firstOrNull()?.items?.firstOrNull()
+        hero = featured
+            ?: rows.firstOrNull { it.kind != HomeRow.KIND_CALENDAR }?.items?.firstOrNull()
+            ?: rows.firstOrNull()?.items?.firstOrNull()
         animateGeneration++
         animatedPositions.clear()
         notifyDataSetChanged()
@@ -1102,8 +1105,8 @@ private class RowsAdapter(
         init {
             play.setOnClickListener { onPlay() }
             info.setOnClickListener { onInfo() }
-            FocusFx.bindScale(play, 1.04f)
-            FocusFx.bindScale(info, 1.04f)
+            FocusFx.bindScale(play, 1.05f)
+            FocusFx.bindScale(info, 1.05f)
         }
 
         fun bind(series: Series) {
@@ -1114,7 +1117,12 @@ private class RowsAdapter(
                     if (isNotEmpty()) append("  ·  ")
                     append("★ ${String.format(java.util.Locale.GERMAN, "%.1f", it)}")
                 }
-                val badges = series.genres.take(2)
+                val badges = series.genres.filterNot {
+                    it.startsWith("cal:") ||
+                        it.contains("Uhr", true) ||
+                        it.contains("DEMNÄCHST", true) ||
+                        it.startsWith("+")
+                }.take(2)
                 if (badges.isNotEmpty()) {
                     if (isNotEmpty()) append("  ·  ")
                     append(badges.joinToString(" · "))
@@ -1171,11 +1179,12 @@ private class RowsAdapter(
         prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
         browseModeProvider: () -> Boolean,
         resolveArt: (Series, (Series) -> Unit) -> Unit,
-        sharedPool: RecyclerView.RecycledViewPool? = null,
+        private val sharedPool: RecyclerView.RecycledViewPool? = null,
     ) : RecyclerView.ViewHolder(itemView) {
         private val title: TextView = itemView.findViewById(R.id.rowTitle)
         private val list: RecyclerView = itemView.findViewById(R.id.rowList)
         private val posterAdapter = PosterAdapter(onClick, onFocused, prefsProvider, browseModeProvider, resolveArt)
+        private val calendarAdapter = CalendarDayAdapter(onClick, onFocused)
 
         init {
             val lm = TvLinearLayoutManager(
@@ -1188,10 +1197,9 @@ private class RowsAdapter(
             list.layoutManager = lm
             lm.attachPendingFocus(list)
             lm.initialPrefetchItemCount = 8
-            sharedPool?.let { list.setRecycledViewPool(it) }
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = true
+            list.clipChildren = false
             list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
@@ -1200,7 +1208,95 @@ private class RowsAdapter(
 
         fun bind(row: HomeRow) {
             title.text = row.title
-            posterAdapter.submit(row.items, row.title)
+            if (row.kind == HomeRow.KIND_CALENDAR) {
+                if (list.adapter !== calendarAdapter) list.adapter = calendarAdapter
+                calendarAdapter.submit(row.items)
+            } else {
+                if (list.adapter !== posterAdapter) {
+                    sharedPool?.let { list.setRecycledViewPool(it) }
+                    list.adapter = posterAdapter
+                }
+                posterAdapter.submit(row.items, row.title)
+            }
+        }
+    }
+}
+
+private class CalendarDayAdapter(
+    private val onClick: (Series) -> Unit,
+    private val onFocused: (Series) -> Unit,
+) : RecyclerView.Adapter<CalendarDayAdapter.VH>() {
+    private val items = mutableListOf<Series>()
+
+    fun submit(data: List<Series>) {
+        items.clear()
+        items.addAll(data)
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_calendar_day, parent, false)
+        FocusFx.clipMediaTile(view)
+        return VH(view)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val item = items[position]
+        holder.bind(item)
+        holder.itemView.isClickable = true
+        holder.itemView.isFocusable = true
+        holder.itemView.isFocusableInTouchMode = true
+        holder.itemView.setOnClickListener { onClick(item) }
+        holder.itemView.setOnFocusChangeListener { v, hasFocus ->
+            FocusFx.animateFocus(v, hasFocus, 1.08f)
+            if (hasFocus) onFocused(item)
+        }
+    }
+
+    class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val weekday: TextView = itemView.findViewById(R.id.calWeekday)
+        private val day: TextView = itemView.findViewById(R.id.calDay)
+        private val poster: ImageView = itemView.findViewById(R.id.calPoster)
+        private val title: TextView = itemView.findViewById(R.id.calTitle)
+        private val episode: TextView = itemView.findViewById(R.id.calEpisode)
+        private val badge: TextView = itemView.findViewById(R.id.calBadge)
+
+        fun bind(series: Series) {
+            val iso = series.genres.firstOrNull { it.startsWith("cal:") }?.removePrefix("cal:")
+            val parsed = runCatching { java.time.LocalDate.parse(iso?.take(10).orEmpty()) }.getOrNull()
+            val today = java.time.LocalDate.now()
+            weekday.text = when {
+                parsed == null -> ""
+                parsed == today -> "Heute"
+                parsed == today.plusDays(1) -> "Morgen"
+                else -> when (parsed.dayOfWeek) {
+                    java.time.DayOfWeek.MONDAY -> "Montag"
+                    java.time.DayOfWeek.TUESDAY -> "Dienstag"
+                    java.time.DayOfWeek.WEDNESDAY -> "Mittwoch"
+                    java.time.DayOfWeek.THURSDAY -> "Donnerstag"
+                    java.time.DayOfWeek.FRIDAY -> "Freitag"
+                    java.time.DayOfWeek.SATURDAY -> "Samstag"
+                    java.time.DayOfWeek.SUNDAY -> "Sonntag"
+                }
+            }
+            day.text = parsed?.dayOfMonth?.toString() ?: ""
+            title.text = series.title
+            episode.text = series.overview.orEmpty()
+            val upcoming = series.genres.any { it.contains("DEMNÄCHST", true) }
+            val extra = series.genres.firstOrNull { it.startsWith("+") }
+            val badgeText = listOfNotNull(
+                if (upcoming) "DEMNÄCHST" else null,
+                extra,
+            ).joinToString(" · ")
+            if (badgeText.isBlank()) {
+                badge.visibility = View.GONE
+            } else {
+                badge.visibility = View.VISIBLE
+                badge.text = badgeText
+            }
+            PosterLoader.loadSeries(poster, series.backdropUrl ?: series.posterUrl, browseMode = false)
         }
     }
 }
@@ -1287,7 +1383,7 @@ private class PosterAdapter(
             }
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            FocusFx.animateFocus(v, hasFocus, 1.07f)
+            FocusFx.animateFocus(v, hasFocus, 1.11f)
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 val s = itemAt(pos) ?: return@setOnFocusChangeListener
@@ -1318,8 +1414,6 @@ private class PosterAdapter(
             }
             PosterLoader.loadSeries(poster, art, browseMode = browseMode)
             val badgeText = series.genres.firstOrNull {
-                it.contains("DEMNÄCHST", true) || it.contains("Uhr", true) || it.contains('.')
-            } ?: series.overview?.lineSequence()?.firstOrNull {
                 it.contains("DEMNÄCHST", true)
             }
             if (badge != null) {

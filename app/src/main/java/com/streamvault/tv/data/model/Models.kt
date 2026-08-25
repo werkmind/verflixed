@@ -81,8 +81,14 @@ data class WatchProgress(
 
 data class HomeRow(
     val title: String,
-    val items: List<Series>
-)
+    val items: List<Series>,
+    val kind: String = KIND_SHELF,
+) {
+    companion object {
+        const val KIND_SHELF = "shelf"
+        const val KIND_CALENDAR = "calendar"
+    }
+}
 
 data class CalendarEntry(
     val seriesId: String,

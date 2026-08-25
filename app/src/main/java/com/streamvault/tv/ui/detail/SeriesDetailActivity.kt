@@ -80,6 +80,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.seasonTabs.clipToPadding = false
         binding.seasonTabs.itemAnimator = null
         listOf(
+            binding.overview,
             binding.btnPlay,
             binding.btnFavorite,
             binding.btnRate,
@@ -194,9 +195,12 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 append("  •  $watched gesehen")
             }
         }
-        binding.overview.maxLines = if (s.isMovie) 6 else 3
-        binding.overview.text = s.overview ?: "Keine Beschreibung verfügbar."
-        PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false)
+        binding.overview.maxLines = if (s.isMovie) 5 else 3
+        val overviewText = s.overview?.trim().orEmpty()
+            .ifBlank { "Keine Beschreibung verfügbar." }
+        binding.overview.text = overviewText
+        binding.overview.setOnClickListener { showOverviewDialog(s.title, overviewText) }
+        PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false, roundedDp = 14)
         PosterLoader.loadHero(binding.backdrop, s.backdropUrl ?: s.posterUrl, browseMode = false)
         isFavorite = favorite
         paintFavoriteButton()
@@ -232,7 +236,10 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnFavorite,
             binding.btnRate,
             binding.btnMore,
-        ).forEach { it.nextFocusDownId = down }
+        ).forEach {
+            it.nextFocusDownId = down
+            it.nextFocusUpId = R.id.overview
+        }
     }
 
     /** Netflix-style focus tooltip: label appears next to the focused round action. */
@@ -253,12 +260,14 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnMore to { getString(R.string.detail_more_label) },
         )
         hints.forEach { (view, label) ->
-            view.setOnFocusChangeListener { _, hasFocus ->
+            val previous = view.onFocusChangeListener
+            view.setOnFocusChangeListener { v, hasFocus ->
+                previous?.onFocusChange(v, hasFocus)
                 binding.actionHint.text = if (hasFocus) label() else ""
                 binding.actionHint.animate().cancel()
                 if (hasFocus) {
                     binding.actionHint.alpha = 0f
-                    binding.actionHint.animate().alpha(1f).setDuration(160L).start()
+                    binding.actionHint.animate().alpha(1f).setDuration(150L).start()
                 }
             }
         }
@@ -271,12 +280,23 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         }
     }
 
+    private fun showOverviewDialog(title: String, body: String) {
+        val view = layoutInflater.inflate(R.layout.dialog_overview, null)
+        view.findViewById<TextView>(R.id.overviewBody).text = body
+        android.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
     private fun paintFavoriteButton() {
+        binding.btnFavorite.isSelected = isFavorite
         binding.btnFavorite.setImageResource(
             if (isFavorite) R.drawable.ic_star_filled else R.drawable.ic_star
         )
         binding.btnFavorite.imageTintList = android.content.res.ColorStateList.valueOf(
-            getColor(if (isFavorite) R.color.sv_plex else R.color.sv_text_primary)
+            getColor(R.color.sv_text_primary)
         )
         binding.btnFavorite.contentDescription = if (isFavorite) {
             getString(R.string.detail_favorite_remove)
@@ -287,22 +307,23 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     /** "Mag ich / mag ich nicht / liebe ich" via icons — drives recommendations. */
     private fun showRatingDialog() {
         val s = series ?: return
-        val repo = (application as VerflixedApp).container.catalog
         val view = layoutInflater.inflate(R.layout.dialog_rate, null)
         val dislike = view.findViewById<android.widget.ImageButton>(R.id.rateDislike)
         val like = view.findViewById<android.widget.ImageButton>(R.id.rateLike)
         val love = view.findViewById<android.widget.ImageButton>(R.id.rateLove)
-        val accent = android.content.res.ColorStateList.valueOf(getColor(R.color.sv_accent_hover))
-        val plain = android.content.res.ColorStateList.valueOf(getColor(R.color.sv_text_primary))
+        val ink = android.content.res.ColorStateList.valueOf(getColor(R.color.sv_text_primary))
         dislike.setImageResource(
             if (currentRating == -1) R.drawable.ic_thumb_down_filled else R.drawable.ic_thumb_down
         )
         like.setImageResource(
             if (currentRating == 1) R.drawable.ic_thumb_up_filled else R.drawable.ic_thumb_up
         )
-        dislike.imageTintList = if (currentRating == -1) accent else plain
-        like.imageTintList = if (currentRating == 1) accent else plain
-        love.imageTintList = if (currentRating == 2) accent else plain
+        dislike.isSelected = currentRating == -1
+        like.isSelected = currentRating == 1
+        love.isSelected = currentRating == 2
+        dislike.imageTintList = ink
+        like.imageTintList = ink
+        love.imageTintList = ink
         listOf(dislike, like, love).forEach { FocusFx.bindScale(it, 1.1f) }
 
         val builder = android.app.AlertDialog.Builder(this)
@@ -343,7 +364,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             Toast.makeText(
                 this@SeriesDetailActivity,
                 when (next) {
-                    2 -> "Liebe ich! Empfehlungen werden angepasst."
+                    2 -> "Liebe ich. Empfehlungen werden angepasst."
                     1 -> "Mag ich - gespeichert"
                     -1 -> "Mag ich nicht - wird seltener empfohlen"
                     else -> "Bewertung entfernt"
@@ -354,15 +375,16 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     }
 
     private fun paintRatingButton() {
-        val (icon, tint) = when (currentRating) {
-            2 -> R.drawable.ic_heart_filled to R.color.sv_accent_hover
-            1 -> R.drawable.ic_thumb_up_filled to R.color.sv_accent_hover
-            -1 -> R.drawable.ic_thumb_down_filled to R.color.sv_text_secondary
-            else -> R.drawable.ic_thumb_up to R.color.sv_text_primary
+        val icon = when (currentRating) {
+            2 -> R.drawable.ic_heart_filled
+            1 -> R.drawable.ic_thumb_up_filled
+            -1 -> R.drawable.ic_thumb_down_filled
+            else -> R.drawable.ic_thumb_up
         }
+        binding.btnRate.isSelected = currentRating != 0
         binding.btnRate.setImageResource(icon)
         binding.btnRate.imageTintList =
-            android.content.res.ColorStateList.valueOf(getColor(tint))
+            android.content.res.ColorStateList.valueOf(getColor(R.color.sv_text_primary))
         refreshActionHint()
     }
 
@@ -373,8 +395,8 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             s.isMovie -> getString(R.string.detail_play)
             continueEp == null -> getString(R.string.detail_play)
             progressMap[continueEp.id]?.let { !it.completed && it.positionMs > 5_000 } == true ->
-                "Weiter S${continueEp.seasonNumber}E${continueEp.number}"
-            else -> "Play S${continueEp.seasonNumber}E${continueEp.number}"
+                getString(R.string.detail_resume_episode, continueEp.seasonNumber, continueEp.number)
+            else -> getString(R.string.detail_play_episode, continueEp.seasonNumber, continueEp.number)
         }
         return continueEp
     }
@@ -514,7 +536,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         val poster = season?.posterUrl ?: s.posterUrl
         val backdrop = season?.backdropUrl ?: season?.posterUrl ?: s.backdropUrl ?: s.posterUrl
         FocusFx.crossfade(binding.poster) {
-            PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false)
+            PosterLoader.loadSeries(binding.poster, poster ?: backdrop, browseMode = false, roundedDp = 14)
         }
         FocusFx.crossfade(binding.backdrop) {
             PosterLoader.loadHero(binding.backdrop, backdrop ?: poster, browseMode = false)
@@ -828,6 +850,7 @@ private class SeasonAdapter(
         val season = items[position]
         holder.label.text = "Staffel $season"
         holder.label.isSelected = season == selected
+        holder.label.paint.isFakeBoldText = season == selected
         holder.label.setOnClickListener {
             selected = season
             notifyDataSetChanged()
@@ -874,6 +897,7 @@ private class EpisodeAdapter(
         val v = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_episode_tile, parent, false)
         val holder = VH(v)
+        v.findViewById<View>(R.id.episodeStillWrap)?.let { FocusFx.clipStillTop(it, 8f) }
         v.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) focused = holder.bound
         }
@@ -897,23 +921,16 @@ private class EpisodeAdapter(
         holder.meta.text = when {
             ep.upcoming -> listOfNotNull("Demnächst", ep.releaseLabel ?: airDateLabel)
                 .distinct().joinToString(" · ")
-            else -> airDateLabel ?: ep.releaseLabel ?: ""
+            else -> ""
         }
+        holder.meta.visibility = if (holder.meta.text.isNullOrBlank()) View.GONE else View.VISIBLE
         holder.overview.text = ep.overview
             ?.takeIf { it.isNotBlank() && it != ep.releaseLabel }.orEmpty()
         holder.watchedMark.visibility = if (p?.completed == true) View.VISIBLE else View.GONE
-        // Tiny ready indicator (green = cached, dim = pending, gone for upcoming)
         val dot = holder.readyDot
         if (dot != null) {
-            if (ep.upcoming) {
-                dot.visibility = View.GONE
-            } else {
-                dot.visibility = View.VISIBLE
-                dot.setBackgroundResource(
-                    if (ready) R.drawable.bg_stream_dot_ready else R.drawable.bg_stream_dot
-                )
-                dot.alpha = if (ready) 1f else 0.45f
-            }
+            val showReady = ready && !ep.upcoming
+            dot.visibility = if (showReady) View.VISIBLE else View.GONE
         }
         holder.itemView.setOnLongClickListener {
             if (!ep.upcoming) onToggleWatched(ep)

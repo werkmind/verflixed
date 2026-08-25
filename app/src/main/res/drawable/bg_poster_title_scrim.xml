@@ -5,9 +5,4 @@
         android:centerColor="@color/sv_hero_scrim_mid"
         android:endColor="@color/sv_hero_scrim_start"
         android:startColor="@color/sv_scrim_strong" />
-    <corners
-        android:bottomLeftRadius="10dp"
-        android:bottomRightRadius="10dp"
-        android:topLeftRadius="0dp"
-        android:topRightRadius="0dp" />
 </shape>

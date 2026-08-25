@@ -1,35 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="sv_bg">#FF080B12</color>
-    <color name="sv_bg_deep">#FF04060A</color>
-    <color name="sv_surface">#FF141A26</color>
-    <color name="sv_surface_elevated">#FF1D2536</color>
+    <color name="sv_bg">#FF07080D</color>
+    <color name="sv_bg_deep">#FF05060A</color>
+    <color name="sv_surface">#FF141820</color>
+    <color name="sv_surface_elevated">#FF1C222E</color>
     <color name="sv_accent">#FF2F80FF</color>
-    <color name="sv_accent_hover">#FF5AA8FF</color>
-    <color name="sv_accent_soft">#402F80FF</color>
-    <color name="sv_accent_pressed">#FF1F63D6</color>
-    <color name="sv_plex">#FFE5A00D</color>
+    <color name="sv_accent_hover">#FF5AA3FF</color>
+    <color name="sv_accent_soft">#662F80FF</color>
+    <color name="sv_accent_pressed">#FF1A66E8</color>
+    <color name="sv_plex">#FFC4922A</color>
     <color name="sv_text_primary">#FFFFFFFF</color>
-    <color name="sv_text_secondary">#FFB8C4D9</color>
-    <color name="sv_text_muted">#FF7E8BA3</color>
-    <!-- Focus chrome: tinted, never pure white system borders -->
-    <color name="sv_focus">#FF5AA8FF</color>
-    <color name="sv_focus_ring">#CC7FB8FF</color>
-    <!-- Opaque ring for use over artwork; translucent rings vanish on bright posters. -->
-    <color name="sv_focus_ring_solid">#FF7FB8FF</color>
-    <!-- Accent badge background (accent hue at ~80% alpha). -->
-    <color name="sv_accent_badge">#CC2F80FF</color>
-    <color name="sv_focus_ring_soft">#66A9CEFF</color>
-    <color name="sv_focus_fill">#332F80FF</color>
+    <color name="sv_text_secondary">#FFC5CDD8</color>
+    <color name="sv_text_muted">#FF8B95A6</color>
+    <color name="sv_focus">#FFFFFFFF</color>
+    <color name="sv_focus_ring">#E6FFFFFF</color>
+    <color name="sv_focus_ring_solid">#FFFFFFFF</color>
+    <color name="sv_accent_badge">#E612141C</color>
+    <color name="sv_focus_ring_soft">#662F80FF</color>
+    <color name="sv_focus_fill">#402F80FF</color>
     <color name="sv_progress">#FF2F80FF</color>
     <color name="sv_watched">#FF46D369</color>
-    <color name="sv_card_stroke">#1AFFFFFF</color>
-    <color name="sv_card_fill">#12FFFFFF</color>
-    <color name="sv_poster_bg">#FF121722</color>
-    <color name="sv_scrim">#CC080B12</color>
-    <color name="sv_scrim_strong">#E6080B12</color>
-    <color name="sv_hero_scrim_start">#00080B12</color>
-    <color name="sv_hero_scrim_mid">#99080B12</color>
-    <color name="sv_hero_scrim_end">#FF080B12</color>
-    <color name="sv_button_primary_text">#FF06101F</color>
+    <color name="sv_card_stroke">#26FFFFFF</color>
+    <color name="sv_card_fill">#1AFFFFFF</color>
+    <color name="sv_poster_bg">#FF10131A</color>
+    <color name="sv_scrim">#CC07080D</color>
+    <color name="sv_scrim_strong">#F207080D</color>
+    <color name="sv_hero_scrim_start">#0007080D</color>
+    <color name="sv_hero_scrim_mid">#9907080D</color>
+    <color name="sv_hero_scrim_end">#FF07080D</color>
+    <color name="sv_button_primary_text">#FFFFFFFF</color>
+    <color name="sv_glow">#802F80FF</color>
+    <color name="sv_glass">#2EFFFFFF</color>
 </resources>

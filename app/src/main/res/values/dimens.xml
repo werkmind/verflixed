@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Shape system (Shape Consistency Lock):
-      - Surfaces, cards, posters, buttons, inputs: vf_radius (12dp)
-      - Small pill chips (season tabs, nav pills, status pills): vf_radius_pill
-      - Focus ring layers around a 12dp surface: 13dp keyline outside, 9dp inner
-      Poster bitmap rounding in PosterLoader.POSTER_RADIUS_DP must stay in sync.
+      Covers (detail poster): vf_radius
+      Shelf artwork: vf_radius_image (tighter, photo-like)
+      Focus glow sits outside the tile: vf_radius_focus_outer
     -->
-    <dimen name="vf_radius">12dp</dimen>
-    <dimen name="vf_radius_focus_outer">13dp</dimen>
-    <dimen name="vf_radius_focus_inner">9dp</dimen>
-    <dimen name="vf_radius_pill">18dp</dimen>
+    <dimen name="vf_radius">14dp</dimen>
+    <dimen name="vf_radius_image">8dp</dimen>
+    <dimen name="vf_radius_focus_outer">16dp</dimen>
+    <dimen name="vf_radius_focus_inner">10dp</dimen>
+    <dimen name="vf_radius_pill">22dp</dimen>
 </resources>

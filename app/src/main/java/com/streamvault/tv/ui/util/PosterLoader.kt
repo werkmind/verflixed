@@ -24,7 +24,7 @@ import com.streamvault.tv.data.catalog.SiteImages
  */
 object PosterLoader {
     /** Matches the radius of bg_poster_card / bg_poster_surface. */
-    private const val POSTER_RADIUS_DP = 12
+    private const val POSTER_RADIUS_DP = 8
 
     /** Crossfade with placeholder kept underneath — no white flash on swap. */
     private val crossFade = DrawableTransitionOptions.withCrossFade(
@@ -72,7 +72,7 @@ object PosterLoader {
             .transition(crossFade)
             .placeholder(R.drawable.poster_placeholder)
             .error(R.drawable.poster_placeholder)
-            .transform(CenterCrop(), RoundedCorners(view.dp(POSTER_RADIUS_DP)))
+            .transform(CenterCrop())
             .into(view)
     }
 

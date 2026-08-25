@@ -1,28 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Primary CTA (hero "Abspielen"). Focus is expressed as a brighter accent fill plus a
-  soft tinted ring — never the harsh pure-white system border. FocusFx adds the scale.
--->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_accent_pressed" />
-            <corners android:radius="@dimen/vf_radius" />
+            <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
     <item android:state_focused="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/sv_accent_hover" />
-            <corners android:radius="@dimen/vf_radius" />
-            <stroke
-                android:width="2dp"
-                android:color="@color/sv_focus_ring_soft" />
-        </shape>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="270"
+                        android:endColor="@color/sv_accent"
+                        android:startColor="@color/sv_accent_hover" />
+                    <corners android:radius="@dimen/vf_radius_pill" />
+                    <stroke
+                        android:width="2dp"
+                        android:color="@color/sv_focus_ring" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/sv_accent" />
-            <corners android:radius="@dimen/vf_radius" />
+            <gradient
+                android:angle="270"
+                android:endColor="#FF1E6AE8"
+                android:startColor="#FF4C9BFF" />
+            <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
 </selector>

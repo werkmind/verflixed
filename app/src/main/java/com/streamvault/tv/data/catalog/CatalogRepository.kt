@@ -162,33 +162,7 @@ class CatalogRepository(
                     .take(16)
                 if (neu.isNotEmpty()) rows += HomeRow("Neu", neu)
                 val week = runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
-                // Calendar as calendar: one shelf per day with weekday header.
-                week.filter { it.date.isNotBlank() }
-                    .groupBy { it.date }
-                    .toSortedMap()
-                    .entries.take(3)
-                    .forEach { (day, entries) ->
-                        val calItems = applyContentFilters(
-                            entries.distinctBy { it.seriesId }.take(16).map { e ->
-                                Series(
-                                    id = e.seriesId,
-                                    title = e.title,
-                                    posterUrl = e.coverUrl,
-                                    backdropUrl = e.coverUrl,
-                                    overview = "S${e.seasonNumber}E${e.episodeNumber}",
-                                    detailPath = e.detailPath,
-                                    mediaKind = "series",
-                                    genres = listOfNotNull(
-                                        if (!e.released) "DEMNÄCHST"
-                                        else e.time.takeIf { it.isNotBlank() }?.let { "$it Uhr" },
-                                    ),
-                                )
-                            }
-                        )
-                        if (calItems.isNotEmpty()) {
-                            rows += HomeRow("Kalender · ${germanDayTitle(day)}", calItems)
-                        }
-                    }
+                calendarWeekRow(week)?.let { rows += it }
             }
         }
 
@@ -402,14 +376,7 @@ class CatalogRepository(
                 } else {
                     "S${e.seasonNumber}"
                 }
-                val badge = when {
-                    // Day-grouped shelves already carry the date in the header —
-                    // the tile badge only needs the state or the air time.
-                    !e.released -> e.time.takeIf { it.isNotBlank() }?.let { "DEMNÄCHST · $it" }
-                        ?: "DEMNÄCHST"
-                    e.time.isNotBlank() -> "${e.time} Uhr"
-                    else -> e.releaseLabel ?: e.date
-                }
+                val badge = if (!e.released) "DEMNÄCHST" else null
                 Series(
                     id = e.seriesId,
                     title = e.title,
@@ -421,7 +388,7 @@ class CatalogRepository(
                     detailPath = e.detailPath,
                     mediaKind = "series",
                     year = null,
-                    genres = listOfNotNull(badge.takeIf { it.isNotBlank() }),
+                    genres = listOfNotNull(badge),
                 )
             }
 
@@ -459,19 +426,44 @@ class CatalogRepository(
             // A–Z combined once (no duplicate of Meine Serien/Filme items beyond the dedicated shelves)
             val az = (seriesFavs + movieFavs).distinctBy { it.id }.sortedBy { it.title.lowercase() }
             if (az.size >= 8) add(HomeRow("A-Z", az))
-            if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", applyContentFilters(calendarAsSeries(upcoming))))
-            if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu", applyContentFilters(calendarAsSeries(recentNew))))
-            // Serienkalender as a real calendar: one shelf per day, headed by the weekday.
-            weekCalendar.filter { it.date.isNotBlank() }
-                .groupBy { it.date }
-                .toSortedMap()
-                .entries.take(6)
-                .forEach { (day, entries) ->
-                    val items = applyContentFilters(calendarAsSeries(entries))
-                    if (items.isNotEmpty()) add(HomeRow("Kalender · ${germanDayTitle(day)}", items))
-                }
+            if (upcoming.isNotEmpty()) add(HomeRow("Demnächst", applyContentFilters(calendarAsSeries(upcoming))))
+            if (recentNew.isNotEmpty()) add(HomeRow("Neu im Kalender", applyContentFilters(calendarAsSeries(recentNew))))
+            calendarWeekRow(weekCalendar)?.let { add(it) }
             if (recentlyWatched.isNotEmpty()) add(HomeRow("Zuletzt gesehen", applyContentFilters(recentlyWatched)))
         }
+    }
+
+    /** One tile per day so the shelf reads as a week, not another poster row. */
+    private fun calendarWeekRow(entries: List<CalendarEntry>): HomeRow? {
+        val days = entries.filter { it.date.isNotBlank() }
+            .groupBy { it.date.take(10) }
+            .toSortedMap()
+            .entries.take(7)
+            .map { (day, dayEntries) ->
+                val e = dayEntries.first()
+                val extra = (dayEntries.size - 1).coerceAtLeast(0)
+                val ep = if (e.episodeNumber > 0) {
+                    "S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}"
+                } else {
+                    "S${e.seasonNumber}"
+                }
+                Series(
+                    id = e.seriesId,
+                    title = e.title,
+                    posterUrl = e.coverUrl,
+                    backdropUrl = e.coverUrl,
+                    overview = ep,
+                    detailPath = e.detailPath,
+                    mediaKind = "series",
+                    genres = listOfNotNull(
+                        "cal:$day",
+                        if (!e.released) "DEMNÄCHST" else null,
+                        extra.takeIf { it > 0 }?.let { "+$it weitere" },
+                    ),
+                )
+            }
+        if (days.isEmpty()) return null
+        return HomeRow("Diese Woche", days, HomeRow.KIND_CALENDAR)
     }
 
     /** "Heute · Dienstag 25.08." style shelf headers for the calendar. */

@@ -14,9 +14,9 @@
                 android:centerX="0.5"
                 android:centerY="0.18"
                 android:gradientRadius="130%p"
-                android:startColor="#FF0D1424"
-                android:centerColor="#FF080D18"
-                android:endColor="#FF04060A" />
+                android:startColor="#FF121826"
+                android:centerColor="#FF0A0E16"
+                android:endColor="#FF070A10" />
         </shape>
     </item>
 </layer-list>

@@ -4,10 +4,6 @@ import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.PathInterpolator
-import android.widget.HorizontalScrollView
-import android.widget.ScrollView
-import androidx.core.widget.NestedScrollView
-import androidx.recyclerview.widget.RecyclerView
 import com.streamvault.tv.R
 import com.streamvault.tv.data.prefs.UserPrefs
 
@@ -54,30 +50,26 @@ object FocusFx {
 
     /** Keep artwork/text inside the rounded tile while the tile itself scales. */
     fun clipMediaTile(view: View) {
-        view.clipToOutline = true
+        view.clipToOutline = false
         (view as? ViewGroup)?.let {
             it.clipChildren = true
-            it.clipToPadding = true
+            it.clipToPadding = false
         }
     }
 
-    private fun isSectionClipHost(host: ViewGroup): Boolean {
-        if (host is RecyclerView ||
-            host is HorizontalScrollView ||
-            host is ScrollView ||
-            host is NestedScrollView
-        ) {
-            return true
+    fun clipStillTop(view: View, radiusDp: Float = 8f) {
+        val r = radiusDp * view.resources.displayMetrics.density
+        view.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(v: View, outline: android.graphics.Outline) {
+                if (v.width == 0 || v.height == 0) return
+                outline.setRoundRect(0, 0, v.width, (v.height + r).toInt(), r)
+            }
         }
+        view.clipToOutline = true
+    }
+
+    private fun isSectionClipHost(host: ViewGroup): Boolean {
         return when (host.id) {
-            R.id.episodeList,
-            R.id.rowList,
-            R.id.rows,
-            R.id.heroContainer,
-            R.id.searchResults,
-            R.id.searchKeyboard,
-            R.id.seasonTabs,
-            R.id.profileList,
             R.id.homeRoot,
             R.id.detailRoot,
             R.id.playerRoot,
@@ -91,7 +83,7 @@ object FocusFx {
     fun animateFocus(v: View, hasFocus: Boolean, focusedScale: Float = 1.06f) {
         allowFocusScale(v)
         val scale = if (hasFocus) focusedScale else 1f
-        val elevation = if (hasFocus) 18f else 0f
+        val elevation = if (hasFocus) 28f else 4f
         v.animate().cancel()
         // Focus moves are the highest-frequency interaction on TV — anything
         // slower than ~160ms reads as input lag when scrubbing along a row.

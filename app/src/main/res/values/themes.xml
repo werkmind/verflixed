@@ -44,11 +44,11 @@
         <item name="android:letterSpacing">0.01</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:gravity">center</item>
-        <item name="android:paddingLeft">16dp</item>
-        <item name="android:paddingRight">16dp</item>
-        <item name="android:paddingTop">0dp</item>
-        <item name="android:paddingBottom">0dp</item>
-        <item name="android:minHeight">36dp</item>
+        <item name="android:paddingLeft">22dp</item>
+        <item name="android:paddingRight">24dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:minHeight">48dp</item>
         <item name="android:minWidth">0dp</item>
         <!-- Zero insets: AppCompat's default 6dp vertical inset is what slices buttons -->
         <item name="android:insetTop">0dp</item>
@@ -105,19 +105,19 @@
 
     <style name="SvRowTitle">
         <item name="android:textColor">@color/sv_text_primary</item>
-        <item name="android:textSize">15sp</item>
+        <item name="android:textSize">18sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">0.02</item>
+        <item name="android:letterSpacing">0.04</item>
     </style>
 
     <style name="SvHeroTitle">
         <item name="android:textColor">@color/sv_text_primary</item>
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">-0.01</item>
+        <item name="android:letterSpacing">-0.025</item>
         <item name="android:shadowColor">#B3000000</item>
         <item name="android:shadowDx">0</item>
         <item name="android:shadowDy">2</item>
-        <item name="android:shadowRadius">8</item>
+        <item name="android:shadowRadius">12</item>
     </style>
 </resources>

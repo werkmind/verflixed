@@ -1,19 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Stateful on purpose: a non-stateful background makes the platform draw its own
-  default (near-white) focus highlight on TV. Both states are dark plates.
--->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_surface" />
-            <corners android:radius="@dimen/vf_radius" />
+            <corners android:radius="@dimen/vf_radius_image" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_poster_bg" />
-            <corners android:radius="@dimen/vf_radius" />
+            <corners android:radius="@dimen/vf_radius_image" />
         </shape>
     </item>
 </selector>
