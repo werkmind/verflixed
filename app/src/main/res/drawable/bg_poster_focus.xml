@@ -1,27 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Rest: inner white edge. Focus: blue bloom + white keyline. -->
+<!-- Rest: hairline. Focus: thin tvOS-style keyline, no fat white halo. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
-        <layer-list>
-            <item>
-                <shape android:shape="rectangle">
-                    <solid android:color="@android:color/transparent" />
-                    <corners android:radius="@dimen/vf_radius_focus_outer" />
-                    <stroke
-                        android:width="8dp"
-                        android:color="@color/sv_glow" />
-                </shape>
-            </item>
-            <item android:inset="3dp">
-                <shape android:shape="rectangle">
-                    <solid android:color="@android:color/transparent" />
-                    <corners android:radius="@dimen/vf_radius" />
-                    <stroke
-                        android:width="3dp"
-                        android:color="@color/sv_focus_ring_solid" />
-                </shape>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <corners android:radius="@dimen/vf_radius_image" />
+            <stroke
+                android:width="2dp"
+                android:color="#B3FFFFFF" />
+        </shape>
     </item>
     <item>
         <shape android:shape="rectangle">

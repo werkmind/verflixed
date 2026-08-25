@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:clipChildren="false"
+    android:clipChildren="true"
     android:clipToPadding="false"
     android:orientation="vertical"
     android:paddingStart="48dp"
@@ -23,13 +23,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:clipChildren="false"
+        android:clipChildren="true"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:nestedScrollingEnabled="false"
         android:orientation="horizontal"
         android:paddingStart="4dp"
-        android:paddingTop="22dp"
+        android:paddingTop="10dp"
         android:paddingEnd="24dp"
-        android:paddingBottom="22dp" />
+        android:paddingBottom="10dp" />
 </LinearLayout>

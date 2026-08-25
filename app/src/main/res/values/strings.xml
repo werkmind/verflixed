@@ -29,6 +29,7 @@
     <string name="detail_play_episode">Abspielen S%1$dE%2$d</string>
     <string name="detail_resume_episode">Weiter S%1$dE%2$d</string>
     <string name="detail_overview_cd">Handlung anzeigen</string>
+    <string name="detail_overview_more">Ganze Handlung</string>
     <string name="detail_more_info">Details</string>
     <string name="detail_seasons">Staffeln</string>
     <string name="detail_episodes">Episoden</string>

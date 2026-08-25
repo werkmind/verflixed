@@ -542,9 +542,9 @@ class HomeActivity : ScaledAppCompatActivity() {
     private fun toggleChip(chip: GenreChip) = Unit
 
     private fun snapshotKey(m: HomeMode): String? = when (m) {
-        HomeMode.LIBRARY -> "library-v3"
-        HomeMode.SERIES -> "series-v3"
-        HomeMode.MOVIES -> "movies-v3"
+        HomeMode.LIBRARY -> "library-v4"
+        HomeMode.SERIES -> "series-v4"
+        HomeMode.MOVIES -> "movies-v4"
         else -> null
     }
 
@@ -1020,9 +1020,6 @@ private class RowsAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private val rows = mutableListOf<HomeRow>()
     private var hero: Series? = null
-    /** Stagger the entrance only for the first paint after a (re)load. */
-    private var animateGeneration = 0
-    private val animatedPositions = mutableSetOf<Int>()
     /** One poster-view pool for all rows: no re-inflate while scrolling vertically. */
     private val posterPool = RecyclerView.RecycledViewPool().apply {
         setMaxRecycledViews(0, 24)
@@ -1040,8 +1037,6 @@ private class RowsAdapter(
         hero = featured
             ?: rows.firstOrNull { it.kind != HomeRow.KIND_CALENDAR }?.items?.firstOrNull()
             ?: rows.firstOrNull()?.items?.firstOrNull()
-        animateGeneration++
-        animatedPositions.clear()
         notifyDataSetChanged()
     }
 
@@ -1081,9 +1076,6 @@ private class RowsAdapter(
                 if (idx in rows.indices) holder.bind(rows[idx])
             }
         }
-        if (animatedPositions.add(position) && position < 6) {
-            FocusFx.enter(holder.itemView, position)
-        }
     }
 
     class HeroVH(
@@ -1107,6 +1099,7 @@ private class RowsAdapter(
             info.setOnClickListener { onInfo() }
             FocusFx.bindScale(play, 1.05f)
             FocusFx.bindScale(info, 1.05f)
+            FocusFx.bindPress(play)
         }
 
         fun bind(series: Series) {
@@ -1199,7 +1192,7 @@ private class RowsAdapter(
             lm.initialPrefetchItemCount = 8
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = false
+            list.clipChildren = true
             list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
@@ -1453,14 +1446,15 @@ private fun moveToNeighborRow(list: RecyclerView, focused: View, direction: Int)
     val nextRow = if (direction == View.FOCUS_UP) rowPos - 1 else rowPos + 1
     val count = rowsRv.adapter?.itemCount ?: 0
     if (nextRow !in 0 until count) return null
-    val attached = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView
-    if (attached != null && attached.findViewById<RecyclerView>(R.id.rowList) == null) {
-        return null
-    }
     rowsRv.scrollToPosition(nextRow)
     rowsRv.post {
         val nextRowView = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView ?: return@post
-        val nextList = nextRowView.findViewById<RecyclerView>(R.id.rowList) ?: return@post
+        val nextList = nextRowView.findViewById<RecyclerView>(R.id.rowList)
+        if (nextList == null) {
+            nextRowView.findViewById<View>(R.id.btnHeroPlay)?.requestFocus()
+                ?: nextRowView.findViewById<View>(R.id.btnHeroInfo)?.requestFocus()
+            return@post
+        }
         val last = (nextList.adapter?.itemCount ?: 1) - 1
         val targetPos = col.coerceIn(0, last.coerceAtLeast(0))
         nextList.scrollToPosition(targetPos)

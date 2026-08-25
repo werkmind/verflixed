@@ -17,13 +17,17 @@ class TvLinearLayoutManager(
     private val onPerpendicular: ((focused: View, direction: Int) -> View?)? = null,
 ) : LinearLayoutManager(context, orientation, reverseLayout) {
 
+    private val extraVerticalPx = (80 * context.resources.displayMetrics.density).toInt()
+
     private var pendingFocusPos = RecyclerView.NO_POSITION
 
     override fun calculateExtraLayoutSpace(state: RecyclerView.State, extraLayoutSpace: IntArray) {
         val extra = if (orientation == HORIZONTAL) {
             width.coerceAtLeast(160)
         } else {
-            height.coerceAtLeast(160)
+            // Keep a short lookahead, not a full extra viewport: a laid-out
+            // hero with Ken Burns would otherwise keep painting over Favoriten.
+            extraVerticalPx
         }
         extraLayoutSpace[0] = extra
         extraLayoutSpace[1] = extra

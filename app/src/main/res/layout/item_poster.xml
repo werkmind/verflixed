@@ -8,7 +8,7 @@
     android:clickable="true"
     android:clipChildren="true"
     android:clipToPadding="false"
-    android:padding="8dp"
+    android:padding="0dp"
     android:defaultFocusHighlightEnabled="false"
     android:descendantFocusability="blocksDescendants"
     android:focusable="true"

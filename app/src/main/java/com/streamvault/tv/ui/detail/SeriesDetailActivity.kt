@@ -74,13 +74,12 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.episodeList.itemAnimator = null
         binding.episodeList.setHasFixedSize(true)
         binding.episodeList.isFocusable = false
-        binding.episodeList.clipChildren = false
+        binding.episodeList.clipChildren = true
         binding.episodeList.clipToPadding = false
         binding.seasonTabs.clipChildren = true
         binding.seasonTabs.clipToPadding = false
         binding.seasonTabs.itemAnimator = null
         listOf(
-            binding.overview,
             binding.btnPlay,
             binding.btnFavorite,
             binding.btnRate,
@@ -88,6 +87,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         ).forEach {
             FocusFx.bindScale(it, 1.06f)
         }
+        FocusFx.bindPress(binding.btnPlay)
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
         binding.btnMore.setOnClickListener { showContextMenu() }
@@ -118,6 +118,9 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     ) {
         val repo = (application as VerflixedApp).container.catalog
         binding.progress.visibility = View.VISIBLE
+        binding.progress.alpha = 1f
+        binding.progress.isClickable = true
+        binding.progress.isFocusable = true
         lifecycleScope.launch {
             runCatching {
                 val s = repo.getSeries(
@@ -133,7 +136,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 currentRating = runCatching { repo.getRating(id) }.getOrDefault(0)
                 Quad(s, p, fav, cache)
             }.onSuccess { (s, p, fav, cache) ->
-                binding.progress.visibility = View.GONE
+                hideDetailSkeleton()
                 series = s
                 progressMap = p
                 bindSeries(s, fav)
@@ -144,11 +147,28 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                     startBackgroundStreamWarmup(s)
                 }
             }.onFailure {
-                binding.progress.visibility = View.GONE
+                hideDetailSkeleton()
                 Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
                 finish()
             }
         }
+    }
+
+    private fun hideDetailSkeleton() {
+        val host = binding.progress
+        if (host.visibility != View.VISIBLE) return
+        host.animate().cancel()
+        host.animate()
+            .alpha(0f)
+            .setDuration(220)
+            .setInterpolator(android.view.animation.PathInterpolator(0.23f, 1f, 0.32f, 1f))
+            .withEndAction {
+                host.visibility = View.GONE
+                host.alpha = 1f
+                host.isFocusable = false
+                host.isClickable = false
+            }
+            .start()
     }
 
     private fun bindSeries(s: Series, favorite: Boolean) {
@@ -199,7 +219,13 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         val overviewText = s.overview?.trim().orEmpty()
             .ifBlank { "Keine Beschreibung verfügbar." }
         binding.overview.text = overviewText
-        binding.overview.setOnClickListener { showOverviewDialog(s.title, overviewText) }
+        val openOverview = View.OnClickListener { showOverviewDialog(s.title, overviewText) }
+        binding.overview.setOnClickListener(openOverview)
+        binding.overviewMore.setOnClickListener(openOverview)
+        binding.overviewMore.visibility =
+            if (overviewText.isNotBlank() && overviewText != "Keine Beschreibung verfügbar.") {
+                View.VISIBLE
+            } else View.GONE
         PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false, roundedDp = 14)
         PosterLoader.loadHero(binding.backdrop, s.backdropUrl ?: s.posterUrl, browseMode = false)
         isFavorite = favorite
@@ -238,7 +264,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnMore,
         ).forEach {
             it.nextFocusDownId = down
-            it.nextFocusUpId = R.id.overview
+            it.nextFocusUpId = R.id.overviewMore
         }
     }
 
@@ -283,11 +309,18 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     private fun showOverviewDialog(title: String, body: String) {
         val view = layoutInflater.inflate(R.layout.dialog_overview, null)
         view.findViewById<TextView>(R.id.overviewBody).text = body
-        android.app.AlertDialog.Builder(this)
+        val dialog = android.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setView(view)
             .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .create()
+        dialog.window?.decorView?.alpha = 0f
+        dialog.show()
+        dialog.window?.decorView?.animate()
+            ?.alpha(1f)
+            ?.setDuration(200)
+            ?.setInterpolator(android.view.animation.PathInterpolator(0.23f, 1f, 0.32f, 1f))
+            ?.start()
     }
 
     private fun paintFavoriteButton() {
@@ -720,6 +753,9 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         options += "Metadaten neu laden"
         actions += {
             lifecycleScope.launch {
+                binding.progress.alpha = 1f
+                binding.progress.isClickable = true
+                binding.progress.isFocusable = true
                 binding.progress.visibility = View.VISIBLE
                 runCatching {
                     repo.getSeries(
@@ -732,7 +768,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 }.onSuccess {
                     load(s.id, s.detailPath, s.title, s.mediaKind)
                 }.onFailure {
-                    binding.progress.visibility = View.GONE
+                    hideDetailSkeleton()
                     val msg = it.toVfMessage()
                     if (msg.isNotBlank()) Toast.makeText(this@SeriesDetailActivity, msg, Toast.LENGTH_LONG).show()
                 }
@@ -913,7 +949,6 @@ private class EpisodeAdapter(
         val isMovie = ep.id.endsWith("-movie")
         holder.title.text = if (isMovie) ep.title else "${ep.number}. ${ep.title}"
         val p = progress[ep.id]
-        val ready = ep.id in readyIds || !ep.streamUrl.isNullOrBlank()
         val airDateLabel = ep.airDate?.let { iso ->
             Regex("""(\d{4})-(\d{2})-(\d{2})""").find(iso)?.destructured
                 ?.let { (y, m, d) -> "$d.$m.$y" }
@@ -927,11 +962,6 @@ private class EpisodeAdapter(
         holder.overview.text = ep.overview
             ?.takeIf { it.isNotBlank() && it != ep.releaseLabel }.orEmpty()
         holder.watchedMark.visibility = if (p?.completed == true) View.VISIBLE else View.GONE
-        val dot = holder.readyDot
-        if (dot != null) {
-            val showReady = ready && !ep.upcoming
-            dot.visibility = if (showReady) View.VISIBLE else View.GONE
-        }
         holder.itemView.setOnLongClickListener {
             if (!ep.upcoming) onToggleWatched(ep)
             true
@@ -994,7 +1024,6 @@ private class EpisodeAdapter(
         val meta: TextView = itemView.findViewById(R.id.episodeMeta)
         val overview: TextView = itemView.findViewById(R.id.episodeOverview)
         val watchedMark: View = itemView.findViewById(R.id.episodeWatchedMark)
-        val readyDot: View? = itemView.findViewById(R.id.streamReadyDot)
         val progressBar: View? = itemView.findViewById(R.id.episodeProgressBar)
         val progressTrack: View? = itemView.findViewById(R.id.episodeProgressTrack)
     }

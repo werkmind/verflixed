@@ -57,13 +57,16 @@ class TmdbClient(
     }
 
     private fun apply(series: Series, id: Int, details: TmdbTvDetails): Series {
+        val deTitle = (details.name ?: details.title)?.trim()?.takeIf { it.isNotBlank() }
+        val deOverview = details.overview?.trim()?.takeIf { it.isNotBlank() }
         val poster = details.posterPath?.let { "$POSTER_BASE$it" }
         val backdrop = details.backdropPath?.let { "$BACKDROP_BASE$it" }
         val siteBackdrop = series.backdropUrl?.takeIf { it != series.posterUrl }
         return series.copy(
             tmdbId = id,
             imdbId = series.imdbId ?: details.externalIds?.imdbId,
-            overview = series.overview ?: details.overview,
+            title = deTitle ?: series.title,
+            overview = deOverview ?: series.overview,
             posterUrl = series.posterUrl ?: poster,
             backdropUrl = siteBackdrop ?: backdrop ?: series.backdropUrl ?: poster,
             year = series.year
@@ -122,10 +125,8 @@ class TmdbClient(
                     val airDate = meta.optString("air_date").takeIf { it.isNotBlank() && it != "null" }
                     val futureAir = airDate != null && airDate > today
                     ep.copy(
-                        title = if (ep.title.isBlank() || ep.title == "Episode ${ep.number}") {
-                            name ?: ep.title
-                        } else ep.title,
-                        overview = ep.overview ?: overview,
+                        title = name ?: ep.title,
+                        overview = overview ?: ep.overview,
                         stillUrl = ep.stillUrl ?: still,
                         airDate = airDate,
                         upcoming = ep.upcoming || futureAir,
@@ -197,6 +198,7 @@ class TmdbClient(
         val url = "https://api.themoviedb.org/3/find/$imdb".toHttpUrl().newBuilder()
             .addQueryParameter("api_key", apiKey)
             .addQueryParameter("external_source", "imdb_id")
+            .addQueryParameter("language", "de-DE")
             .build()
         val body = get(url.toString()) ?: return null
         val json = runCatching { JSONObject(body) }.getOrNull() ?: return null
@@ -269,6 +271,8 @@ data class TmdbSearchItem(
 data class TmdbTvDetails(
     val id: Int,
     val overview: String? = null,
+    val name: String? = null,
+    val title: String? = null,
     @Json(name = "poster_path") val posterPath: String? = null,
     @Json(name = "backdrop_path") val backdropPath: String? = null,
     @Json(name = "first_air_date") val firstAirDate: String? = null,

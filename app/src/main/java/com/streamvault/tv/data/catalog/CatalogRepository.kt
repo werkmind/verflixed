@@ -819,11 +819,7 @@ class CatalogRepository(
         }
 
         val withCachedStreams = applyStreamCache(detailed)
-        val enriched = if (withCachedStreams.isMovie) {
-            withCachedStreams
-        } else {
-            enrichSeries(withCachedStreams)
-        }
+        val enriched = enrichSeries(withCachedStreams)
         if (db.favorites().isFavorite(pid(), seriesId)) {
             persistFavoriteJson(enriched)
         }

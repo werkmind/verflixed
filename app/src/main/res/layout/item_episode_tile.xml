@@ -47,16 +47,6 @@
             app:tint="@color/sv_watched" />
 
         <View
-            android:id="@+id/streamReadyDot"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_gravity="top|start"
-            android:layout_margin="10dp"
-            android:background="@drawable/bg_stream_dot_ready"
-            android:focusable="false"
-            android:visibility="gone" />
-
-        <View
             android:id="@+id/episodeProgressTrack"
             android:layout_width="match_parent"
             android:layout_height="3dp"

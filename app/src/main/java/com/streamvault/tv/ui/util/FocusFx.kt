@@ -19,6 +19,7 @@ object FocusFx {
 
     fun bindScale(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
         allowFocusScale(view)
+        view.setTag(R.id.tag_focus_scale, focusedScale)
         val previous = view.onFocusChangeListener
         view.setOnFocusChangeListener { v, hasFocus ->
             previous?.onFocusChange(v, hasFocus)
@@ -28,8 +29,8 @@ object FocusFx {
 
     /**
      * Scale may paint into a host's padding, never out of the section.
-     * Intermediate button/chip wrappers are unclipped; RecyclerViews, scroll
-     * ports and screen roots stay clipped so posters/episodes cannot bleed.
+     * Lists and screen roots stay clipped so a focused tile cannot overlay
+     * the row above it (that overlay also steals D-pad up).
      */
     fun allowFocusScale(view: View) {
         // Walk each view's parent chain only once — this runs on every focus
@@ -69,9 +70,12 @@ object FocusFx {
     }
 
     private fun isSectionClipHost(host: ViewGroup): Boolean {
+        if (host is androidx.recyclerview.widget.RecyclerView) return true
+        if (host is android.widget.HorizontalScrollView) return true
         return when (host.id) {
             R.id.homeRoot,
             R.id.detailRoot,
+            R.id.heroContainer,
             R.id.playerRoot,
             R.id.playerChrome,
             -> true
@@ -83,7 +87,7 @@ object FocusFx {
     fun animateFocus(v: View, hasFocus: Boolean, focusedScale: Float = 1.06f) {
         allowFocusScale(v)
         val scale = if (hasFocus) focusedScale else 1f
-        val elevation = if (hasFocus) 28f else 4f
+        val elevation = if (hasFocus) 12f else 0f
         v.animate().cancel()
         // Focus moves are the highest-frequency interaction on TV — anything
         // slower than ~160ms reads as input lag when scrubbing along a row.
@@ -91,10 +95,42 @@ object FocusFx {
             .scaleX(scale)
             .scaleY(scale)
             .translationZ(elevation)
-            .setDuration(if (hasFocus) 140 else 180)
+            .setDuration(if (hasFocus) 140 else 160)
             .setInterpolator(glide)
             .withLayer()
             .start()
+    }
+
+    /** Press: scale(0.96) in 100ms, then settle. TV OK / click only. */
+    fun bindPress(view: View) {
+        view.setOnKeyListener { v, keyCode, event ->
+            val press = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+            if (!press) return@setOnKeyListener false
+            if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                v.animate().cancel()
+                v.animate()
+                    .scaleX(0.96f)
+                    .scaleY(0.96f)
+                    .setDuration(100)
+                    .setInterpolator(glide)
+                    .withLayer()
+                    .start()
+            } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                v.animate().cancel()
+                val focusedScale = (v.getTag(R.id.tag_focus_scale) as? Float) ?: 1.06f
+                val scale = if (v.isFocused) focusedScale else 1f
+                v.animate()
+                    .scaleX(scale)
+                    .scaleY(scale)
+                    .setDuration(160)
+                    .setInterpolator(glide)
+                    .withLayer()
+                    .start()
+            }
+            false
+        }
     }
 
     fun pulse(view: View) {
