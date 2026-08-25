@@ -1,8 +1,8 @@
 {
-  "versionCode": 52,
-  "versionName": "1.18.0",
+  "versionCode": 53,
+  "versionName": "1.18.1",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "86ab8d890d949cf4a7bb1bae062947b7bb00118dc3266521742077985b5099ec",
-  "changelog": "1.18.0: URL-Wechsel greift sofort (Cache wird geleert), Katalog laedt schneller (Stale-while-revalidate), Stream-Links veralten nicht mehr (6h TTL), Captcha-Weiter zuverlaessig per OK-Taste, TMDb-Metadaten (Rating, Laufzeit, Status, Genres, Episoden-Infos + Bilder), DEMNAECHST-Markierung datumsbasiert korrekt, Serienkalender ohne Duplikate, animierter Hero-Banner (Ken Burns), schnellere D-Pad-Navigation."
+  "sha256": "8a9900ea0675b0cb28196bf246e666c928d94b6ffcb8c082f7f098abb1afb485",
+  "changelog": "1.18.1: Captcha-Fix (Touch-Mode-Bug behoben, D-Pad navigiert jetzt zuverlaessig zum Weiter-Button, Hinweistexte bleiben sichtbar), direktere D-Pad-Navigation (doppeltes Scrollen entfernt), besser lesbare Schrift auf TV-Distanz, deutlicherer Fokus-Ring ueber hellen Postern, Intro per OK/Zurueck ueberspringbar."
 }

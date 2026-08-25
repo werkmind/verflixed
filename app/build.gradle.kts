@@ -12,8 +12,8 @@ android {
         applicationId = "com.verflixed.tv"
         minSdk = 25
         targetSdk = 34
-        versionCode = 52
-        versionName = "1.18.0"
+        versionCode = 53
+        versionName = "1.18.1"
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",

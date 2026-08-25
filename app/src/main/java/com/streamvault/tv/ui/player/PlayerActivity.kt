@@ -1127,7 +1127,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.playerLoading.visibility = View.GONE
         binding.resolveStatus.visibility = View.VISIBLE
         binding.resolveStatus.text = getString(R.string.player_captcha_status)
-        binding.captchaHint.visibility = View.GONE
+        binding.captchaHint.visibility = View.VISIBLE
         showModeBar(false)
         // Chrome overlays the WebView on Fire TV even with elevation — hide it
         // so D-pad can reach Turnstile and the site's "Weiter" button.
@@ -1154,11 +1154,12 @@ class PlayerActivity : ScaledAppCompatActivity() {
     }
 
     private fun focusWebPlayerForCaptcha() {
+        // NEVER requestFocusFromTouch() here: it flips the window into touch
+        // mode, which disables WebView's D-pad spatial navigation entirely —
+        // the reported "Weiter kann nicht fokussiert werden" root cause.
         binding.webPlayer.isFocusable = true
-        binding.webPlayer.isFocusableInTouchMode = true
-        binding.webPlayer.requestFocus()
-        runCatching {
-            binding.webPlayer.requestFocusFromTouch()
+        if (!binding.webPlayer.hasFocus()) {
+            binding.webPlayer.requestFocus(View.FOCUS_DOWN)
         }
     }
 
@@ -1705,7 +1706,6 @@ class PlayerActivity : ScaledAppCompatActivity() {
                     // Either JS-click the gate button OR forward the raw key —
                     // doing both double-toggled the Turnstile checkbox.
                     if (event.action == KeyEvent.ACTION_DOWN) {
-                        focusWebPlayerForCaptcha()
                         binding.webPlayer.evaluateJavascript(CAPTCHA_CLICK_JS) { result ->
                             val clicked = result?.contains("clicked") == true
                             if (!clicked && !handedOffToExo) {
@@ -1728,8 +1728,10 @@ class PlayerActivity : ScaledAppCompatActivity() {
                 KeyEvent.KEYCODE_DPAD_LEFT,
                 KeyEvent.KEYCODE_DPAD_RIGHT,
                 -> {
-                    focusWebPlayerForCaptcha()
-                    return binding.webPlayer.dispatchKeyEvent(event)
+                    // Grab focus only once — re-grabbing per keypress resets
+                    // the DOM focus the user just moved with the previous key.
+                    if (!binding.webPlayer.hasFocus()) focusWebPlayerForCaptcha()
+                    return super.dispatchKeyEvent(event)
                 }
             }
         }

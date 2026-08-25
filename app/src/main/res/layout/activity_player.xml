@@ -79,44 +79,6 @@
             android:indeterminateTint="@color/sv_accent"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/resolveStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|center_horizontal"
-            android:layout_marginTop="16dp"
-            android:gravity="center"
-            android:paddingStart="24dp"
-            android:paddingEnd="24dp"
-            android:shadowColor="#CC000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="4"
-            android:textColor="@color/sv_text_secondary"
-            android:textSize="14sp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/captchaHint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginStart="48dp"
-            android:layout_marginEnd="48dp"
-            android:layout_marginBottom="28dp"
-            android:background="@drawable/bg_card"
-            android:elevation="24dp"
-            android:gravity="center"
-            android:paddingStart="20dp"
-            android:paddingTop="14dp"
-            android:paddingEnd="20dp"
-            android:paddingBottom="14dp"
-            android:text="@string/player_captcha_hint"
-            android:textColor="@color/sv_text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
-
         <LinearLayout
             android:id="@+id/modeBar"
             android:layout_width="wrap_content"
@@ -281,4 +243,52 @@
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
+
+    <!-- Status + captcha hint live OUTSIDE playerChrome: enterCaptchaMode()
+         hides the chrome, and the user must still see the instructions.
+         Elevation 44dp keeps them above the WebView (raised to 40 in captcha). -->
+    <TextView
+        android:id="@+id/resolveStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="27dp"
+        android:clickable="false"
+        android:elevation="44dp"
+        android:focusable="false"
+        android:gravity="center"
+        android:paddingStart="48dp"
+        android:paddingEnd="48dp"
+        android:shadowColor="#CC000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="4"
+        android:textColor="@color/sv_text_secondary"
+        android:textSize="15sp"
+        android:translationZ="44dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/captchaHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="48dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="28dp"
+        android:background="@drawable/bg_card"
+        android:clickable="false"
+        android:elevation="44dp"
+        android:focusable="false"
+        android:gravity="center"
+        android:paddingStart="20dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="14dp"
+        android:text="@string/player_captcha_hint"
+        android:textColor="@color/sv_text_primary"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:translationZ="44dp"
+        android:visibility="gone" />
 </FrameLayout>

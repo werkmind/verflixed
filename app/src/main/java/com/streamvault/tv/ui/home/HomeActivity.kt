@@ -175,6 +175,9 @@ class HomeActivity : ScaledAppCompatActivity() {
             addDuration = 180
             removeDuration = 140
             changeDuration = 120
+            // Hero updates via notifyItemChanged(0) must not inflate a second
+            // holder for a crossfade — that rebind is the main D-pad jank.
+            supportsChangeAnimations = false
         }
         binding.rows.isNestedScrollingEnabled = true
         binding.rows.setHasFixedSize(false)
@@ -194,19 +197,14 @@ class HomeActivity : ScaledAppCompatActivity() {
         searchResultsList.layoutManager = searchLm
         searchLm.attachPendingFocus(searchResultsList)
         searchResultsList.adapter = searchResultsAdapter
-        searchResultsList.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
-            addDuration = 180
-            removeDuration = 140
-            changeDuration = 120
-        }
+        // No animator: results re-submit on every keypress (typing is high-frequency).
+        searchResultsList.itemAnimator = null
         updateSearchQueryLabel()
 
-        binding.profileNameLabel.isFocusable = true
-        binding.profileNameLabel.isFocusableInTouchMode = true
+        // Not focusable: the avatar above opens profiles; a 12sp label with no
+        // focus indicator is D-pad dead weight.
+        binding.profileNameLabel.isFocusable = false
         binding.profileNameLabel.setOnClickListener { openProfiles() }
-        binding.profileNameLabel.setOnFocusChangeListener { v, hasFocus ->
-            v.alpha = if (hasFocus) 1f else 0.85f
-        }
 
         // Side-nav focus → content
         listOf(
@@ -1293,24 +1291,9 @@ private class PosterAdapter(
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 val s = itemAt(pos) ?: return@setOnFocusChangeListener
-                val parentRv = holder.itemView.parent as? RecyclerView
-                parentRv?.post {
-                    if (holder.bindingAdapterPosition == pos) {
-                        val child = parentRv.findViewHolderForAdapterPosition(pos)?.itemView
-                        if (child != null) {
-                            val left = child.left
-                            val right = child.right
-                            val pad = parentRv.paddingStart
-                            if (left < pad) parentRv.smoothScrollBy(left - pad, 0)
-                            else if (right > parentRv.width - parentRv.paddingEnd) {
-                                parentRv.smoothScrollBy(
-                                    right - (parentRv.width - parentRv.paddingEnd),
-                                    0,
-                                )
-                            }
-                        }
-                    }
-                }
+                // No manual smoothScrollBy here: RecyclerView's own focus
+                // bring-into-view + TvLinearLayoutManager already scroll, and a
+                // second animated scroll per D-pad move made rows feel rubbery.
                 onFocused(s)
                 resolveArt(s) { resolved -> updateItem(resolved) }
             }

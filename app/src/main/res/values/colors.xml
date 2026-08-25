@@ -15,6 +15,10 @@
     <!-- Focus chrome: tinted, never pure white system borders -->
     <color name="sv_focus">#FF5AA8FF</color>
     <color name="sv_focus_ring">#CC7FB8FF</color>
+    <!-- Opaque ring for use over artwork; translucent rings vanish on bright posters. -->
+    <color name="sv_focus_ring_solid">#FF7FB8FF</color>
+    <!-- Accent badge background (accent hue at ~80% alpha). -->
+    <color name="sv_accent_badge">#CC2F80FF</color>
     <color name="sv_focus_ring_soft">#66A9CEFF</color>
     <color name="sv_focus_fill">#332F80FF</color>
     <color name="sv_progress">#FF2F80FF</color>

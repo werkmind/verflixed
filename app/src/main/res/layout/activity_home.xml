@@ -45,11 +45,11 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:ellipsize="end"
-            android:focusable="true"
+            android:focusable="false"
             android:gravity="center"
             android:maxLines="1"
             android:textColor="@color/sv_text_muted"
-            android:textSize="9sp"
+            android:textSize="12sp"
             android:visibility="gone" />
 
         <View

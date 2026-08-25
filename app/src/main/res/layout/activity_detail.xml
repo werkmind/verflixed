@@ -79,7 +79,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/sv_text_secondary"
-        android:textSize="13sp"
+        android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/poster"
         app:layout_constraintTop_toBottomOf="@id/title" />
@@ -95,7 +95,7 @@
         android:lineSpacingExtra="2dp"
         android:maxLines="3"
         android:textColor="@color/sv_text_secondary"
-        android:textSize="13sp"
+        android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/poster"
         app:layout_constraintTop_toBottomOf="@id/meta" />

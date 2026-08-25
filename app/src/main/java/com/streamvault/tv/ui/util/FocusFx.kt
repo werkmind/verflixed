@@ -36,6 +36,10 @@ object FocusFx {
      * ports and screen roots stay clipped so posters/episodes cannot bleed.
      */
     fun allowFocusScale(view: View) {
+        // Walk each view's parent chain only once — this runs on every focus
+        // change otherwise, invalidating every ancestor per D-pad move.
+        if (view.getTag(R.id.tag_focus_scale_done) == true) return
+        view.setTag(R.id.tag_focus_scale_done, true)
         var host = view.parent as? ViewGroup ?: return
         while (true) {
             host.clipToPadding = false
@@ -130,8 +134,8 @@ object FocusFx {
         view.animate()
             .alpha(1f)
             .translationY(0f)
-            .setStartDelay((index.coerceIn(0, 8) * 28).toLong())
-            .setDuration(360)
+            .setStartDelay((index.coerceIn(0, 5) * 24).toLong())
+            .setDuration(280)
             .setInterpolator(glide)
             .withLayer()
             .start()

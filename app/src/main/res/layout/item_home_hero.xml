@@ -45,7 +45,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
-            android:maxLines="1"
+            android:maxLines="2"
             android:text="Verflixed"
             android:textSize="30sp" />
 
@@ -57,7 +57,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/sv_text_muted"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold" />
 
         <TextView
@@ -70,7 +70,7 @@
             android:maxLines="2"
             android:maxWidth="720dp"
             android:textColor="@color/sv_text_secondary"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:visibility="gone" />
 
         <LinearLayout

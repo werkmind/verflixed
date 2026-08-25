@@ -76,6 +76,25 @@ class SplashActivity : ScaledAppCompatActivity() {
         finish()
     }
 
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // Any confirm/back press skips the sting — never gate input on branding.
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                android.view.KeyEvent.KEYCODE_ENTER,
+                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                android.view.KeyEvent.KEYCODE_BUTTON_A,
+                android.view.KeyEvent.KEYCODE_BACK,
+                -> {
+                    sting.stop()
+                    goNext((application as VerflixedApp).container.prefs)
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onDestroy() {
         sting.stop()
         super.onDestroy()

@@ -39,7 +39,7 @@
         <item name="android:foreground">@null</item>
         <item name="android:textColor">@color/sv_text_primary</item>
         <item name="android:textAllCaps">false</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.01</item>
         <item name="android:includeFontPadding">false</item>
@@ -74,7 +74,7 @@
     <style name="SvButton.Nav" parent="SvButton.Ghost">
         <item name="android:background">@drawable/bg_button_nav</item>
         <item name="android:textColor">@color/sv_nav_btn_text</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">13sp</item>
         <item name="android:paddingLeft">13dp</item>
         <item name="android:paddingRight">13dp</item>
         <item name="android:minHeight">34dp</item>
