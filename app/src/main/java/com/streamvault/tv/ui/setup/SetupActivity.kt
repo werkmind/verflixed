@@ -49,11 +49,18 @@ class SetupActivity : ScaledAppCompatActivity() {
         binding.errorText.visibility = View.GONE
 
         lifecycleScope.launch {
+            val prefs = app.container.prefs
+            val urlsChanged = prefs.seriesBaseUrl != seriesUrl || prefs.moviesBaseUrl != moviesUrl
             // Persist BOTH urls always (do not drop movies when validate fails).
-            app.container.prefs.seriesBaseUrl = seriesUrl
-            app.container.prefs.moviesBaseUrl = moviesUrl
-            app.container.prefs.mediaKind = UserPrefs.KIND_SERIES
-            app.container.prefs.markSetupDone()
+            prefs.seriesBaseUrl = seriesUrl
+            prefs.moviesBaseUrl = moviesUrl
+            prefs.mediaKind = UserPrefs.KIND_SERIES
+            prefs.markSetupDone()
+            if (urlsChanged) {
+                // Old-domain catalog + stream caches would keep serving the previous
+                // site (the "URL change does nothing" bug) — drop them all.
+                runCatching { app.container.catalog.clearCache() }
+            }
 
             val seriesOk = runCatching { app.container.catalog.validateBaseUrl(seriesUrl).getOrThrow() }.isSuccess
             val moviesOk = runCatching { app.container.catalog.validateBaseUrl(moviesUrl).getOrThrow() }.isSuccess

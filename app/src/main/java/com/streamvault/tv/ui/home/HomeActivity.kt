@@ -706,7 +706,7 @@ class HomeActivity : ScaledAppCompatActivity() {
                     }
                     Toast.makeText(
                         this@HomeActivity,
-                        "Update ${manifest.versionName ?: manifest.versionCode} – lade APK…",
+                        "Update ${manifest.versionName ?: manifest.versionCode} - lade APK…",
                         Toast.LENGTH_SHORT,
                     ).show()
                     runCatching {
@@ -825,8 +825,8 @@ class HomeActivity : ScaledAppCompatActivity() {
                             }.onSuccess { now ->
                                 Toast.makeText(
                                     this@HomeActivity,
-                                    if (now) "Favorit gespeichert – Streams werden gecacht"
-                                    else "Favorit entfernt – Stream-Cache gelöscht",
+                                    if (now) "Favorit gespeichert - Streams werden gecacht"
+                                    else "Favorit entfernt - Stream-Cache gelöscht",
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 if (mode == HomeMode.LIBRARY) load(false)
@@ -893,7 +893,23 @@ class HomeActivity : ScaledAppCompatActivity() {
         }
     }
 
+    private val heroHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingHero: Series? = null
+
+    /**
+     * Debounced: focus moves fire this on every D-pad step; rebinding the hero
+     * (and reloading its backdrop) per keypress makes row navigation stutter.
+     * The hero swaps once focus has settled for a beat.
+     */
     private fun updateHero(series: Series) {
+        pendingHero = series
+        heroHandler.removeCallbacksAndMessages(null)
+        heroHandler.postDelayed({
+            pendingHero?.let { applyHero(it) }
+        }, 320L)
+    }
+
+    private fun applyHero(series: Series) {
         heroSeries = series
         rowsAdapter.updateHero(series)
         if (mode == HomeMode.SEARCH) searchResultsAdapter.updateHero(series)
@@ -913,6 +929,11 @@ class HomeActivity : ScaledAppCompatActivity() {
         binding.heroMeta.text = meta
         val overview = series.overview?.trim().orEmpty()
         binding.heroOverview.text = overview
+    }
+
+    override fun onDestroy() {
+        heroHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     private fun openSeries(series: Series) {
@@ -1077,6 +1098,9 @@ private class RowsAdapter(
         private val play: Button = itemView.findViewById(R.id.btnHeroPlay)
         private val info: Button = itemView.findViewById(R.id.btnHeroInfo)
 
+        private var lastHeroId: String? = null
+        private var kenBurnsZoomIn = true
+
         init {
             play.setOnClickListener { onPlay() }
             info.setOnClickListener { onInfo() }
@@ -1088,6 +1112,10 @@ private class RowsAdapter(
             title.text = series.title
             val metaText = buildString {
                 series.year?.let { append(it) }
+                series.rating?.let {
+                    if (isNotEmpty()) append("  ·  ")
+                    append("★ ${String.format(java.util.Locale.GERMAN, "%.1f", it)}")
+                }
                 val badges = series.genres.take(2)
                 if (badges.isNotEmpty()) {
                     if (isNotEmpty()) append("  ·  ")
@@ -1099,11 +1127,42 @@ private class RowsAdapter(
             val ov = series.overview?.trim().orEmpty()
             overview.text = ov
             overview.visibility = if (ov.isBlank()) View.GONE else View.VISIBLE
-            PosterLoader.loadHero(
-                backdrop,
-                series.backdropUrl ?: series.posterUrl,
-                browseMode = browseModeProvider(),
-            )
+            val art = series.backdropUrl ?: series.posterUrl
+            if (lastHeroId != series.id) {
+                lastHeroId = series.id
+                // Banner motion: quick dip-crossfade into the new backdrop, then a
+                // slow Ken-Burns drift so the hero feels alive without distracting.
+                backdrop.animate().cancel()
+                backdrop.animate()
+                    .alpha(0.35f)
+                    .setDuration(140L)
+                    .withEndAction {
+                        PosterLoader.loadHero(backdrop, art, browseMode = browseModeProvider())
+                        backdrop.animate()
+                            .alpha(1f)
+                            .setDuration(320L)
+                            .withEndAction { startKenBurns() }
+                            .start()
+                    }
+                    .start()
+            } else {
+                PosterLoader.loadHero(backdrop, art, browseMode = browseModeProvider())
+            }
+        }
+
+        /** Slow 1.02→1.09 drift (~16s), alternating direction on each new hero. */
+        private fun startKenBurns() {
+            val from = if (kenBurnsZoomIn) 1.02f else 1.09f
+            val to = if (kenBurnsZoomIn) 1.09f else 1.02f
+            kenBurnsZoomIn = !kenBurnsZoomIn
+            backdrop.scaleX = from
+            backdrop.scaleY = from
+            backdrop.animate()
+                .scaleX(to)
+                .scaleY(to)
+                .setDuration(16_000L)
+                .setInterpolator(android.view.animation.LinearInterpolator())
+                .start()
         }
     }
 

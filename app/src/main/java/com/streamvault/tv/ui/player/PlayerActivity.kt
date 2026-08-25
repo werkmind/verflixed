@@ -1702,11 +1702,26 @@ class PlayerActivity : ScaledAppCompatActivity() {
                 KeyEvent.KEYCODE_NUMPAD_ENTER,
                 KeyEvent.KEYCODE_BUTTON_A,
                 -> {
+                    // Either JS-click the gate button OR forward the raw key —
+                    // doing both double-toggled the Turnstile checkbox.
                     if (event.action == KeyEvent.ACTION_DOWN) {
-                        injectCaptchaClick()
+                        focusWebPlayerForCaptcha()
+                        binding.webPlayer.evaluateJavascript(CAPTCHA_CLICK_JS) { result ->
+                            val clicked = result?.contains("clicked") == true
+                            if (!clicked && !handedOffToExo) {
+                                // Nothing clickable found (e.g. cross-origin Turnstile):
+                                // send a synthetic DOWN+UP pair to the focused element.
+                                val now = android.os.SystemClock.uptimeMillis()
+                                binding.webPlayer.dispatchKeyEvent(
+                                    KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, 0)
+                                )
+                                binding.webPlayer.dispatchKeyEvent(
+                                    KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER, 0)
+                                )
+                            }
+                        }
                     }
-                    focusWebPlayerForCaptcha()
-                    return binding.webPlayer.dispatchKeyEvent(event)
+                    return true
                 }
                 KeyEvent.KEYCODE_DPAD_UP,
                 KeyEvent.KEYCODE_DPAD_DOWN,
@@ -1992,7 +2007,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
       for (var i=0;i<nodes.length;i++){
         var el=nodes[i];
         var t=((el.innerText||el.value||el.getAttribute('aria-label')||'')+'').replace(/\s+/g,' ').trim();
-        if (/weiter|continue|bestätig|confirm|abspielen|los geht/i.test(t)) out.push(el);
+        if (/weiter|continue|bestätig|confirm|abspielen|fortfahren|starten|proceed|los geht|weiterschauen|jetzt ansehen/i.test(t)) out.push(el);
       }
       return out;
     }
@@ -2037,37 +2052,58 @@ class PlayerActivity : ScaledAppCompatActivity() {
 })();
 """
 
-        /** OK key: prefer Weiter / confirm, then classic CF button, then Turnstile. */
+        /**
+         * OK key: prefer Weiter / confirm (also inside same-origin iframes), then the
+         * classic CF button, then the focused element. Returns "clicked" so Android
+         * can fall back to a raw key event ONLY when nothing was clicked — firing
+         * both used to double-toggle the Turnstile checkbox.
+         */
         private const val CAPTCHA_CLICK_JS = """
 (function(){
   try {
-    function fire(el){
+    function fire(el, win){
       if (!el) return false;
       try { el.focus(); } catch(e){}
       try {
+        var w = win || window;
         var r=el.getBoundingClientRect();
         var x=r.left+Math.min(30, Math.max(8,r.width/2));
         var y=r.top+Math.min(30, Math.max(8,r.height/2));
         ['pointerdown','mousedown','mouseup','click'].forEach(function(type){
-          el.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,view:window,clientX:x,clientY:y}));
+          el.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,view:w,clientX:x,clientY:y}));
         });
       } catch(e) {
         try { el.click(); } catch(e2){}
       }
       return true;
     }
-    var nodes=document.querySelectorAll('button, a.btn, input[type=submit], input[type=button], .btn');
-    for (var i=0;i<nodes.length;i++){
-      var t=((nodes[i].innerText||nodes[i].value||'')+'').replace(/\s+/g,' ').trim();
-      if (/weiter|continue|bestätig|confirm|abspielen|los geht/i.test(t)) return fire(nodes[i]);
+    var GATE=/weiter|continue|bestätig|confirm|abspielen|fortfahren|starten|proceed|los geht|weiterschauen|jetzt ansehen/i;
+    function findGate(doc){
+      var nodes=doc.querySelectorAll('button, a.btn, input[type=submit], input[type=button], .btn, [role=button]');
+      for (var i=0;i<nodes.length;i++){
+        var t=((nodes[i].innerText||nodes[i].value||nodes[i].getAttribute('aria-label')||'')+'').replace(/\s+/g,' ').trim();
+        if (GATE.test(t)) return nodes[i];
+      }
+      return null;
+    }
+    var el=findGate(document);
+    if (el) return fire(el) ? 'clicked' : '';
+    // Same-origin iframes (hoster gate pages often live one frame deep).
+    for (var f=0; f<window.frames.length; f++){
+      try {
+        var fdoc=window.frames[f].document;
+        var fel=findGate(fdoc);
+        if (fel) return fire(fel, window.frames[f]) ? 'clicked' : '';
+      } catch(e) { /* cross-origin */ }
     }
     var simple=document.querySelector("#challenge-stage > div > input[type='button'], #challenge-stage input[type='button'], input[type='button'].big-button");
-    if (simple) return fire(simple);
+    if (simple) return fire(simple) ? 'clicked' : '';
     var active=document.activeElement;
-    if (active && active!==document.body && active.click) return fire(active);
-    var frame=document.querySelector('#player-prepare-turnstile iframe, .cf-turnstile iframe, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"], div.hcaptcha-box > iframe');
-    if (frame) return fire(frame);
-  } catch(e) {}
+    if (active && active!==document.body && active.tagName!=='IFRAME' && active.click) {
+      return fire(active) ? 'clicked' : '';
+    }
+    return '';
+  } catch(e) { return ''; }
 })();
 """
     }

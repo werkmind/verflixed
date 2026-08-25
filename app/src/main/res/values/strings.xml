@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Verflixed</string>
     <string name="setup_title">Medienquelle einrichten</string>
-    <string name="setup_subtitle">Gib die Base-URL für Serien und/oder Filme ein.\nMetadaten (TMDb/TVMaze) sind fest eingebaut — kein Konto, kein API-Key.</string>
+    <string name="setup_subtitle">Gib die Base-URL für Serien und/oder Filme ein.\nMetadaten (TMDb/TVMaze) sind fest eingebaut - kein Konto, kein API-Key.</string>
     <string name="setup_hint">https://deine-mediathek.example</string>
     <string name="setup_hint_series">Serien: https://serienstream.cx</string>
     <string name="setup_hint_movies">Filme: https://filmpalast.to</string>
@@ -43,8 +43,8 @@
     <string name="player_next_countdown">Automatisch in %1$ds</string>
     <string name="player_next_title">Als Nächstes: S%1$dE%2$d · %3$s</string>
     <string name="player_captcha_hint">Bitte Captcha-Checkbox mit OK bestätigen</string>
-    <string name="player_captcha_status">Sicherheitscheck – Captcha mit OK bestätigen</string>
-    <string name="player_captcha_solved">Captcha ok – Stream wird geladen…</string>
+    <string name="player_captcha_status">Sicherheitscheck - Captcha mit OK bestätigen</string>
+    <string name="player_captcha_solved">Captcha ok - Stream wird geladen…</string>
     <string name="back_again_exit">Nochmal Zurück zum Beenden</string>
     <string name="loading">Laden…</string>
     <string name="error_generic">Etwas ist schiefgelaufen.</string>
@@ -55,7 +55,7 @@
     <string name="settings_sounds">UI-Sounds</string>
     <string name="settings_sounds_on">UI-Sounds: An</string>
     <string name="settings_sounds_off">UI-Sounds: Aus</string>
-    <string name="library_empty">Noch keine Favoriten. Wechsle zu Serien/Filme und favorisiere Titel – dann erscheinen Kalender &amp; Metadaten-Cache.</string>
+    <string name="library_empty">Noch keine Favoriten. Wechsle zu Serien/Filme und favorisiere Titel - dann erscheinen Kalender &amp; Metadaten-Cache.</string>
     <string name="update_downloading">Update wird geladen… %1$d%%</string>
     <string name="update_install">Update installieren</string>
     <string name="update_allow_unknown">Bitte Installation aus unbekannten Quellen für Verflixed erlauben, dann erneut „Update“ tippen.</string>
@@ -71,7 +71,7 @@
     <string name="settings_lib_cards">Bibliothek: Cards</string>
     <string name="settings_zoom">Zoom: 100%</string>
     <string name="settings_zoom_value">Zoom: %1$d%%</string>
-    <string name="settings_zoom_applied">Zoom %1$d%% – Oberfläche wird neu geladen</string>
+    <string name="settings_zoom_applied">Zoom %1$d%% - Oberfläche wird neu geladen</string>
     <string name="profile_categories">Kategorien laden</string>
     <string name="profile_categories_hint">Aus = Kategorie wird nie geladen (Browse, Suche, Regale). Horror und Anime sind standardmäßig aus.</string>
     <string name="search_empty">Keine Treffer. Filter/Anti-Patterns prüfen.</string>

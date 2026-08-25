@@ -89,11 +89,13 @@ object FocusFx {
         val scale = if (hasFocus) focusedScale else 1f
         val elevation = if (hasFocus) 18f else 0f
         v.animate().cancel()
+        // Focus moves are the highest-frequency interaction on TV — anything
+        // slower than ~160ms reads as input lag when scrubbing along a row.
         v.animate()
             .scaleX(scale)
             .scaleY(scale)
             .translationZ(elevation)
-            .setDuration(if (hasFocus) 280 else 320)
+            .setDuration(if (hasFocus) 140 else 180)
             .setInterpolator(glide)
             .withLayer()
             .start()

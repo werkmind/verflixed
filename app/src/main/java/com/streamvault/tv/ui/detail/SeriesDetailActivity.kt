@@ -155,6 +155,14 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.title.text = s.title
         binding.meta.text = buildString {
             s.year?.let { append(it) }
+            s.rating?.let {
+                if (isNotEmpty()) append("  •  ")
+                append("★ ${String.format(java.util.Locale.GERMAN, "%.1f", it)}")
+            }
+            s.runtimeMinutes?.let {
+                if (isNotEmpty()) append("  •  ")
+                append("$it Min.")
+            }
             val langChip = s.genres.firstOrNull {
                 it.equals("Deutsch", true) || it.equals("Englisch", true)
             } ?: run {
@@ -175,6 +183,11 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                         append("  •  ")
                         append("$eps Episoden")
                     }
+                }
+                if (s.status.equals("Returning Series", true)) {
+                    append("  •  Laufend")
+                } else if (s.status.equals("Ended", true) || s.status.equals("Canceled", true)) {
+                    append("  •  Beendet")
                 }
             }
             val watched = progressMap.values.count { it.completed }
@@ -309,7 +322,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             if (s?.isMovie == true && !nextPage.isNullOrBlank()) {
                 Toast.makeText(
                     this@SeriesDetailActivity,
-                    "Ton: ${StreamLanguage.label(next)} – lade Version…",
+                    "Ton: ${StreamLanguage.label(next)} - lade Version…",
                     Toast.LENGTH_SHORT
                 ).show()
                 // Reload movie from the other Filmpalast page
@@ -526,8 +539,8 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 }
                 Toast.makeText(
                     this@SeriesDetailActivity,
-                    if (nowFav) "Favorit gespeichert – alle Staffeln werden im Hintergrund gecacht"
-                    else "Favorit entfernt – Stream-Cache gelöscht",
+                    if (nowFav) "Favorit gespeichert - alle Staffeln werden im Hintergrund gecacht"
+                    else "Favorit entfernt - Stream-Cache gelöscht",
                     Toast.LENGTH_SHORT
                 ).show()
             }.onFailure {
@@ -865,15 +878,20 @@ private class EpisodeAdapter(
         holder.title.text = ep.title
         val p = progress[ep.id]
         val ready = ep.id in readyIds || !ep.streamUrl.isNullOrBlank()
+        val airDateLabel = ep.airDate?.let { iso ->
+            Regex("""(\d{4})-(\d{2})-(\d{2})""").find(iso)?.destructured
+                ?.let { (y, m, d) -> "$d.$m.$y" }
+        }
         holder.meta.text = when {
             ep.upcoming || !ep.releaseLabel.isNullOrBlank() -> {
                 listOfNotNull(
                     if (ep.upcoming) "DEMNÄCHST" else null,
-                    ep.releaseLabel,
+                    ep.releaseLabel ?: airDateLabel,
                     ep.overview?.takeIf { it.isNotBlank() && it != ep.releaseLabel },
                 ).distinct().joinToString(" · ")
             }
-            !ep.overview.isNullOrBlank() -> ep.overview
+            !ep.overview.isNullOrBlank() -> listOfNotNull(airDateLabel, ep.overview)
+                .joinToString(" · ")
             p == null && ready -> "Bereit • Ungesehen"
             p == null -> "Ungesehen"
             p.completed -> "Gesehen"

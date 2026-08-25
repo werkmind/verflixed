@@ -471,11 +471,14 @@ class CatalogParser(private val moshi: Moshi) {
             val still = SiteImages.preferJpeg(
                 row.selectFirst("img[data-src], img[src], img[srcset]")?.let { imageAbs(it) }
             )
-            val upcoming = row.hasClass("upcoming") ||
-                row.selectFirst(".badge-upcoming, .badge-release") != null ||
-                row.text().contains("DEMNÄCHST", ignoreCase = true)
             val releaseLabel = row.selectFirst(".badge-release")?.text()?.replace('\u00a0', ' ')?.trim()
                 ?.takeIf { it.isNotBlank() }
+            // A release badge alone does NOT mean upcoming — released episodes carry
+            // one too. Only a real future date or an explicit upcoming marker counts.
+            val upcoming = row.hasClass("upcoming") ||
+                row.selectFirst(".badge-upcoming") != null ||
+                row.text().contains("DEMNÄCHST", ignoreCase = true) ||
+                isFutureReleaseLabel(releaseLabel)
             val watchHint = row.selectFirst(".episode-watch-cell")?.text()?.trim()
             val overview = listOfNotNull(
                 releaseLabel?.let { if (upcoming) "DEMNÄCHST · $it" else it },
@@ -657,6 +660,20 @@ class CatalogParser(private val moshi: Moshi) {
         if (lower.contains("alle episoden")) score += 30
         if (text.length < 80) score += 20
         return score
+    }
+
+    /**
+     * True only when a release label like "Freitag, 14.08.2026 ~20:15 Uhr" points to
+     * the future. Past dates mean the episode is out — never badge those DEMNÄCHST.
+     */
+    private fun isFutureReleaseLabel(label: String?): Boolean {
+        val m = Regex("""(\d{1,2})\.(\d{1,2})\.(\d{4})""").find(label.orEmpty()) ?: return false
+        val (d, mo, y) = m.destructured
+        val cal = java.util.Calendar.getInstance().apply {
+            set(y.toInt(), mo.toInt() - 1, d.toInt(), 23, 59, 59)
+            set(java.util.Calendar.MILLISECOND, 999)
+        }
+        return cal.timeInMillis > System.currentTimeMillis()
     }
 
     private fun cleanTitle(raw: String): String {

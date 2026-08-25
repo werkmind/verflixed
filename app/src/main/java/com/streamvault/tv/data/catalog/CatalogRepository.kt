@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -55,9 +56,13 @@ class CatalogRepository(
     private val firestreamExtractor: FirestreamExtractor = FirestreamExtractor(http),
 ) {
     private val mutex = Mutex()
+    private val bgScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
+    )
     @Volatile private var memoryCatalog: Catalog? = null
     @Volatile private var memoryMoviesCatalog: Catalog? = null
     @Volatile private var memoryKind: String? = null
+    @Volatile private var catalogRefreshing = false
     private val seriesAdapter get() = moshi.adapter(Series::class.java)
     private val rowsAdapter by lazy {
         moshi.adapter<List<HomeRow>>(
@@ -119,7 +124,7 @@ class CatalogRepository(
                 // Filmpalast-like movie sites: /movies/new has articles
                 val movies = fetchMoviesCatalog(normalized)
                 if (movies.series.isEmpty()) {
-                    throw VfException.of(VfCodes.CATALOG_EMPTY, "Katalog leer – keine Serien/Filme gefunden")
+                    throw VfException.of(VfCodes.CATALOG_EMPTY, "Katalog leer - keine Serien/Filme gefunden")
                 }
                 return@runCatching movies
             }
@@ -185,7 +190,7 @@ class CatalogRepository(
         if (slice.isNotEmpty()) {
             val allLabel = if (isMoviesMode()) "Alle Filme" else "Alle Serien"
             val label = if (filtered.size > size) {
-                "$allLabel (${from + 1}–$to)"
+                "$allLabel (${from + 1}-$to)"
             } else {
                 allLabel
             }
@@ -376,7 +381,11 @@ class CatalogRepository(
 
         // Represent calendar hits as lightweight Series cards for the row UI.
         fun calendarAsSeries(entries: List<CalendarEntry>): List<Series> =
-            entries.distinctBy { it.seriesId + it.date + it.episodeNumber }.take(24).map { e ->
+            entries.distinctBy {
+                // One tile per series: multiple episodes of the same show airing
+                // the same week render as identical-looking tiles otherwise.
+                it.title.lowercase().replace(Regex("[^a-z0-9]+"), "")
+            }.take(24).map { e ->
                 val ep = if (e.episodeNumber > 0) {
                     "S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}"
                 } else {
@@ -392,10 +401,9 @@ class CatalogRepository(
                     title = e.title,
                     posterUrl = e.coverUrl,
                     backdropUrl = e.coverUrl,
-                    overview = listOfNotNull(
-                        badge,
-                        e.episodeTitle?.takeIf { it.isNotBlank() }?.let { "$ep – $it" } ?: ep,
-                    ).joinToString("\n"),
+                    // Badge lives in genres (chip/meta line) — repeating it here
+                    // printed the raw date twice in the hero.
+                    overview = e.episodeTitle?.takeIf { it.isNotBlank() }?.let { "$ep - $it" } ?: ep,
                     detailPath = e.detailPath,
                     mediaKind = "series",
                     year = null,
@@ -423,7 +431,7 @@ class CatalogRepository(
             if (movieFavs.isNotEmpty()) add(HomeRow("Meine Filme", movieFavs))
             // A–Z combined once (no duplicate of Meine Serien/Filme items beyond the dedicated shelves)
             val az = (seriesFavs + movieFavs).distinctBy { it.id }.sortedBy { it.title.lowercase() }
-            if (az.size >= 8) add(HomeRow("A–Z", az))
+            if (az.size >= 8) add(HomeRow("A-Z", az))
             if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", applyContentFilters(calendarAsSeries(upcoming))))
             if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu", applyContentFilters(calendarAsSeries(recentNew))))
             if (weekCalendar.isNotEmpty()) add(HomeRow("Serienkalender", applyContentFilters(calendarAsSeries(weekCalendar))))
@@ -1001,10 +1009,13 @@ class CatalogRepository(
     suspend fun resolveStream(episode: Episode): String = withContext(Dispatchers.IO) {
         val pref = preferredLang()
         // 1) Cached direct media for this profile language only.
+        // Hoster HLS links are session-bound and go stale after a few hours —
+        // expired rows fall through to a fresh resolve instead of a broken player.
         db.streams().get(pid(), episode.id)?.takeIf {
             StreamKind.isDirectMediaUrl(it.streamUrl) &&
                 it.streamUrl.isNotBlank() &&
-                cacheLangMatches(it.kind, pref)
+                cacheLangMatches(it.kind, pref) &&
+                System.currentTimeMillis() - it.updatedAt < DIRECT_MEDIA_TTL_MS
         }?.let {
             return@withContext it.streamUrl
         }
@@ -1900,6 +1911,8 @@ class CatalogRepository(
         enriched = wikidata.enrich(enriched)
         // Built-in public TMDb scraper key (Plex/Kodi model) — no user account.
         enriched = tmdb.enrich(enriched)
+        // Episode-level metadata: German titles, overviews, stills, air dates.
+        enriched = runCatching { tmdb.enrichEpisodes(enriched) }.getOrDefault(enriched)
         return enriched
     }
 
@@ -1930,7 +1943,10 @@ class CatalogRepository(
 
         if (!forceRefresh) {
             if (kind == "movie") {
-                memoryMoviesCatalog?.let { return it }
+                memoryMoviesCatalog?.let {
+                    maybeRefreshCatalogInBackground(kind)
+                    return it
+                }
                 moviesCacheFile().takeIf { it.exists() }?.readText()?.let { cached ->
                     runCatching {
                         val obj = JSONObject(cached)
@@ -1938,11 +1954,15 @@ class CatalogRepository(
                         Catalog(FilmParser.parseMovieList(obj.getString("body"), base, moviesOnly = true))
                     }.getOrNull()?.let {
                         memoryMoviesCatalog = it
+                        maybeRefreshCatalogInBackground(kind)
                         return it
                     }
                 }
             } else {
-                memoryCatalog?.let { return it }
+                memoryCatalog?.let {
+                    maybeRefreshCatalogInBackground(kind)
+                    return it
+                }
                 cacheFile().takeIf { it.exists() }?.readText()?.let { cached ->
                     runCatching {
                         val obj = JSONObject(cached)
@@ -1950,6 +1970,7 @@ class CatalogRepository(
                         parser.parseCatalog(obj.getString("body"), base, obj.optString("contentType"))
                     }.getOrNull()?.let {
                         memoryCatalog = it
+                        maybeRefreshCatalogInBackground(kind)
                         return it
                     }
                 }
@@ -1966,6 +1987,33 @@ class CatalogRepository(
             fetchCatalog(base).also { memoryCatalog = it }
         }
         catalog
+    }
+
+    /**
+     * Stale-while-revalidate: the cached catalog renders instantly, and when the
+     * disk snapshot is older than [CATALOG_SOFT_TTL_MS] a background fetch updates
+     * memory + disk so the next screen shows fresh rows without a cold-load stall.
+     */
+    private fun maybeRefreshCatalogInBackground(kind: String) {
+        val file = if (kind == "movie") moviesCacheFile() else cacheFile()
+        val age = System.currentTimeMillis() - (file.takeIf { it.exists() }?.lastModified() ?: 0L)
+        if (age < CATALOG_SOFT_TTL_MS || catalogRefreshing) return
+        catalogRefreshing = true
+        bgScope.launch {
+            try {
+                val base = baseForKind(kind)
+                if (base.isBlank()) return@launch
+                runCatching {
+                    if (kind == "movie") {
+                        memoryMoviesCatalog = fetchMoviesCatalog(base)
+                    } else {
+                        memoryCatalog = fetchCatalog(base)
+                    }
+                }
+            } finally {
+                catalogRefreshing = false
+            }
+        }
     }
 
     private fun fetchMoviesCatalog(baseUrl: String): Catalog {
@@ -2141,5 +2189,11 @@ class CatalogRepository(
         // Browser-like UA so HTML catalogs / series pages return full markup (not bot shells).
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 12; SHIELD Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        /** Direct HLS/MP4 links from hosters are session-bound; re-resolve after this. */
+        private const val DIRECT_MEDIA_TTL_MS = 6L * 60 * 60 * 1000
+
+        /** Serve the disk catalog instantly but refresh in the background after this. */
+        private const val CATALOG_SOFT_TTL_MS = 30L * 60 * 1000
     }
 }

@@ -108,12 +108,17 @@ class CalendarClient(
                     ?.attr("title")?.ifBlank { null }
                     ?: el.selectFirst(".episode-title-ger, .episode-title-eng, .episode-title")?.text()?.trim()
                 val releaseLabel = el.selectFirst(".badge-release")?.text()?.replace('\u00a0', ' ')?.trim()
-                val upcoming = el.hasClass("upcoming") ||
-                    el.selectFirst(".badge-upcoming") != null ||
-                    el.text().contains("DEMNÄCHST", true)
                 val dayKey = releaseLabel?.let { parseGermanReleaseDay(it) }
                     ?: el.attr("data-date").takeIf { it.isNotBlank() }
                     ?: DAY.format(Date())
+                // A future air date always means upcoming, even when the site
+                // forgets the badge — mislabeled future episodes confuse users.
+                val dayInFuture = runCatching { DAY.parse(dayKey) }.getOrNull()
+                    ?.after(startOfDay(Date())) == true
+                val upcoming = el.hasClass("upcoming") ||
+                    el.selectFirst(".badge-upcoming") != null ||
+                    el.text().contains("DEMNÄCHST", true) ||
+                    dayInFuture
                 val cover = el.selectFirst("img[src], img[data-src]")?.let { img ->
                     img.attr("abs:src").ifBlank { img.attr("abs:data-src") }.ifBlank { img.attr("src") }
                 }?.takeIf { it.isNotBlank() && !it.startsWith("data:") }

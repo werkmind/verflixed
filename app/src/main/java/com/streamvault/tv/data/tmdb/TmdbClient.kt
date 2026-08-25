@@ -69,7 +69,71 @@ class TmdbClient(
             year = series.year
                 ?: details.firstAirDate?.take(4)?.toIntOrNull()
                 ?: details.releaseDate?.take(4)?.toIntOrNull(),
+            rating = series.rating ?: details.voteAverage?.takeIf { it > 0.0 },
+            runtimeMinutes = series.runtimeMinutes
+                ?: details.episodeRunTime?.firstOrNull()?.takeIf { it > 0 }
+                ?: details.runtime?.takeIf { it > 0 },
+            status = series.status ?: details.status?.takeIf { it.isNotBlank() },
+            genres = series.genres.ifEmpty {
+                details.genres.orEmpty().mapNotNull { it.name?.takeIf { n -> n.isNotBlank() } }
+            },
         )
+    }
+
+    /**
+     * Fill episode gaps (German titles, overviews, stills, air dates) from TMDb
+     * season data. Site markup often ships "Episode N" placeholders and unmarked
+     * future episodes — TMDb air dates make DEMNÄCHST reliable.
+     */
+    suspend fun enrichEpisodes(series: Series): Series = withContext(Dispatchers.IO) {
+        val id = series.tmdbId ?: return@withContext series
+        if (series.isMovie || series.seasons.isEmpty()) return@withContext series
+        val key = apiKey()
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(java.util.Date())
+        val seasons = series.seasons.map { season ->
+            val body = get(
+                "https://api.themoviedb.org/3/tv/$id/season/${season.number}".toHttpUrl()
+                    .newBuilder()
+                    .addQueryParameter("api_key", key)
+                    .addQueryParameter("language", "de-DE")
+                    .build()
+                    .toString()
+            ) ?: return@map season
+            val byNumber = runCatching {
+                val arr = JSONObject(body).optJSONArray("episodes") ?: return@runCatching emptyMap()
+                buildMap {
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        put(o.optInt("episode_number"), o)
+                    }
+                }
+            }.getOrDefault(emptyMap<Int, JSONObject>())
+            if (byNumber.isEmpty()) return@map season
+            season.copy(
+                episodes = season.episodes.map { ep ->
+                    val meta = byNumber[ep.number] ?: return@map ep
+                    val name = meta.optString("name").takeIf {
+                        it.isNotBlank() && !it.equals("Episode ${ep.number}", ignoreCase = true)
+                    }
+                    val overview = meta.optString("overview").takeIf { it.isNotBlank() }
+                    val still = meta.optString("still_path").takeIf { it.isNotBlank() && it != "null" }
+                        ?.let { "$STILL_BASE$it" }
+                    val airDate = meta.optString("air_date").takeIf { it.isNotBlank() && it != "null" }
+                    val futureAir = airDate != null && airDate > today
+                    ep.copy(
+                        title = if (ep.title.isBlank() || ep.title == "Episode ${ep.number}") {
+                            name ?: ep.title
+                        } else ep.title,
+                        overview = ep.overview ?: overview,
+                        stillUrl = ep.stillUrl ?: still,
+                        airDate = airDate,
+                        upcoming = ep.upcoming || futureAir,
+                    )
+                }
+            )
+        }
+        series.copy(seasons = seasons)
     }
 
     /**
@@ -183,6 +247,7 @@ class TmdbClient(
         private const val POSTER_BASE = "https://image.tmdb.org/t/p/w500"
         private const val BACKDROP_BASE = "https://image.tmdb.org/t/p/w780"
         private const val AVATAR_BASE = "https://image.tmdb.org/t/p/w185"
+        private const val STILL_BASE = "https://image.tmdb.org/t/p/w300"
     }
 }
 
@@ -209,6 +274,17 @@ data class TmdbTvDetails(
     @Json(name = "first_air_date") val firstAirDate: String? = null,
     @Json(name = "release_date") val releaseDate: String? = null,
     @Json(name = "external_ids") val externalIds: TmdbExternalIds? = null,
+    @Json(name = "vote_average") val voteAverage: Double? = null,
+    @Json(name = "episode_run_time") val episodeRunTime: List<Int>? = null,
+    val runtime: Int? = null,
+    val status: String? = null,
+    val genres: List<TmdbGenre>? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class TmdbGenre(
+    val id: Int? = null,
+    val name: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

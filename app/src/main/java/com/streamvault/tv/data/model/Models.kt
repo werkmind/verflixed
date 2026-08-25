@@ -27,6 +27,12 @@ data class Series(
     val languagePages: Map<String, String> = emptyMap(),
     /** 0–1 watch progress for home/detail cards (not persisted). */
     val progressFraction: Float? = null,
+    /** TMDb community rating 0–10 (one decimal shown in UI). */
+    val rating: Double? = null,
+    /** Typical episode (or movie) runtime in minutes, from TMDb. */
+    val runtimeMinutes: Int? = null,
+    /** TMDb production status, e.g. "Returning Series", "Ended". */
+    val status: String? = null,
 ) {
     val isMovie: Boolean get() = mediaKind == "movie"
 
@@ -60,6 +66,8 @@ data class Episode(
     val upcoming: Boolean = false,
     /** Human release label, e.g. "Freitag, 14.08.2026 ~00:00 Uhr". */
     val releaseLabel: String? = null,
+    /** TMDb air date (yyyy-MM-dd) when known. */
+    val airDate: String? = null,
 )
 
 data class WatchProgress(
