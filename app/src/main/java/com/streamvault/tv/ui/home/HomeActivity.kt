@@ -47,6 +47,8 @@ class HomeActivity : ScaledAppCompatActivity() {
     private var lastContentMode = HomeMode.LIBRARY
     private var searchJob: Job? = null
     private var loadJob: Job? = null
+    private val lastRowsByMode = mutableMapOf<HomeMode, List<HomeRow>>()
+    private val lastHeroByMode = mutableMapOf<HomeMode, Series>()
     private var searchQuery = ""
     private var lastAppBackAt = 0L
     private lateinit var searchPanel: View
@@ -487,7 +489,9 @@ class HomeActivity : ScaledAppCompatActivity() {
                 binding.rows.visibility = View.VISIBLE
                 binding.heroContainer.visibility = View.GONE
                 binding.tabSearch.nextFocusDownId = R.id.rows
-                rowsAdapter.submit(emptyList(), null)
+                lastRowsByMode[HomeMode.LIBRARY]?.let {
+                    rowsAdapter.submit(it, lastHeroByMode[HomeMode.LIBRARY])
+                }
                 load(force = false)
             }
             HomeMode.SERIES -> {
@@ -502,8 +506,10 @@ class HomeActivity : ScaledAppCompatActivity() {
                     prefs.browsePage = 0
                 }
                 updateSearchHint()
-                rowsAdapter.submit(emptyList(), null)
-                load(force = true)
+                lastRowsByMode[HomeMode.SERIES]?.let {
+                    rowsAdapter.submit(it, lastHeroByMode[HomeMode.SERIES])
+                }
+                load(force = false)
             }
             HomeMode.MOVIES -> {
                 searchJob?.cancel()
@@ -517,8 +523,10 @@ class HomeActivity : ScaledAppCompatActivity() {
                     prefs.browsePage = 0
                 }
                 updateSearchHint()
-                rowsAdapter.submit(emptyList(), null)
-                load(force = true)
+                lastRowsByMode[HomeMode.MOVIES]?.let {
+                    rowsAdapter.submit(it, lastHeroByMode[HomeMode.MOVIES])
+                }
+                load(force = false)
             }
         }
     }
@@ -542,9 +550,9 @@ class HomeActivity : ScaledAppCompatActivity() {
     private fun toggleChip(chip: GenreChip) = Unit
 
     private fun snapshotKey(m: HomeMode): String? = when (m) {
-        HomeMode.LIBRARY -> "library-v4"
-        HomeMode.SERIES -> "series-v4"
-        HomeMode.MOVIES -> "movies-v4"
+        HomeMode.LIBRARY -> "library"
+        HomeMode.SERIES -> "series"
+        HomeMode.MOVIES -> "movies"
         else -> null
     }
 
@@ -557,14 +565,24 @@ class HomeActivity : ScaledAppCompatActivity() {
         val key = snapshotKey(requestedMode)
         var paintedSnapshot = false
         loadJob = lifecycleScope.launch {
-            // Instant paint: last known rows for this tab, refreshed silently behind.
-            if (key != null && rowsAdapter.itemCount == 0) {
+            val memRows = lastRowsByMode[requestedMode]
+            if (memRows != null) {
+                paintedSnapshot = true
+                showSkeleton(false)
+                val featured = lastHeroByMode[requestedMode]
+                    ?: memRows.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
+                if (featured != null) heroSeries = featured
+                rowsAdapter.submit(memRows, featured)
+                if (featured != null) updateHero(featured)
+            } else if (key != null) {
                 repo.peekRowsSnapshot(key)?.let { snap ->
                     if (mode == requestedMode) {
                         paintedSnapshot = true
                         showSkeleton(false)
                         val featured = snap.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
                         if (featured != null) heroSeries = featured
+                        lastRowsByMode[requestedMode] = snap
+                        if (featured != null) lastHeroByMode[requestedMode] = featured
                         rowsAdapter.submit(snap, featured)
                         if (featured != null) updateHero(featured)
                         prefetchRowImages(snap)
@@ -592,6 +610,8 @@ class HomeActivity : ScaledAppCompatActivity() {
                 showSkeleton(false)
                 val featured = rows.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
                 if (featured != null) heroSeries = featured
+                lastRowsByMode[requestedMode] = rows
+                if (featured != null) lastHeroByMode[requestedMode] = featured
                 rowsAdapter.submit(rows, featured)
                 if (featured != null) updateHero(featured)
                 prefetchRowImages(rows)
@@ -1192,7 +1212,7 @@ private class RowsAdapter(
             lm.initialPrefetchItemCount = 8
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = true
+            list.clipChildren = false
             list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER

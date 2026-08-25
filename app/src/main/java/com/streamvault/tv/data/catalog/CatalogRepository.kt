@@ -63,6 +63,9 @@ class CatalogRepository(
     @Volatile private var memoryMoviesCatalog: Catalog? = null
     @Volatile private var memoryKind: String? = null
     @Volatile private var catalogRefreshing = false
+    @Volatile private var libraryRowsMem: List<HomeRow>? = null
+    @Volatile private var libraryRowsRefreshing = false
+    private val browseRowsMem = java.util.concurrent.ConcurrentHashMap<String, List<HomeRow>>()
     private val seriesAdapter get() = moshi.adapter(Series::class.java)
     private val rowsAdapter by lazy {
         moshi.adapter<List<HomeRow>>(
@@ -136,6 +139,13 @@ class CatalogRepository(
     }
 
     suspend fun getBrowseRows(forceRefresh: Boolean = false): List<HomeRow> = withContext(Dispatchers.IO) {
+        val memKey = "${if (isMoviesMode()) "m" else "s"}:${prefs.browsePage}"
+        if (forceRefresh) browseRowsMem.remove(memKey)
+        if (!forceRefresh) {
+            browseRowsMem[memKey]?.takeIf { rows -> rows.any { it.items.isNotEmpty() } }?.let { cached ->
+                return@withContext cached
+            }
+        }
         if (forceRefresh) {
             // Browse must not keep stale image/meta — wipe in-memory art only (never Room).
             artResolver.clear()
@@ -213,7 +223,7 @@ class CatalogRepository(
                 val items = genreMovies.map { hydrateBrowseArt(it) }.take(16)
                 if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
             }
-            return@withContext rows
+            return@withContext rows.also { browseRowsMem[memKey] = it }
         }
         // Category rows (limited) from genre pages — premium “shelves” with real covers
         allowedGenreChips().take(8).forEach { genre ->
@@ -222,7 +232,7 @@ class CatalogRepository(
             val items = genreSeries.map { hydrateBrowseArt(it) }.take(16)
             if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
         }
-        rows
+        rows.also { browseRowsMem[memKey] = it }
     }
 
     /**
@@ -300,6 +310,23 @@ class CatalogRepository(
     }
 
     suspend fun getLibraryRows(): List<HomeRow> = withContext(Dispatchers.IO) {
+        libraryRowsMem?.takeIf { rows -> rows.any { it.items.isNotEmpty() } }?.let { cached ->
+            if (!libraryRowsRefreshing) {
+                libraryRowsRefreshing = true
+                bgScope.launch {
+                    try {
+                        libraryRowsMem = buildLibraryRows()
+                    } finally {
+                        libraryRowsRefreshing = false
+                    }
+                }
+            }
+            return@withContext cached
+        }
+        buildLibraryRows().also { libraryRowsMem = it }
+    }
+
+    private suspend fun buildLibraryRows(): List<HomeRow> {
         val catalog = runCatching { loadCatalog(false) }.getOrNull()
         val favEntities = db.favorites().all(pid())
         val favorites = applyContentFilters(
@@ -393,7 +420,7 @@ class CatalogRepository(
             }
 
         val disliked = dislikedIdSet()
-        buildList {
+        return buildList {
             if (continueWatching.isNotEmpty()) {
                 add(HomeRow("Weiterschauen", continueWatching.take(8)))
             }
@@ -662,6 +689,8 @@ class CatalogRepository(
     fun onContentFiltersChanged() {
         genreMembers.clear()
         genreSeriesCache.clear()
+        libraryRowsMem = null
+        browseRowsMem.clear()
         cacheDir.listFiles()?.forEach { if (it.name.startsWith("rows-")) it.delete() }
     }
 
@@ -671,11 +700,21 @@ class CatalogRepository(
 
     /** Last successfully built rows for [key] — paint these instantly, refresh behind. */
     suspend fun peekRowsSnapshot(key: String): List<HomeRow>? = withContext(Dispatchers.IO) {
-        runCatching {
-            val f = rowsSnapshotFile(key)
-            if (!f.isFile || f.length() < 2) return@runCatching null
-            rowsAdapter.fromJson(f.readText())?.takeIf { rows -> rows.any { it.items.isNotEmpty() } }
-        }.getOrNull()
+        val aliases = when (key) {
+            "library" -> listOf("library", "library-v4", "library-v3")
+            "series" -> listOf("series", "series-v4", "series-v3")
+            "movies" -> listOf("movies", "movies-v4", "movies-v3")
+            else -> listOf(key)
+        }
+        for (alias in aliases) {
+            val rows = runCatching {
+                val f = rowsSnapshotFile(alias)
+                if (!f.isFile || f.length() < 2) return@runCatching null
+                rowsAdapter.fromJson(f.readText())?.takeIf { it.any { row -> row.items.isNotEmpty() } }
+            }.getOrNull()
+            if (rows != null) return@withContext rows
+        }
+        null
     }
 
     /** Persist rows for instant next paint. Seasons are stripped (row UI never needs them). */

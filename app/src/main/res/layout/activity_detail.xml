@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_app"
-    android:clipChildren="true"
+    android:clipChildren="false"
     android:clipToPadding="false">
 
     <ImageView
@@ -16,7 +16,7 @@
         android:contentDescription="@null"
         android:scaleType="centerCrop"
         android:src="@drawable/poster_placeholder"
-        app:layout_constraintBottom_toBottomOf="@id/heroBarrier"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -41,8 +41,8 @@
 
     <ImageView
         android:id="@+id/poster"
-        android:layout_width="152dp"
-        android:layout_height="228dp"
+        android:layout_width="188dp"
+        android:layout_height="282dp"
         android:layout_marginStart="40dp"
         android:layout_marginTop="24dp"
         android:adjustViewBounds="false"
@@ -147,7 +147,7 @@
         android:layout_marginStart="22dp"
         android:layout_marginTop="10dp"
         android:layout_marginEnd="40dp"
-        android:clipChildren="true"
+        android:clipChildren="false"
         android:clipToPadding="false"
         android:paddingStart="14dp"
         android:paddingEnd="8dp"
@@ -275,15 +275,15 @@
         android:id="@+id/episodeList"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipChildren="true"
+        android:clipChildren="false"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:nextFocusUp="@id/seasonTabs"
         android:orientation="horizontal"
         android:paddingStart="40dp"
-        android:paddingTop="6dp"
+        android:paddingTop="16dp"
         android:paddingEnd="40dp"
-        android:paddingBottom="20dp"
+        android:paddingBottom="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

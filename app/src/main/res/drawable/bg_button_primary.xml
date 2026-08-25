@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Netflix/tvOS play: filled gradient + top sheen. Focus lifts color, no white ring. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
@@ -13,22 +14,49 @@
                     <gradient
                         android:angle="270"
                         android:endColor="@color/sv_accent"
-                        android:startColor="@color/sv_accent_hover" />
+                        android:startColor="#FF7AB8FF" />
                     <corners android:radius="@dimen/vf_radius_pill" />
-                    <stroke
-                        android:width="2dp"
-                        android:color="@color/sv_focus_ring" />
+                </shape>
+            </item>
+            <item
+                android:bottom="26dp"
+                android:left="2dp"
+                android:right="2dp"
+                android:top="2dp">
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#00FFFFFF"
+                        android:startColor="#4DFFFFFF" />
+                    <corners android:radius="@dimen/vf_radius_pill" />
                 </shape>
             </item>
         </layer-list>
     </item>
     <item>
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="270"
-                android:endColor="#FF1E6AE8"
-                android:startColor="#FF4C9BFF" />
-            <corners android:radius="@dimen/vf_radius_pill" />
-        </shape>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#FF1A5FD6"
+                        android:startColor="#FF4C9BFF" />
+                    <corners android:radius="@dimen/vf_radius_pill" />
+                </shape>
+            </item>
+            <item
+                android:bottom="24dp"
+                android:left="2dp"
+                android:right="2dp"
+                android:top="2dp">
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#00FFFFFF"
+                        android:startColor="#33FFFFFF" />
+                    <corners android:radius="@dimen/vf_radius_pill" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
 </selector>

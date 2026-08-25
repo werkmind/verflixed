@@ -74,7 +74,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.episodeList.itemAnimator = null
         binding.episodeList.setHasFixedSize(true)
         binding.episodeList.isFocusable = false
-        binding.episodeList.clipChildren = true
+        binding.episodeList.clipChildren = false
         binding.episodeList.clipToPadding = false
         binding.seasonTabs.clipChildren = true
         binding.seasonTabs.clipToPadding = false
@@ -215,7 +215,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 append("  •  $watched gesehen")
             }
         }
-        binding.overview.maxLines = if (s.isMovie) 5 else 3
+        binding.overview.maxLines = if (s.isMovie) 14 else 3
         val overviewText = s.overview?.trim().orEmpty()
             .ifBlank { "Keine Beschreibung verfügbar." }
         binding.overview.text = overviewText

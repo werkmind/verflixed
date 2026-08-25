@@ -28,13 +28,11 @@ object FocusFx {
     }
 
     /**
-     * Scale may paint into a host's padding, never out of the section.
-     * Lists and screen roots stay clipped so a focused tile cannot overlay
-     * the row above it (that overlay also steals D-pad up).
+     * Scale may overflow a shelf (Apple TV). Only the vertical home list and
+     * screen roots clip, so a focused card cannot cover the sidebar/hero after
+     * you scroll Favoriten, but it can grow over its neighbours in the row.
      */
     fun allowFocusScale(view: View) {
-        // Walk each view's parent chain only once — this runs on every focus
-        // change otherwise, invalidating every ancestor per D-pad move.
         if (view.getTag(R.id.tag_focus_scale_done) == true) return
         view.setTag(R.id.tag_focus_scale_done, true)
         var host = view.parent as? ViewGroup ?: return
@@ -70,12 +68,9 @@ object FocusFx {
     }
 
     private fun isSectionClipHost(host: ViewGroup): Boolean {
-        if (host is androidx.recyclerview.widget.RecyclerView) return true
-        if (host is android.widget.HorizontalScrollView) return true
         return when (host.id) {
+            R.id.rows,
             R.id.homeRoot,
-            R.id.detailRoot,
-            R.id.heroContainer,
             R.id.playerRoot,
             R.id.playerChrome,
             -> true
@@ -87,7 +82,7 @@ object FocusFx {
     fun animateFocus(v: View, hasFocus: Boolean, focusedScale: Float = 1.06f) {
         allowFocusScale(v)
         val scale = if (hasFocus) focusedScale else 1f
-        val elevation = if (hasFocus) 12f else 0f
+        val elevation = if (hasFocus) 22f else 0f
         v.animate().cancel()
         // Focus moves are the highest-frequency interaction on TV — anything
         // slower than ~160ms reads as input lag when scrubbing along a row.

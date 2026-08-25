@@ -11,9 +11,6 @@
     <item android:state_focused="true">
         <shape android:shape="oval">
             <solid android:color="@color/sv_focus_fill" />
-            <stroke
-                android:width="2dp"
-                android:color="@color/sv_focus_ring" />
         </shape>
     </item>
     <item android:state_selected="true">
