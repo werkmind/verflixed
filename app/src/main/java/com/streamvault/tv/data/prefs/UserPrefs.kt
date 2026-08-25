@@ -185,16 +185,10 @@ class UserPrefs(context: Context) {
 
     val isLibraryCards: Boolean get() = libraryView(activeProfileId) == LIB_CARDS
 
-    /** UI zoom percent: 85 / 100 / 115 / 130. Device-wide, applied via densityDpi. */
+    /** UI zoom percent. Device-wide, applied via densityDpi. */
     var uiScalePercent: Int
         get() = normalizeScale(sp.getInt(KEY_UI_SCALE, SCALE_DEFAULT))
         set(value) = sp.edit { putInt(KEY_UI_SCALE, normalizeScale(value)) }
-
-    fun cycleUiScale(): Int {
-        val next = SCALE_STEPS[(SCALE_STEPS.indexOf(uiScalePercent) + 1) % SCALE_STEPS.size]
-        uiScalePercent = next
-        return next
-    }
 
     /**
      * Categories that must never be loaded (browse shelves, catalog, search).
@@ -247,8 +241,9 @@ class UserPrefs(context: Context) {
         const val NAV_TOPBAR = "topbar"
         const val LIB_TILES = "tiles"
         const val LIB_CARDS = "cards"
-        const val SCALE_DEFAULT = 100
-        val SCALE_STEPS = listOf(85, 100, 115, 130)
+        /** Default is slightly zoomed out so more shelves fit a 1080p TV. */
+        const val SCALE_DEFAULT = 85
+        val SCALE_STEPS = listOf(75, 85, 100, 115, 130)
         val DEFAULT_BLOCKED_GENRES = setOf("horror", "anime")
 
         const val DEFAULT_SERIES_BASE = "https://serienstream.cx"

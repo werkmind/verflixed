@@ -14,7 +14,7 @@ object UiScale {
     fun wrap(base: Context): Context {
         val percent = readPercent(base)
         if (abs(percent - 100) < 1) return base
-        val factor = (percent / 100f).coerceIn(0.75f, 1.45f)
+        val factor = (percent / 100f).coerceIn(0.70f, 1.45f)
         val src = base.resources.configuration
         val config = Configuration(src)
         val baseDpi = if (src.densityDpi > 0) {

@@ -175,20 +175,7 @@ class SettingsActivity : ScaledAppCompatActivity() {
             ).show()
         }
 
-        fun paintZoom() {
-            binding.btnToggleZoom.text = getString(R.string.settings_zoom_value, prefs.uiScalePercent)
-        }
-        paintZoom()
-        binding.btnToggleZoom.setOnClickListener {
-            val next = prefs.cycleUiScale()
-            paintZoom()
-            Toast.makeText(
-                this,
-                getString(R.string.settings_zoom_applied, next),
-                Toast.LENGTH_SHORT
-            ).show()
-            recreate()
-        }
+        bindScalePicker(prefs)
 
         fun paintLibraryView() {
             binding.btnToggleLibraryView.text = if (prefs.isLibraryCards) {
@@ -214,6 +201,44 @@ class SettingsActivity : ScaledAppCompatActivity() {
         }
 
         binding.btnProfileSync.setOnClickListener { showProfileSyncDialog() }
+    }
+
+    private fun bindScalePicker(prefs: UserPrefs) {
+        val labels = mapOf(
+            75 to R.string.settings_scale_75,
+            85 to R.string.settings_scale_85,
+            100 to R.string.settings_scale_100,
+            115 to R.string.settings_scale_115,
+            130 to R.string.settings_scale_130,
+        )
+        val current = prefs.uiScalePercent
+        val gap = (10 * resources.displayMetrics.density).toInt()
+        UserPrefs.SCALE_STEPS.forEachIndexed { index, percent ->
+            val chip = android.widget.Button(this, null, 0, R.style.SvButton_Ghost).apply {
+                text = getString(labels.getValue(percent))
+                isAllCaps = false
+                minWidth = (148 * resources.displayMetrics.density).toInt()
+                minHeight = (48 * resources.displayMetrics.density).toInt()
+                isSelected = percent == current
+                setOnClickListener {
+                    if (prefs.uiScalePercent == percent) return@setOnClickListener
+                    prefs.uiScalePercent = percent
+                    Toast.makeText(
+                        this@SettingsActivity,
+                        getString(R.string.settings_scale_applied, percent),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    recreate()
+                }
+            }
+            com.streamvault.tv.ui.util.FocusFx.bindScale(chip, 1.04f)
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            if (index > 0) lp.marginStart = gap
+            binding.scaleRow.addView(chip, lp)
+        }
     }
 
     private var syncServer: com.streamvault.tv.data.sync.ProfileSyncServer? = null

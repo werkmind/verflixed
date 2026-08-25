@@ -31,7 +31,7 @@
             android:layout_marginTop="8dp"
             android:text="@string/settings_title"
             android:textColor="@color/sv_text_primary"
-            android:textSize="32sp"
+            android:textSize="26sp"
             android:textStyle="bold" />
 
         <TextView
@@ -44,6 +44,42 @@
             android:padding="18dp"
             android:textColor="@color/sv_text_secondary"
             android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:letterSpacing="0.08"
+            android:text="@string/settings_scale_title"
+            android:textAllCaps="true"
+            android:textColor="@color/sv_text_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/settings_scale_hint"
+            android:textColor="@color/sv_text_secondary"
+            android:textSize="13sp" />
+
+        <HorizontalScrollView
+            android:id="@+id/scaleScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/scaleRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
 
         <EditText
             android:id="@+id/inputUpdateUrl"
@@ -116,15 +152,6 @@
             android:layout_marginTop="12dp"
             android:minWidth="220dp"
             android:text="Bibliothek: Kacheln" />
-
-        <Button
-            android:id="@+id/btnToggleZoom"
-            style="@style/SvButton.Ghost"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:minWidth="220dp"
-            android:text="@string/settings_zoom" />
 
         <Button
             android:id="@+id/btnToggleSounds"

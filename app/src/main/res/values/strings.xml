@@ -84,6 +84,14 @@
     <string name="settings_nav_topbar">Layout: Topbar</string>
     <string name="settings_lib_tiles">Bibliothek: Kacheln</string>
     <string name="settings_lib_cards">Bibliothek: Cards</string>
+    <string name="settings_scale_title">Anzeigegröße</string>
+    <string name="settings_scale_hint">Kleiner zeigt mehr auf dem Bildschirm. Gilt für die ganze App.</string>
+    <string name="settings_scale_applied">Anzeigegröße %1$d%% - Oberfläche wird neu geladen</string>
+    <string name="settings_scale_75">75%%  Kompakt</string>
+    <string name="settings_scale_85">85%%  Standard</string>
+    <string name="settings_scale_100">100%%  Komfort</string>
+    <string name="settings_scale_115">115%%  Groß</string>
+    <string name="settings_scale_130">130%%  Sehr groß</string>
     <string name="settings_zoom">Zoom: 100%</string>
     <string name="settings_zoom_value">Zoom: %1$d%%</string>
     <string name="settings_zoom_applied">Zoom %1$d%% - Oberfläche wird neu geladen</string>
