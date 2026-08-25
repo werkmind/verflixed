@@ -12,8 +12,8 @@ android {
         applicationId = "com.verflixed.tv"
         minSdk = 25
         targetSdk = 34
-        versionCode = 53
-        versionName = "1.18.1"
+        versionCode = 54
+        versionName = "1.19.0"
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
@@ -96,6 +96,9 @@ dependencies {
     ksp("com.github.bumptech.glide:ksp:4.16.0")
 
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // QR code rendering for local profile sync (pure Java, tiny).
+    implementation("com.google.zxing:core:3.5.3")
 
     // Cloudflare IUAM / challenge auto-click WebViewClient (darkryh, MIT)
     implementation("com.github.darkryh:Cloudflare-Bypass:0.0.5")

@@ -141,8 +141,17 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:layout_marginBottom="24dp"
             android:minWidth="220dp"
             android:text="@string/profile_switcher" />
+
+        <Button
+            android:id="@+id/btnProfileSync"
+            style="@style/SvButton.Ghost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="24dp"
+            android:minWidth="220dp"
+            android:text="@string/settings_profile_sync" />
     </LinearLayout>
 </ScrollView>

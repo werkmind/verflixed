@@ -6,7 +6,7 @@
                 android:angle="270"
                 android:startColor="#FF6FB2FF"
                 android:endColor="#FF3D8BFF" />
-            <corners android:radius="18dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
             <stroke
                 android:width="2dp"
                 android:color="@color/sv_focus_ring_soft" />
@@ -18,7 +18,7 @@
                 android:angle="270"
                 android:startColor="#FF3F8CFF"
                 android:endColor="#FF2568D8" />
-            <corners android:radius="18dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
     <item android:state_focused="true">
@@ -27,7 +27,7 @@
                 android:angle="270"
                 android:startColor="#4A3F8CFF"
                 android:endColor="#2E2F80FF" />
-            <corners android:radius="18dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
             <stroke
                 android:width="2dp"
                 android:color="@color/sv_focus_ring" />
@@ -39,7 +39,7 @@
                 android:angle="270"
                 android:startColor="#1AFFFFFF"
                 android:endColor="#0AFFFFFF" />
-            <corners android:radius="18dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
             <stroke
                 android:width="1dp"
                 android:color="#22FFFFFF" />

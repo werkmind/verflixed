@@ -162,22 +162,33 @@ class CatalogRepository(
                     .take(16)
                 if (neu.isNotEmpty()) rows += HomeRow("Neu", neu)
                 val week = runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
-                if (week.isNotEmpty()) {
-                    val calItems = applyContentFilters(
-                        week.distinctBy { it.seriesId + it.date }.take(16).map { e ->
-                            Series(
-                                id = e.seriesId,
-                                title = "${e.title} · S${e.seasonNumber}E${e.episodeNumber}",
-                                posterUrl = e.coverUrl,
-                                backdropUrl = e.coverUrl,
-                                overview = e.label(),
-                                detailPath = e.detailPath,
-                                mediaKind = "series",
-                            )
+                // Calendar as calendar: one shelf per day with weekday header.
+                week.filter { it.date.isNotBlank() }
+                    .groupBy { it.date }
+                    .toSortedMap()
+                    .entries.take(3)
+                    .forEach { (day, entries) ->
+                        val calItems = applyContentFilters(
+                            entries.distinctBy { it.seriesId }.take(16).map { e ->
+                                Series(
+                                    id = e.seriesId,
+                                    title = e.title,
+                                    posterUrl = e.coverUrl,
+                                    backdropUrl = e.coverUrl,
+                                    overview = "S${e.seasonNumber}E${e.episodeNumber}",
+                                    detailPath = e.detailPath,
+                                    mediaKind = "series",
+                                    genres = listOfNotNull(
+                                        if (!e.released) "DEMNÄCHST"
+                                        else e.time.takeIf { it.isNotBlank() }?.let { "$it Uhr" },
+                                    ),
+                                )
+                            }
+                        )
+                        if (calItems.isNotEmpty()) {
+                            rows += HomeRow("Kalender · ${germanDayTitle(day)}", calItems)
                         }
-                    )
-                    if (calItems.isNotEmpty()) rows += HomeRow("Serienkalender", calItems)
-                }
+                    }
             }
         }
 
@@ -392,9 +403,12 @@ class CatalogRepository(
                     "S${e.seasonNumber}"
                 }
                 val badge = when {
-                    !e.released -> e.releaseLabel?.takeIf { it.isNotBlank() }?.let { "DEMNÄCHST · $it" }
+                    // Day-grouped shelves already carry the date in the header —
+                    // the tile badge only needs the state or the air time.
+                    !e.released -> e.time.takeIf { it.isNotBlank() }?.let { "DEMNÄCHST · $it" }
                         ?: "DEMNÄCHST"
-                    else -> e.releaseLabel ?: listOf(e.date, e.time).filter { it.isNotBlank() }.joinToString(" ")
+                    e.time.isNotBlank() -> "${e.time} Uhr"
+                    else -> e.releaseLabel ?: e.date
                 }
                 Series(
                     id = e.seriesId,
@@ -411,12 +425,25 @@ class CatalogRepository(
                 )
             }
 
+        val disliked = dislikedIdSet()
         buildList {
             if (continueWatching.isNotEmpty()) {
                 add(HomeRow("Weiterschauen", continueWatching.take(8)))
             }
             val catalogPool = applyContentFilters(catalog?.series.orEmpty())
-            val becauseExclude = (favorites.map { it.id } + continueIdSet).toMutableSet()
+                .filterNot { it.id in disliked }
+            val becauseExclude = (favorites.map { it.id } + continueIdSet + disliked).toMutableSet()
+            // Taste-driven rows first: "Weil du X liebst/magst" beats watch history.
+            ratedSeeds().forEach { (seed, rating) ->
+                val similar = becauseYouWatched(
+                    catalog = catalogPool,
+                    seed = seed,
+                    excludeIds = becauseExclude,
+                )
+                if (similar.size < 4) return@forEach
+                add(HomeRow(ratedRowTitle(seed, rating), similar))
+                becauseExclude += similar.map { it.id }
+            }
             becauseYouWatchedSeeds(allProgress, favorites, catalog?.series.orEmpty()).forEach { seed ->
                 val similar = becauseYouWatched(
                     catalog = catalogPool,
@@ -434,10 +461,39 @@ class CatalogRepository(
             if (az.size >= 8) add(HomeRow("A-Z", az))
             if (upcoming.isNotEmpty()) add(HomeRow("Kalender · Demnächst", applyContentFilters(calendarAsSeries(upcoming))))
             if (recentNew.isNotEmpty()) add(HomeRow("Kalender · Neu", applyContentFilters(calendarAsSeries(recentNew))))
-            if (weekCalendar.isNotEmpty()) add(HomeRow("Serienkalender", applyContentFilters(calendarAsSeries(weekCalendar))))
+            // Serienkalender as a real calendar: one shelf per day, headed by the weekday.
+            weekCalendar.filter { it.date.isNotBlank() }
+                .groupBy { it.date }
+                .toSortedMap()
+                .entries.take(6)
+                .forEach { (day, entries) ->
+                    val items = applyContentFilters(calendarAsSeries(entries))
+                    if (items.isNotEmpty()) add(HomeRow("Kalender · ${germanDayTitle(day)}", items))
+                }
             if (recentlyWatched.isNotEmpty()) add(HomeRow("Zuletzt gesehen", applyContentFilters(recentlyWatched)))
         }
     }
+
+    /** "Heute · Dienstag 25.08." style shelf headers for the calendar. */
+    private fun germanDayTitle(dateStr: String): String = runCatching {
+        val d = java.time.LocalDate.parse(dateStr.take(10))
+        val today = java.time.LocalDate.now()
+        val weekday = when (d.dayOfWeek) {
+            java.time.DayOfWeek.MONDAY -> "Montag"
+            java.time.DayOfWeek.TUESDAY -> "Dienstag"
+            java.time.DayOfWeek.WEDNESDAY -> "Mittwoch"
+            java.time.DayOfWeek.THURSDAY -> "Donnerstag"
+            java.time.DayOfWeek.FRIDAY -> "Freitag"
+            java.time.DayOfWeek.SATURDAY -> "Samstag"
+            java.time.DayOfWeek.SUNDAY -> "Sonntag"
+        }
+        val dm = "%02d.%02d.".format(d.dayOfMonth, d.monthValue)
+        when (d) {
+            today -> "Heute · $weekday $dm"
+            today.plusDays(1) -> "Morgen · $weekday $dm"
+            else -> "$weekday · $dm"
+        }
+    }.getOrDefault(dateStr)
 
     /** @deprecated use getBrowseRows / getLibraryRows */
     suspend fun getHomeRows(forceRefresh: Boolean = false): List<HomeRow> = withContext(Dispatchers.IO) {
@@ -1728,6 +1784,52 @@ class CatalogRepository(
         val name = seed.title.trim().ifBlank { "diesen Titel" }
         val short = if (name.length > 36) name.take(34).trimEnd() + "…" else name
         return "Weil du $short geschaut hast"
+    }
+
+    // ── Taste ratings: mag ich (-1/1/2) ────────────────────────────────────
+
+    /** rating: -1 = mag ich nicht, 0 = neutral (löschen), 1 = mag ich, 2 = liebe ich */
+    suspend fun setRating(series: Series, rating: Int) = withContext(Dispatchers.IO) {
+        val profile = pid()
+        if (rating == 0) {
+            db.ratings().remove(profile, series.id)
+        } else {
+            db.ratings().upsert(
+                com.streamvault.tv.data.db.RatingEntity(
+                    profileId = profile,
+                    seriesId = series.id,
+                    rating = rating.coerceIn(-1, 2),
+                    title = series.title,
+                    cachedJson = seriesAdapter.toJson(series),
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    suspend fun getRating(seriesId: String): Int = withContext(Dispatchers.IO) {
+        db.ratings().get(pid(), seriesId)?.rating ?: 0
+    }
+
+    private suspend fun dislikedIdSet(): Set<String> =
+        runCatching { db.ratings().dislikedIds(pid()).toSet() }.getOrDefault(emptySet())
+
+    /** Liked/loved titles as recommendation seeds, loved first. */
+    private suspend fun ratedSeeds(limit: Int = 3): List<Pair<Series, Int>> =
+        runCatching {
+            db.ratings().liked(pid())
+                .sortedByDescending { it.rating * 1_000_000_000L + it.updatedAt / 1000 }
+                .take(limit)
+                .mapNotNull { entity ->
+                    runCatching { seriesAdapter.fromJson(entity.cachedJson) }.getOrNull()
+                        ?.let { it to entity.rating }
+                }
+        }.getOrDefault(emptyList())
+
+    private fun ratedRowTitle(seed: Series, rating: Int): String {
+        val name = seed.title.trim().ifBlank { "diesen Titel" }
+        val short = if (name.length > 36) name.take(34).trimEnd() + "…" else name
+        return if (rating >= 2) "Weil du $short liebst" else "Weil du $short magst"
     }
 
     suspend fun saveProgress(

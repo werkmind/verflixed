@@ -58,6 +58,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     private var warmingStreams = false
     private var readyDotsJob: Job? = null
     private var warmupSeriesId: String? = null
+    private var currentRating: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +86,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnFavorite,
             binding.btnSeasonWatched,
             binding.btnLanguage,
+            binding.btnRate,
             binding.btnMore,
         ).forEach {
             FocusFx.bindScale(it, 1.04f)
@@ -93,8 +95,9 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
         binding.btnSeasonWatched.setOnClickListener { toggleSeasonWatched() }
         binding.btnMore.setOnClickListener { showContextMenu() }
+        binding.btnRate.setOnClickListener { showRatingDialog() }
         binding.btnLanguage.visibility = View.GONE
-        binding.btnLanguage.setOnClickListener { toggleStreamLanguage() }
+        binding.btnLanguage.setOnClickListener { showLanguageDialog() }
         wireActionFocusChain()
         binding.btnPlay.setOnClickListener {
             val s = series ?: return@setOnClickListener
@@ -132,12 +135,14 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 val p = repo.progressForSeries(id)
                 val fav = repo.isFavorite(id)
                 val cache = repo.favoriteCacheState(id)
+                currentRating = runCatching { repo.getRating(id) }.getOrDefault(0)
                 Quad(s, p, fav, cache)
             }.onSuccess { (s, p, fav, cache) ->
                 binding.progress.visibility = View.GONE
                 series = s
                 progressMap = p
                 bindSeries(s, fav)
+                paintRatingButton()
                 renderCacheStatus(cache?.cached ?: 0, cache?.total ?: s.flatEpisodes().size, cache?.status)
                 refreshReadyDots(s.id)
                 if (fav && cache?.status != "ready") {
@@ -282,8 +287,8 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     private fun wireActionFocusChain() {
         val langVisible = binding.btnLanguage.visibility == View.VISIBLE
         binding.btnSeasonWatched.nextFocusRightId =
-            if (langVisible) R.id.btnLanguage else R.id.btnMore
-        binding.btnMore.nextFocusLeftId =
+            if (langVisible) R.id.btnLanguage else R.id.btnRate
+        binding.btnRate.nextFocusLeftId =
             if (langVisible) R.id.btnLanguage else R.id.btnSeasonWatched
         val down = if (series?.isMovie == true) View.NO_ID else {
             if (binding.seasonTabs.visibility == View.VISIBLE) R.id.seasonTabs else R.id.episodeList
@@ -293,6 +298,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnFavorite,
             binding.btnSeasonWatched,
             binding.btnLanguage,
+            binding.btnRate,
             binding.btnMore,
         ).forEach { it.nextFocusDownId = down }
     }
@@ -302,14 +308,76 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.btnLanguage.contentDescription = "Ton: ${StreamLanguage.label(activePageLang)}"
     }
 
-    private fun toggleStreamLanguage() {
+    /** Meaningful switcher: list every available Tonspur with the active one checked. */
+    private fun showLanguageDialog() {
         if (languagePages.size < 2) {
             binding.btnLanguage.visibility = View.GONE
             return
         }
+        val langs = languagePages.keys.toList()
+        val labels = langs.map { StreamLanguage.label(it) }.toTypedArray()
+        val current = langs.indexOf(activePageLang).coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Tonspur wählen")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                dialog.dismiss()
+                val chosen = langs[which]
+                if (chosen != activePageLang) applyStreamLanguage(chosen)
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    /** "Das mag ich / mag ich nicht / liebe ich" — drives recommendations. */
+    private fun showRatingDialog() {
+        val s = series ?: return
+        val repo = (application as VerflixedApp).container.catalog
+        val options = arrayOf("Das liebe ich", "Das mag ich", "Das mag ich nicht")
+        val values = intArrayOf(2, 1, -1)
+        val current = values.indexOf(currentRating)
+        android.app.AlertDialog.Builder(this)
+            .setTitle(s.title)
+            .setSingleChoiceItems(options, current) { dialog, which ->
+                dialog.dismiss()
+                val next = if (values[which] == currentRating) 0 else values[which]
+                lifecycleScope.launch {
+                    runCatching { repo.setRating(s, next) }
+                    currentRating = next
+                    paintRatingButton()
+                    Toast.makeText(
+                        this@SeriesDetailActivity,
+                        when (next) {
+                            2 -> "Gespeichert: Das liebe ich. Empfehlungen werden angepasst."
+                            1 -> "Gespeichert: Das mag ich"
+                            -1 -> "Gespeichert: Das mag ich nicht. Wird seltener empfohlen."
+                            else -> "Bewertung entfernt"
+                        },
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNeutralButton("Bewertung entfernen") { _, _ ->
+                lifecycleScope.launch {
+                    runCatching { repo.setRating(s, 0) }
+                    currentRating = 0
+                    paintRatingButton()
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun paintRatingButton() {
+        binding.btnRate.text = when (currentRating) {
+            2 -> "❤ Liebe ich"
+            1 -> "Mag ich"
+            -1 -> "Mag ich nicht"
+            else -> getString(R.string.detail_rate)
+        }
+    }
+
+    private fun applyStreamLanguage(next: String) {
         val app = application as VerflixedApp
-        val next = languagePages.keys.firstOrNull { it != activePageLang }
-            ?: StreamLanguage.toggle(activePageLang)
         val nextPage = languagePages[next]
         lifecycleScope.launch {
             app.container.catalog.setPreferredStreamLanguage(next)

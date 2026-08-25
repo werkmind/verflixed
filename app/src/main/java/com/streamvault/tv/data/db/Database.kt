@@ -45,6 +45,20 @@ data class WatchProgressEntity(
     val updatedAt: Long
 )
 
+/**
+ * User taste rating per series: -1 = mag ich nicht, 1 = mag ich, 2 = liebe ich.
+ * Drives recommendation rows and filters disliked titles out of shelves.
+ */
+@Entity(tableName = "ratings", primaryKeys = ["profileId", "seriesId"])
+data class RatingEntity(
+    val profileId: String,
+    val seriesId: String,
+    val rating: Int,
+    val title: String,
+    val cachedJson: String,
+    val updatedAt: Long
+)
+
 @Entity(tableName = "stream_cache", primaryKeys = ["profileId", "episodeId"])
 data class StreamCacheEntity(
     val profileId: String,
@@ -125,6 +139,30 @@ interface WatchDao {
 }
 
 @Dao
+interface RatingDao {
+    @Query("SELECT * FROM ratings WHERE profileId = :profileId ORDER BY updatedAt DESC")
+    suspend fun all(profileId: String): List<RatingEntity>
+
+    @Query("SELECT * FROM ratings WHERE profileId = :profileId AND seriesId = :seriesId LIMIT 1")
+    suspend fun get(profileId: String, seriesId: String): RatingEntity?
+
+    @Query("SELECT * FROM ratings WHERE profileId = :profileId AND rating >= :minRating ORDER BY updatedAt DESC")
+    suspend fun liked(profileId: String, minRating: Int = 1): List<RatingEntity>
+
+    @Query("SELECT seriesId FROM ratings WHERE profileId = :profileId AND rating < 0")
+    suspend fun dislikedIds(profileId: String): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: RatingEntity)
+
+    @Query("DELETE FROM ratings WHERE profileId = :profileId AND seriesId = :seriesId")
+    suspend fun remove(profileId: String, seriesId: String)
+
+    @Query("DELETE FROM ratings WHERE profileId = :profileId")
+    suspend fun clearProfile(profileId: String)
+}
+
+@Dao
 interface StreamCacheDao {
     @Query("SELECT * FROM stream_cache WHERE profileId = :profileId AND episodeId = :episodeId LIMIT 1")
     suspend fun get(profileId: String, episodeId: String): StreamCacheEntity?
@@ -156,9 +194,10 @@ interface StreamCacheDao {
         ProfileEntity::class,
         FavoriteEntity::class,
         WatchProgressEntity::class,
-        StreamCacheEntity::class
+        StreamCacheEntity::class,
+        RatingEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -166,4 +205,23 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favorites(): FavoriteDao
     abstract fun watch(): WatchDao
     abstract fun streams(): StreamCacheDao
+    abstract fun ratings(): RatingDao
+
+    companion object {
+        /** Additive migration — never wipe favorites/progress on update. */
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ratings` (" +
+                        "`profileId` TEXT NOT NULL, " +
+                        "`seriesId` TEXT NOT NULL, " +
+                        "`rating` INTEGER NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`cachedJson` TEXT NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`profileId`, `seriesId`))"
+                )
+            }
+        }
+    }
 }

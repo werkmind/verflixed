@@ -123,20 +123,37 @@ class SettingsActivity : ScaledAppCompatActivity() {
         }
         paintLanguage()
         binding.btnToggleLanguage.setOnClickListener {
-            val next = com.streamvault.tv.data.catalog.StreamLanguage.toggle(
-                prefs.streamLanguage(prefs.activeProfileId)
+            val codes = arrayOf(
+                com.streamvault.tv.data.catalog.StreamLanguage.DE,
+                com.streamvault.tv.data.catalog.StreamLanguage.EN,
             )
-            prefs.setStreamLanguage(prefs.activeProfileId, next)
-            paintLanguage()
-            lifecycleScope.launch {
-                // Clear stream cache for active profile so language switch takes effect.
-                runCatching { app.container.catalog.clearCache() }
-            }
-            Toast.makeText(
-                this,
-                "Profil-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(next)}",
-                Toast.LENGTH_SHORT
-            ).show()
+            val labels = codes.map {
+                com.streamvault.tv.data.catalog.StreamLanguage.label(it)
+            }.toTypedArray()
+            val current = codes.indexOf(
+                com.streamvault.tv.data.catalog.StreamLanguage.normalize(
+                    prefs.streamLanguage(prefs.activeProfileId)
+                )
+            ).coerceAtLeast(0)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Bevorzugter Ton für dieses Profil")
+                .setSingleChoiceItems(labels, current) { dialog, which ->
+                    val next = codes[which]
+                    prefs.setStreamLanguage(prefs.activeProfileId, next)
+                    paintLanguage()
+                    lifecycleScope.launch {
+                        // Clear stream cache so the language switch takes effect.
+                        runCatching { app.container.catalog.clearCache() }
+                    }
+                    Toast.makeText(
+                        this,
+                        "Profil-Ton: ${labels[which]}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Abbrechen", null)
+                .show()
         }
 
         fun paintNav() {
@@ -195,5 +212,90 @@ class SettingsActivity : ScaledAppCompatActivity() {
         binding.btnProfiles.setOnClickListener {
             startActivity(Intent(this, com.streamvault.tv.ui.profile.ProfilesActivity::class.java))
         }
+
+        binding.btnProfileSync.setOnClickListener { showProfileSyncDialog() }
+    }
+
+    private var syncServer: com.streamvault.tv.data.sync.ProfileSyncServer? = null
+
+    /**
+     * "Cloud"-Profile ohne Cloud: startet einen lokalen HTTP-Server und zeigt
+     * dessen Adresse als QR-Code. Handy scannt, lädt das Profil als JSON oder
+     * spielt ein Backup zurück. Server lebt nur solange der Dialog offen ist.
+     */
+    private fun showProfileSyncDialog() {
+        val app = application as VerflixedApp
+        val server = com.streamvault.tv.data.sync.ProfileSyncServer(
+            app.container.db, app.container.prefs, app.container.moshi,
+        )
+        val url = server.start()
+        if (url == null) {
+            Toast.makeText(this, getString(R.string.settings_profile_sync_error), Toast.LENGTH_LONG).show()
+            return
+        }
+        syncServer = server
+
+        val density = resources.displayMetrics.density
+        val sizePx = (280 * density).toInt()
+        val qr = renderQr(url, sizePx)
+
+        val pad = (24 * density).toInt()
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            setPadding(pad, pad, pad, pad)
+        }
+        layout.addView(android.widget.ImageView(this).apply {
+            setImageBitmap(qr)
+            contentDescription = url
+        })
+        layout.addView(android.widget.TextView(this).apply {
+            text = url
+            textSize = 18f
+            setTextColor(0xFFE8EDF7.toInt())
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, pad / 2, 0, 0)
+        })
+        layout.addView(android.widget.TextView(this).apply {
+            text = getString(R.string.settings_profile_sync_hint)
+            textSize = 13f
+            setTextColor(0xFF9FB0CC.toInt())
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, pad / 2, 0, 0)
+        })
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.settings_profile_sync))
+            .setView(layout)
+            .setPositiveButton("Fertig", null)
+            .setOnDismissListener {
+                syncServer?.stop()
+                syncServer = null
+            }
+            .show()
+    }
+
+    private fun renderQr(content: String, sizePx: Int): android.graphics.Bitmap {
+        val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(
+            content,
+            com.google.zxing.BarcodeFormat.QR_CODE,
+            sizePx,
+            sizePx,
+            mapOf(com.google.zxing.EncodeHintType.MARGIN to 1),
+        )
+        val pixels = IntArray(sizePx * sizePx)
+        for (y in 0 until sizePx) {
+            for (x in 0 until sizePx) {
+                pixels[y * sizePx + x] =
+                    if (matrix.get(x, y)) 0xFF0B1220.toInt() else 0xFFFFFFFF.toInt()
+            }
+        }
+        return android.graphics.Bitmap.createBitmap(pixels, sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        syncServer?.stop()
+        syncServer = null
     }
 }

@@ -7,7 +7,7 @@
                 android:angle="270"
                 android:startColor="#F2202A40"
                 android:endColor="#F2141B2C" />
-            <corners android:radius="12dp" />
+            <corners android:radius="@dimen/vf_radius" />
             <stroke
                 android:width="2dp"
                 android:color="@color/sv_focus_ring" />
@@ -19,7 +19,7 @@
                 android:angle="270"
                 android:startColor="#EE1B2334"
                 android:endColor="#EE10141F" />
-            <corners android:radius="12dp" />
+            <corners android:radius="@dimen/vf_radius" />
             <stroke
                 android:width="1dp"
                 android:color="#26FFFFFF" />

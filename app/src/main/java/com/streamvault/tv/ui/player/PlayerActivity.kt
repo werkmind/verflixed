@@ -920,8 +920,20 @@ class PlayerActivity : ScaledAppCompatActivity() {
             .setDefaultRequestProperties(headers)
 
         player?.release()
+        // Fast start + deep buffer: begin playback after ~1.2s of media, then keep
+        // buffering up to 2 minutes ahead so mid-episode stalls become rare.
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 30_000,
+                /* maxBufferMs = */ 120_000,
+                /* bufferForPlaybackMs = */ 1_200,
+                /* bufferForPlaybackAfterRebufferMs = */ 2_500,
+            )
+            .setBackBuffer(/* backBufferDurationMs = */ 30_000, /* retainBackBufferFromKeyframe = */ true)
+            .build()
         val exo = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory))
+            .setLoadControl(loadControl)
             .build()
         player = exo
         binding.playerView.player = exo

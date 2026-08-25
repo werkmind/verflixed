@@ -56,7 +56,9 @@ class AppContainer(context: Context) {
         appContext,
         AppDatabase::class.java,
         "verflixed.db"
-    ).fallbackToDestructiveMigration().build()
+    ).addMigrations(AppDatabase.MIGRATION_5_6)
+        .fallbackToDestructiveMigration()
+        .build()
 
     val parser = CatalogParser(moshi)
     val tmdb = TmdbClient(http, moshi, prefs)

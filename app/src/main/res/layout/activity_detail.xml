@@ -170,9 +170,23 @@
                 android:minHeight="38dp"
                 android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnSeasonWatched"
-                android:nextFocusRight="@id/btnMore"
+                android:nextFocusRight="@id/btnRate"
                 android:text="DE"
                 android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnRate"
+                style="@style/SvButton.Ghost"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginStart="10dp"
+                android:minWidth="72dp"
+                android:minHeight="38dp"
+                android:nextFocusDown="@id/seasonTabs"
+                android:nextFocusLeft="@id/btnSeasonWatched"
+                android:nextFocusRight="@id/btnMore"
+                android:text="@string/detail_rate"
+                android:contentDescription="@string/detail_rate_cd" />
 
             <Button
                 android:id="@+id/btnMore"
@@ -183,7 +197,7 @@
                 android:minWidth="48dp"
                 android:minHeight="38dp"
                 android:nextFocusDown="@id/seasonTabs"
-                android:nextFocusLeft="@id/btnSeasonWatched"
+                android:nextFocusLeft="@id/btnRate"
                 android:text="@string/detail_more_menu"
                 android:contentDescription="@string/detail_more_menu_cd" />
         </LinearLayout>

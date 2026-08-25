@@ -32,24 +32,25 @@ BEATS: dict[str, float] = {
     "WORD_IN": 5.45,
     "WORD_OUT": 6.05,
     # Surrounding blue energy falls back to black; the V stays crisp.
-    "FADE_IN": 6.05,
+    "FADE_IN": 5.75,
 }
 
-# Geometry constants the renderer and the shader must agree on.
-TRAVEL_LEN = 26.0
-MARK_SCALE = 1.75
-MARK_Z = TRAVEL_LEN + 4.60
-MARK_Y = 0.42
+# Geometry constants the renderer and the shader must agree on. The sculpture's
+# innermost contour is the mark itself, so both share one scale.
+MARK_SCALE = 2.05
+MARK_Y = 0.95
+TERR_SCALE = 2.05
+TERR_TOP = 0.10
 
 
 def glsl_defines() -> str:
     """Emit the beat map as `#define`s for injection into the shader."""
     lines = [
         f"#define T_DUR {DURATION:.4f}",
-        f"#define TRAVEL_LEN {TRAVEL_LEN:.4f}",
         f"#define MARK_SCALE {MARK_SCALE:.4f}",
-        f"#define MARK_Z {MARK_Z:.4f}",
         f"#define MARK_Y {MARK_Y:.4f}",
+        f"#define TERR_SCALE {TERR_SCALE:.4f}",
+        f"#define TERR_TOP {TERR_TOP:.4f}",
     ]
     lines += [f"#define T_{name} {value:.4f}" for name, value in BEATS.items()]
     return "\n".join(lines)

@@ -31,6 +31,8 @@
     <string name="detail_episodes">Episoden</string>
     <string name="detail_mark_season_watched">Staffel gesehen</string>
     <string name="detail_mark_season_unwatched">Staffel zurücksetzen</string>
+    <string name="detail_rate">Bewerten</string>
+    <string name="detail_rate_cd">Titel bewerten: mag ich, mag ich nicht oder liebe ich</string>
     <string name="detail_more_menu">⋯</string>
     <string name="detail_more_menu_cd">Mehr Optionen / Streams neu laden</string>
     <string name="watched">Gesehen</string>
@@ -54,6 +56,9 @@
     <string name="settings_refresh">Aktualisieren</string>
     <string name="settings_sounds">UI-Sounds</string>
     <string name="settings_sounds_on">UI-Sounds: An</string>
+    <string name="settings_profile_sync">Profil-Sync (QR)</string>
+    <string name="settings_profile_sync_hint">Mit dem Handy scannen oder die Adresse im Browser öffnen. Profil herunterladen als Backup, oder ein Backup hochladen. Läuft nur, solange dieser Dialog offen ist.</string>
+    <string name="settings_profile_sync_error">Sync-Server konnte nicht starten. WLAN prüfen.</string>
     <string name="settings_sounds_off">UI-Sounds: Aus</string>
     <string name="library_empty">Noch keine Favoriten. Wechsle zu Serien/Filme und favorisiere Titel - dann erscheinen Kalender &amp; Metadaten-Cache.</string>
     <string name="update_downloading">Update wird geladen… %1$d%%</string>

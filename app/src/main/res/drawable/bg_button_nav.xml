@@ -4,13 +4,13 @@
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_accent_soft" />
-            <corners android:radius="17dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_focus_fill" />
-            <corners android:radius="17dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
             <stroke
                 android:width="2dp"
                 android:color="@color/sv_focus_ring" />
@@ -19,13 +19,13 @@
     <item android:state_selected="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_card_fill" />
-            <corners android:radius="17dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@android:color/transparent" />
-            <corners android:radius="17dp" />
+            <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
 </selector>
