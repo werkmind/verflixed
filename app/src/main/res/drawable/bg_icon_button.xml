@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Round action button (Netflix-style): glass circle, accent focus fill + tinted ring. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/sv_accent_soft" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/sv_accent" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="270"
+                android:startColor="#4A3F8CFF"
+                android:endColor="#2E2F80FF" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/sv_focus_ring" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="270"
+                android:startColor="#1CFFFFFF"
+                android:endColor="#0AFFFFFF" />
+            <stroke
+                android:width="1dp"
+                android:color="#24FFFFFF" />
+        </shape>
+    </item>
+</selector>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Netflix-style rating: three round icon actions, D-pad friendly. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="20dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="20dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <ImageButton
+            android:id="@+id/rateDislike"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/rate_dislike"
+            android:padding="15dp"
+            android:src="@drawable/ic_thumb_down"
+            app:tint="@color/sv_text_primary" />
+
+        <TextView
+            android:id="@+id/rateDislikeLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/rate_dislike"
+            android:textColor="@color/sv_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="20dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <ImageButton
+            android:id="@+id/rateLike"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/rate_like"
+            android:padding="15dp"
+            android:src="@drawable/ic_thumb_up"
+            app:tint="@color/sv_text_primary" />
+
+        <TextView
+            android:id="@+id/rateLikeLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/rate_like"
+            android:textColor="@color/sv_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <ImageButton
+            android:id="@+id/rateLove"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/rate_love"
+            android:padding="15dp"
+            android:src="@drawable/ic_heart_filled"
+            app:tint="@color/sv_text_primary" />
+
+        <TextView
+            android:id="@+id/rateLoveLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/rate_love"
+            android:textColor="@color/sv_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

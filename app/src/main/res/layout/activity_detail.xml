@@ -64,7 +64,7 @@
         android:layout_marginEnd="40dp"
         android:ellipsize="end"
         android:maxLines="2"
-        android:textSize="28sp"
+        android:textSize="32sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/poster"
         app:layout_constraintTop_toTopOf="@id/poster" />
@@ -120,6 +120,7 @@
             android:layout_height="wrap_content"
             android:clipChildren="false"
             android:clipToPadding="false"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingTop="4dp"
             android:paddingEnd="8dp"
@@ -129,77 +130,67 @@
                 android:id="@+id/btnPlay"
                 style="@style/SvButton.Primary"
                 android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:minWidth="124dp"
-                android:minHeight="38dp"
+                android:layout_height="44dp"
+                android:drawableStart="@drawable/ic_play_arrow"
+                android:drawablePadding="6dp"
+                android:drawableTint="@color/sv_button_primary_text"
+                android:minWidth="140dp"
+                android:minHeight="44dp"
                 android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusRight="@id/btnFavorite"
+                android:paddingStart="14dp"
+                android:paddingEnd="18dp"
                 android:text="@string/detail_play" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/btnFavorite"
-                style="@style/SvButton.Ghost"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="10dp"
-                android:minHeight="38dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/detail_my_list"
                 android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnPlay"
-                android:nextFocusRight="@id/btnSeasonWatched"
-                android:text="@string/detail_favorite_add" />
+                android:nextFocusRight="@id/btnRate"
+                android:padding="10dp"
+                android:src="@drawable/ic_star"
+                app:tint="@color/sv_text_primary" />
 
-            <Button
-                android:id="@+id/btnSeasonWatched"
-                style="@style/SvButton.Ghost"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="10dp"
-                android:minHeight="38dp"
+            <ImageButton
+                android:id="@+id/btnRate"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/detail_rate_cd"
                 android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnFavorite"
                 android:nextFocusRight="@id/btnMore"
-                android:text="@string/detail_mark_season_watched" />
+                android:padding="10dp"
+                android:src="@drawable/ic_thumb_up"
+                app:tint="@color/sv_text_primary" />
 
-            <Button
-                android:id="@+id/btnLanguage"
-                style="@style/SvButton.Ghost"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="10dp"
-                android:minWidth="72dp"
-                android:minHeight="38dp"
-                android:nextFocusDown="@id/seasonTabs"
-                android:nextFocusLeft="@id/btnSeasonWatched"
-                android:nextFocusRight="@id/btnRate"
-                android:text="DE"
-                android:visibility="gone" />
-
-            <Button
-                android:id="@+id/btnRate"
-                style="@style/SvButton.Ghost"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="10dp"
-                android:minWidth="72dp"
-                android:minHeight="38dp"
-                android:nextFocusDown="@id/seasonTabs"
-                android:nextFocusLeft="@id/btnSeasonWatched"
-                android:nextFocusRight="@id/btnMore"
-                android:text="@string/detail_rate"
-                android:contentDescription="@string/detail_rate_cd" />
-
-            <Button
+            <ImageButton
                 android:id="@+id/btnMore"
-                style="@style/SvButton.Ghost"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="10dp"
-                android:minWidth="48dp"
-                android:minHeight="38dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/detail_more_menu_cd"
                 android:nextFocusDown="@id/seasonTabs"
                 android:nextFocusLeft="@id/btnRate"
-                android:text="@string/detail_more_menu"
-                android:contentDescription="@string/detail_more_menu_cd" />
+                android:padding="10dp"
+                android:src="@drawable/ic_more_horiz"
+                app:tint="@color/sv_text_primary" />
+
+            <TextView
+                android:id="@+id/actionHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:focusable="false"
+                android:textColor="@color/sv_text_secondary"
+                android:textSize="13sp" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -255,17 +246,16 @@
         android:id="@+id/episodeList"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginStart="34dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="34dp"
-        android:clipChildren="true"
+        android:layout_marginTop="2dp"
+        android:clipChildren="false"
         android:clipToPadding="false"
-        android:paddingStart="10dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="10dp"
+        android:paddingStart="42dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="42dp"
         android:descendantFocusability="afterDescendants"
         android:nextFocusUp="@id/seasonTabs"
-        android:paddingBottom="56dp"
+        android:orientation="horizontal"
+        android:paddingBottom="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

@@ -1,23 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Netflix-style episode tile: 16:9 still, number+title, short meta, 2-line synopsis. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/episodeRow"
-    android:layout_width="match_parent"
+    android:layout_width="232dp"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginEnd="14dp"
     android:background="@drawable/bg_episode_card"
     android:clickable="true"
-    android:clipChildren="true"
-    android:clipToPadding="true"
     android:descendantFocusability="blocksDescendants"
     android:focusable="true"
     android:focusableInTouchMode="true"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="8dp">
+    android:orientation="vertical"
+    android:padding="6dp">
 
     <FrameLayout
-        android:layout_width="168dp"
-        android:layout_height="94dp"
+        android:layout_width="220dp"
+        android:layout_height="124dp"
         android:clipChildren="true"
         android:clipToPadding="true">
 
@@ -25,12 +24,25 @@
             android:id="@+id/episodeStill"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:adjustViewBounds="false"
             android:background="@drawable/bg_poster_surface"
             android:contentDescription="@null"
             android:focusable="false"
             android:scaleType="centerCrop"
             android:src="@drawable/poster_placeholder" />
+
+        <ImageView
+            android:id="@+id/episodeWatchedMark"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:background="@drawable/bg_watched_mark"
+            android:contentDescription="@string/watched"
+            android:focusable="false"
+            android:padding="5dp"
+            android:src="@drawable/ic_check"
+            android:visibility="gone"
+            app:tint="@color/sv_watched" />
 
         <View
             android:id="@+id/episodeProgressTrack"
@@ -52,68 +64,55 @@
     </FrameLayout>
 
     <TextView
-        android:id="@+id/episodeNumber"
-        android:layout_width="48dp"
+        android:id="@+id/episodeTitle"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
         android:focusable="false"
-        android:textColor="@color/sv_accent"
+        android:maxLines="1"
+        android:textColor="@color/sv_text_primary"
         android:textSize="14sp"
         android:textStyle="bold" />
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_marginTop="2dp"
         android:focusable="false"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/episodeTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
+        <View
+            android:id="@+id/streamReadyDot"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_stream_dot"
             android:focusable="false"
-            android:maxLines="1"
-            android:textColor="@color/sv_text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/episodeMeta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:focusable="false"
-            android:maxLines="2"
+            android:maxLines="1"
             android:textColor="@color/sv_text_muted"
-            android:textSize="13sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <TextView
-        android:id="@+id/watchedBadge"
-        android:layout_width="wrap_content"
+        android:id="@+id/episodeOverview"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:background="@drawable/bg_season_chip"
-        android:clickable="false"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
         android:focusable="false"
-        android:paddingStart="10dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="8dp"
-        android:textColor="@color/sv_watched"
-        android:textSize="12sp"
-        android:textStyle="bold" />
-
-    <View
-        android:id="@+id/streamReadyDot"
-        android:layout_width="7dp"
-        android:layout_height="7dp"
-        android:layout_marginStart="6dp"
-        android:layout_marginEnd="4dp"
-        android:background="@drawable/bg_stream_dot"
-        android:focusable="false"
-        android:visibility="gone" />
+        android:lineSpacingMultiplier="1.25"
+        android:maxLines="2"
+        android:minLines="2"
+        android:textColor="@color/sv_text_secondary"
+        android:textSize="12sp" />
 </LinearLayout>

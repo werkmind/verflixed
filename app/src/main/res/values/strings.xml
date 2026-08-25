@@ -35,6 +35,12 @@
     <string name="detail_rate_cd">Titel bewerten: mag ich, mag ich nicht oder liebe ich</string>
     <string name="detail_more_menu">⋯</string>
     <string name="detail_more_menu_cd">Mehr Optionen / Streams neu laden</string>
+    <string name="detail_my_list">Meine Liste</string>
+    <string name="detail_more_label">Mehr</string>
+    <string name="rate_dislike">Mag ich nicht</string>
+    <string name="rate_like">Mag ich</string>
+    <string name="rate_love">Liebe ich!</string>
+    <string name="rate_remove">Bewertung entfernen</string>
     <string name="watched">Gesehen</string>
     <string name="unwatched">Ungesehen</string>
     <string name="player_next">Nächste Folge</string>

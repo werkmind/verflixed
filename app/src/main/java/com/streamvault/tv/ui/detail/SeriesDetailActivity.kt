@@ -40,9 +40,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     private var series: Series? = null
     private var selectedSeason = 1
     private var progressMap: Map<String, WatchProgressEntity> = emptyMap()
-    /** lang → page URL; button only visible when size >= 2 */
-    private var languagePages: Map<String, String> = emptyMap()
-    private var activePageLang: String = StreamLanguage.DE
+    private var isFavorite = false
 
     private val seasonAdapter = SeasonAdapter { season ->
         selectedSeason = season
@@ -69,14 +67,14 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.seasonTabs.layoutManager = seasonLm
         seasonLm.attachPendingFocus(binding.seasonTabs)
         binding.seasonTabs.adapter = seasonAdapter
-        val episodeLm = TvLinearLayoutManager(this)
+        val episodeLm = TvLinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.episodeList.layoutManager = episodeLm
         episodeLm.attachPendingFocus(binding.episodeList)
         binding.episodeList.adapter = episodeAdapter
         binding.episodeList.itemAnimator = null
         binding.episodeList.setHasFixedSize(true)
         binding.episodeList.isFocusable = false
-        binding.episodeList.clipChildren = true
+        binding.episodeList.clipChildren = false
         binding.episodeList.clipToPadding = false
         binding.seasonTabs.clipChildren = true
         binding.seasonTabs.clipToPadding = false
@@ -84,20 +82,16 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         listOf(
             binding.btnPlay,
             binding.btnFavorite,
-            binding.btnSeasonWatched,
-            binding.btnLanguage,
             binding.btnRate,
             binding.btnMore,
         ).forEach {
-            FocusFx.bindScale(it, 1.04f)
+            FocusFx.bindScale(it, 1.06f)
         }
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
-        binding.btnSeasonWatched.setOnClickListener { toggleSeasonWatched() }
         binding.btnMore.setOnClickListener { showContextMenu() }
         binding.btnRate.setOnClickListener { showRatingDialog() }
-        binding.btnLanguage.visibility = View.GONE
-        binding.btnLanguage.setOnClickListener { showLanguageDialog() }
+        bindActionHints()
         wireActionFocusChain()
         binding.btnPlay.setOnClickListener {
             val s = series ?: return@setOnClickListener
@@ -204,19 +198,14 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.overview.text = s.overview ?: "Keine Beschreibung verfügbar."
         PosterLoader.loadSeries(binding.poster, s.posterUrl ?: s.backdropUrl, browseMode = false)
         PosterLoader.loadHero(binding.backdrop, s.backdropUrl ?: s.posterUrl, browseMode = false)
-        binding.btnFavorite.text = if (favorite) {
-            getString(R.string.detail_favorite_remove)
-        } else getString(R.string.detail_favorite_add)
+        isFavorite = favorite
+        paintFavoriteButton()
 
         val continueEp = updatePlayButtonLabel(s)
 
         if (s.isMovie) {
             binding.seasonTabs.visibility = View.GONE
             binding.episodeList.visibility = View.GONE
-            binding.btnSeasonWatched.visibility = View.VISIBLE
-            val movieEp = s.flatEpisodes().firstOrNull()
-            val seen = movieEp?.let { progressMap[it.id]?.completed == true } == true
-            binding.btnSeasonWatched.text = if (seen) "Als ungesehen" else "Als gesehen"
             selectedSeason = 1
             seasonAdapter.submit(emptyList(), 1)
         } else {
@@ -227,183 +216,154 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             seasonAdapter.submit(seasons, selectedSeason)
             applySeasonArt()
             renderEpisodes()
-            updateSeasonWatchedButton()
         }
-        refreshAvailableLanguages(s)
         wireActionFocusChain()
         if (binding.episodeList.findFocus() == null && binding.seasonTabs.findFocus() == null) {
             binding.btnPlay.requestFocus()
         }
     }
 
-    private fun refreshAvailableLanguages(s: Series) {
-        binding.btnLanguage.visibility = View.GONE
-        languagePages = s.languagePages.filterValues { it.isNotBlank() }
-        if (languagePages.size >= 2) {
-            activePageLang = languagePages.keys.firstOrNull {
-                it == StreamLanguage.normalize(
-                    (application as VerflixedApp).container.prefs.streamLanguage(
-                        (application as VerflixedApp).container.prefs.activeProfileId
-                    )
-                )
-            } ?: languagePages.keys.first()
-            paintLanguageButton()
-            binding.btnLanguage.visibility = View.VISIBLE
-            wireActionFocusChain()
-        }
-        lifecycleScope.launch {
-            val pages = runCatching {
-                (application as VerflixedApp).container.catalog.discoverTitleLanguages(s)
-            }.getOrDefault(emptyMap())
-            if (pages.size >= 2) {
-                languagePages = pages
-                val prefs = (application as VerflixedApp).container.prefs
-                val pref = StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
-                activePageLang = when {
-                    pref in pages -> pref
-                    s.detailPath != null -> pages.entries.firstOrNull { it.value == s.detailPath }?.key
-                        ?: pages.keys.first()
-                    else -> pages.keys.first()
-                }
-                paintLanguageButton()
-                binding.btnLanguage.visibility = View.VISIBLE
-                wireActionFocusChain()
-                // Update meta chip
-                series = s.copy(
-                    availableLanguages = pages.keys.toList(),
-                    languagePages = pages,
-                    genres = (listOf(StreamLanguage.label(activePageLang)) + s.genres.filterNot {
-                        it.equals("Deutsch", true) || it.equals("Englisch", true)
-                    }).distinct(),
-                )
-            } else {
-                languagePages = pages
-                binding.btnLanguage.visibility = View.GONE
-                wireActionFocusChain()
-            }
-        }
-    }
-
     private fun wireActionFocusChain() {
-        val langVisible = binding.btnLanguage.visibility == View.VISIBLE
-        binding.btnSeasonWatched.nextFocusRightId =
-            if (langVisible) R.id.btnLanguage else R.id.btnRate
-        binding.btnRate.nextFocusLeftId =
-            if (langVisible) R.id.btnLanguage else R.id.btnSeasonWatched
         val down = if (series?.isMovie == true) View.NO_ID else {
             if (binding.seasonTabs.visibility == View.VISIBLE) R.id.seasonTabs else R.id.episodeList
         }
         listOf(
             binding.btnPlay,
             binding.btnFavorite,
-            binding.btnSeasonWatched,
-            binding.btnLanguage,
             binding.btnRate,
             binding.btnMore,
         ).forEach { it.nextFocusDownId = down }
     }
 
-    private fun paintLanguageButton() {
-        binding.btnLanguage.text = StreamLanguage.shortLabel(activePageLang)
-        binding.btnLanguage.contentDescription = "Ton: ${StreamLanguage.label(activePageLang)}"
-    }
-
-    /** Meaningful switcher: list every available Tonspur with the active one checked. */
-    private fun showLanguageDialog() {
-        if (languagePages.size < 2) {
-            binding.btnLanguage.visibility = View.GONE
-            return
-        }
-        val langs = languagePages.keys.toList()
-        val labels = langs.map { StreamLanguage.label(it) }.toTypedArray()
-        val current = langs.indexOf(activePageLang).coerceAtLeast(0)
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Tonspur wählen")
-            .setSingleChoiceItems(labels, current) { dialog, which ->
-                dialog.dismiss()
-                val chosen = langs[which]
-                if (chosen != activePageLang) applyStreamLanguage(chosen)
+    /** Netflix-style focus tooltip: label appears next to the focused round action. */
+    private fun bindActionHints() {
+        val hints = mapOf<View, () -> String>(
+            binding.btnFavorite to {
+                if (isFavorite) getString(R.string.detail_favorite_remove)
+                else getString(R.string.detail_my_list)
+            },
+            binding.btnRate to {
+                when (currentRating) {
+                    2 -> getString(R.string.rate_love)
+                    1 -> getString(R.string.rate_like)
+                    -1 -> getString(R.string.rate_dislike)
+                    else -> getString(R.string.detail_rate)
+                }
+            },
+            binding.btnMore to { getString(R.string.detail_more_label) },
+        )
+        hints.forEach { (view, label) ->
+            view.setOnFocusChangeListener { _, hasFocus ->
+                binding.actionHint.text = if (hasFocus) label() else ""
+                binding.actionHint.animate().cancel()
+                if (hasFocus) {
+                    binding.actionHint.alpha = 0f
+                    binding.actionHint.animate().alpha(1f).setDuration(160L).start()
+                }
             }
-            .setNegativeButton("Abbrechen", null)
-            .show()
+        }
     }
 
-    /** "Das mag ich / mag ich nicht / liebe ich" — drives recommendations. */
+    private fun refreshActionHint() {
+        val focused = currentFocus
+        if (focused === binding.btnFavorite || focused === binding.btnRate) {
+            focused.onFocusChangeListener?.onFocusChange(focused, true)
+        }
+    }
+
+    private fun paintFavoriteButton() {
+        binding.btnFavorite.setImageResource(
+            if (isFavorite) R.drawable.ic_star_filled else R.drawable.ic_star
+        )
+        binding.btnFavorite.imageTintList = android.content.res.ColorStateList.valueOf(
+            getColor(if (isFavorite) R.color.sv_plex else R.color.sv_text_primary)
+        )
+        binding.btnFavorite.contentDescription = if (isFavorite) {
+            getString(R.string.detail_favorite_remove)
+        } else getString(R.string.detail_my_list)
+        refreshActionHint()
+    }
+
+    /** "Mag ich / mag ich nicht / liebe ich" via icons — drives recommendations. */
     private fun showRatingDialog() {
         val s = series ?: return
         val repo = (application as VerflixedApp).container.catalog
-        val options = arrayOf("Das liebe ich", "Das mag ich", "Das mag ich nicht")
-        val values = intArrayOf(2, 1, -1)
-        val current = values.indexOf(currentRating)
-        android.app.AlertDialog.Builder(this)
+        val view = layoutInflater.inflate(R.layout.dialog_rate, null)
+        val dislike = view.findViewById<android.widget.ImageButton>(R.id.rateDislike)
+        val like = view.findViewById<android.widget.ImageButton>(R.id.rateLike)
+        val love = view.findViewById<android.widget.ImageButton>(R.id.rateLove)
+        val accent = android.content.res.ColorStateList.valueOf(getColor(R.color.sv_accent_hover))
+        val plain = android.content.res.ColorStateList.valueOf(getColor(R.color.sv_text_primary))
+        dislike.setImageResource(
+            if (currentRating == -1) R.drawable.ic_thumb_down_filled else R.drawable.ic_thumb_down
+        )
+        like.setImageResource(
+            if (currentRating == 1) R.drawable.ic_thumb_up_filled else R.drawable.ic_thumb_up
+        )
+        dislike.imageTintList = if (currentRating == -1) accent else plain
+        like.imageTintList = if (currentRating == 1) accent else plain
+        love.imageTintList = if (currentRating == 2) accent else plain
+        listOf(dislike, like, love).forEach { FocusFx.bindScale(it, 1.1f) }
+
+        val builder = android.app.AlertDialog.Builder(this)
             .setTitle(s.title)
-            .setSingleChoiceItems(options, current) { dialog, which ->
-                dialog.dismiss()
-                val next = if (values[which] == currentRating) 0 else values[which]
-                lifecycleScope.launch {
-                    runCatching { repo.setRating(s, next) }
-                    currentRating = next
-                    paintRatingButton()
-                    Toast.makeText(
-                        this@SeriesDetailActivity,
-                        when (next) {
-                            2 -> "Gespeichert: Das liebe ich. Empfehlungen werden angepasst."
-                            1 -> "Gespeichert: Das mag ich"
-                            -1 -> "Gespeichert: Das mag ich nicht. Wird seltener empfohlen."
-                            else -> "Bewertung entfernt"
-                        },
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-            .setNeutralButton("Bewertung entfernen") { _, _ ->
-                lifecycleScope.launch {
-                    runCatching { repo.setRating(s, 0) }
-                    currentRating = 0
-                    paintRatingButton()
-                }
-            }
+            .setView(view)
             .setNegativeButton("Abbrechen", null)
-            .show()
+        if (currentRating != 0) {
+            builder.setNeutralButton(R.string.rate_remove) { _, _ -> saveRating(0) }
+        }
+        val dialog = builder.create()
+        dislike.setOnClickListener {
+            dialog.dismiss()
+            saveRating(if (currentRating == -1) 0 else -1)
+        }
+        like.setOnClickListener {
+            dialog.dismiss()
+            saveRating(if (currentRating == 1) 0 else 1)
+        }
+        love.setOnClickListener {
+            dialog.dismiss()
+            saveRating(if (currentRating == 2) 0 else 2)
+        }
+        dialog.show()
+        when (currentRating) {
+            -1 -> dislike.requestFocus()
+            2 -> love.requestFocus()
+            else -> like.requestFocus()
+        }
+    }
+
+    private fun saveRating(next: Int) {
+        val s = series ?: return
+        val repo = (application as VerflixedApp).container.catalog
+        lifecycleScope.launch {
+            runCatching { repo.setRating(s, next) }
+            currentRating = next
+            paintRatingButton()
+            Toast.makeText(
+                this@SeriesDetailActivity,
+                when (next) {
+                    2 -> "Liebe ich! Empfehlungen werden angepasst."
+                    1 -> "Mag ich - gespeichert"
+                    -1 -> "Mag ich nicht - wird seltener empfohlen"
+                    else -> "Bewertung entfernt"
+                },
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     private fun paintRatingButton() {
-        binding.btnRate.text = when (currentRating) {
-            2 -> "❤ Liebe ich"
-            1 -> "Mag ich"
-            -1 -> "Mag ich nicht"
-            else -> getString(R.string.detail_rate)
+        val (icon, tint) = when (currentRating) {
+            2 -> R.drawable.ic_heart_filled to R.color.sv_accent_hover
+            1 -> R.drawable.ic_thumb_up_filled to R.color.sv_accent_hover
+            -1 -> R.drawable.ic_thumb_down_filled to R.color.sv_text_secondary
+            else -> R.drawable.ic_thumb_up to R.color.sv_text_primary
         }
-    }
-
-    private fun applyStreamLanguage(next: String) {
-        val app = application as VerflixedApp
-        val nextPage = languagePages[next]
-        lifecycleScope.launch {
-            app.container.catalog.setPreferredStreamLanguage(next)
-            series?.flatEpisodes()?.forEach { ep ->
-                runCatching { app.container.catalog.clearCachedStream(ep.id) }
-            }
-            activePageLang = next
-            paintLanguageButton()
-            val s = series
-            if (s?.isMovie == true && !nextPage.isNullOrBlank()) {
-                Toast.makeText(
-                    this@SeriesDetailActivity,
-                    "Ton: ${StreamLanguage.label(next)} - lade Version…",
-                    Toast.LENGTH_SHORT
-                ).show()
-                // Reload movie from the other Filmpalast page
-                load(s.id, nextPage, s.title, "movie")
-            } else {
-                Toast.makeText(
-                    this@SeriesDetailActivity,
-                    "Ton: ${StreamLanguage.label(next)}",
-                    Toast.LENGTH_SHORT
-                ).show()
-                s?.let { bindSeries(it, binding.btnFavorite.text.contains("entfernen", true)) }
-            }
-        }
+        binding.btnRate.setImageResource(icon)
+        binding.btnRate.imageTintList =
+            android.content.res.ColorStateList.valueOf(getColor(tint))
+        refreshActionHint()
     }
 
     /** Re-derives „Weiter SxEy“ from current progress; safe to call after any watched-toggle. */
@@ -417,20 +377,6 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             else -> "Play S${continueEp.seasonNumber}E${continueEp.number}"
         }
         return continueEp
-    }
-
-    private fun updateSeasonWatchedButton() {
-        val s = series ?: return
-        val eps = s.seasons.find { it.number == selectedSeason }?.episodes.orEmpty()
-        if (eps.isEmpty()) {
-            binding.btnSeasonWatched.visibility = View.GONE
-            return
-        }
-        binding.btnSeasonWatched.visibility = View.VISIBLE
-        val allWatched = eps.all { progressMap[it.id]?.completed == true }
-        binding.btnSeasonWatched.text = if (allWatched) {
-            getString(R.string.detail_mark_season_unwatched)
-        } else getString(R.string.detail_mark_season_watched)
     }
 
     private fun toggleSeasonWatched() {
@@ -451,7 +397,6 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 progressMap = p
                 series?.let { updatePlayButtonLabel(it) }
                 renderEpisodes()
-                updateSeasonWatchedButton()
                 Toast.makeText(
                     this@SeriesDetailActivity,
                     if (!allWatched) "Staffel $selectedSeason als gesehen markiert"
@@ -474,12 +419,8 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             }.onSuccess { p ->
                 progressMap = p
                 series?.let { updatePlayButtonLabel(it) }
-                if (series?.isMovie == true) {
-                    val seen = p[ep.id]?.completed == true
-                    binding.btnSeasonWatched.text = if (seen) "Als ungesehen" else "Als gesehen"
-                } else {
+                if (series?.isMovie != true) {
                     renderEpisodes()
-                    updateSeasonWatchedButton()
                 }
             }.onFailure {
                 Toast.makeText(this@SeriesDetailActivity, it.toVfMessage(), Toast.LENGTH_LONG).show()
@@ -505,7 +446,6 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         val s = series ?: return
         val eps = s.seasons.find { it.number == selectedSeason }?.episodes.orEmpty()
         episodeAdapter.submit(eps, progressMap, readyEpisodeIds)
-        updateSeasonWatchedButton()
     }
 
     private fun refreshReadyDots(seriesId: String) {
@@ -599,12 +539,9 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 nowFav
             }.onSuccess { nowFav ->
                 binding.btnFavorite.isEnabled = true
-                binding.btnFavorite.text = if (nowFav) {
-                    getString(R.string.detail_favorite_remove)
-                } else {
-                    binding.cacheStatus.visibility = View.GONE
-                    getString(R.string.detail_favorite_add)
-                }
+                isFavorite = nowFav
+                if (!nowFav) binding.cacheStatus.visibility = View.GONE
+                paintFavoriteButton()
                 Toast.makeText(
                     this@SeriesDetailActivity,
                     if (nowFav) "Favorit gespeichert - alle Staffeln werden im Hintergrund gecacht"
@@ -639,12 +576,17 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         val actions = mutableListOf<() -> Unit>()
         val repo = (application as VerflixedApp).container.catalog
 
-        options += if (binding.btnFavorite.text.toString().contains("entfernen", true)) {
-            "Aus Favoriten entfernen"
-        } else {
-            "Zu Favoriten hinzufügen"
-        }
+        options += if (isFavorite) "Aus Favoriten entfernen" else "Zu Favoriten hinzufügen"
         actions += { toggleFavorite() }
+
+        if (s.isMovie) {
+            val movieEp = s.flatEpisodes().firstOrNull()
+            if (movieEp != null) {
+                val seen = progressMap[movieEp.id]?.completed == true
+                options += if (seen) "Als ungesehen markieren" else "Als gesehen markieren"
+                actions += { toggleEpisodeWatched(movieEp) }
+            }
+        }
 
         if (focusedEp != null) {
             options += "Als gesehen markieren"
@@ -676,7 +618,9 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             }
         }
         if (!s.isMovie) {
-            options += "Staffel als gesehen"
+            val seasonEps = s.seasons.find { it.number == selectedSeason }?.episodes.orEmpty()
+            val seasonDone = seasonEps.isNotEmpty() && seasonEps.all { progressMap[it.id]?.completed == true }
+            options += if (seasonDone) "Staffel $selectedSeason zurücksetzen" else "Staffel $selectedSeason als gesehen"
             actions += { toggleSeasonWatched() }
             options += "Zufällige Folge abspielen"
             actions += {
@@ -927,12 +871,13 @@ private class EpisodeAdapter(
     fun focusedEpisode(): Episode? = focused ?: items.firstOrNull()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_episode, parent, false)
+        val v = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_episode_tile, parent, false)
         val holder = VH(v)
         v.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) focused = holder.bound
         }
-        FocusFx.bindScale(v, 1.015f)
+        FocusFx.bindScale(v, 1.05f)
         return holder
     }
 
@@ -941,9 +886,8 @@ private class EpisodeAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val ep = items[position]
         holder.bound = ep
-        holder.number.text = if (ep.id.endsWith("-movie")) "" else "E${ep.number}"
-        holder.number.visibility = if (ep.id.endsWith("-movie")) View.GONE else View.VISIBLE
-        holder.title.text = ep.title
+        val isMovie = ep.id.endsWith("-movie")
+        holder.title.text = if (isMovie) ep.title else "${ep.number}. ${ep.title}"
         val p = progress[ep.id]
         val ready = ep.id in readyIds || !ep.streamUrl.isNullOrBlank()
         val airDateLabel = ep.airDate?.let { iso ->
@@ -951,32 +895,13 @@ private class EpisodeAdapter(
                 ?.let { (y, m, d) -> "$d.$m.$y" }
         }
         holder.meta.text = when {
-            ep.upcoming || !ep.releaseLabel.isNullOrBlank() -> {
-                listOfNotNull(
-                    if (ep.upcoming) "DEMNÄCHST" else null,
-                    ep.releaseLabel ?: airDateLabel,
-                    ep.overview?.takeIf { it.isNotBlank() && it != ep.releaseLabel },
-                ).distinct().joinToString(" · ")
-            }
-            !ep.overview.isNullOrBlank() -> listOfNotNull(airDateLabel, ep.overview)
-                .joinToString(" · ")
-            p == null && ready -> "Bereit • Ungesehen"
-            p == null -> "Ungesehen"
-            p.completed -> "Gesehen"
-            else -> {
-                val pct = (p.positionMs * 100 / p.durationMs.coerceAtLeast(1)).toInt()
-                "Weiter bei $pct%"
-            }
+            ep.upcoming -> listOfNotNull("Demnächst", ep.releaseLabel ?: airDateLabel)
+                .distinct().joinToString(" · ")
+            else -> airDateLabel ?: ep.releaseLabel ?: ""
         }
-        holder.badge.text = when {
-            ep.upcoming -> "DEMNÄCHST"
-            p?.completed == true -> "✓ Gesehen"
-            ep.id.endsWith("-movie") -> "○ Ungesehen"
-            else -> "○ Ungesehen"
-        }
-        holder.badge.isFocusable = false
-        holder.badge.isClickable = false
-        holder.badge.setOnClickListener(null)
+        holder.overview.text = ep.overview
+            ?.takeIf { it.isNotBlank() && it != ep.releaseLabel }.orEmpty()
+        holder.watchedMark.visibility = if (p?.completed == true) View.VISIBLE else View.GONE
         // Tiny ready indicator (green = cached, dim = pending, gone for upcoming)
         val dot = holder.readyDot
         if (dot != null) {
@@ -1013,7 +938,7 @@ private class EpisodeAdapter(
             }
         }
         PosterLoader.loadEpisodeStill(holder.still, ep.stillUrl, seriesArtProvider())
-        holder.itemView.alpha = if (ep.upcoming) 0.78f else 1f
+        holder.itemView.alpha = if (ep.upcoming) 0.6f else 1f
         holder.itemView.isEnabled = true
         holder.itemView.isClickable = true
         holder.itemView.isFocusable = true
@@ -1048,10 +973,10 @@ private class EpisodeAdapter(
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         var bound: Episode? = null
         val still: ImageView = itemView.findViewById(R.id.episodeStill)
-        val number: TextView = itemView.findViewById(R.id.episodeNumber)
         val title: TextView = itemView.findViewById(R.id.episodeTitle)
         val meta: TextView = itemView.findViewById(R.id.episodeMeta)
-        val badge: TextView = itemView.findViewById(R.id.watchedBadge)
+        val overview: TextView = itemView.findViewById(R.id.episodeOverview)
+        val watchedMark: View = itemView.findViewById(R.id.episodeWatchedMark)
         val readyDot: View? = itemView.findViewById(R.id.streamReadyDot)
         val progressBar: View? = itemView.findViewById(R.id.episodeProgressBar)
         val progressTrack: View? = itemView.findViewById(R.id.episodeProgressTrack)
