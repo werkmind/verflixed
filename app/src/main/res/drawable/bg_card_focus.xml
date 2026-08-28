@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Artwork tiles carry no rest outline — the image is the card (no double edge).
-     Focus: 3dp white ring; at 10-foot distance scale alone is not visible enough. -->
+<!-- Focus ring for 14dp-corner cards (episode tiles, calendar day tiles).
+     Radius matches vf_radius so the ring hugs the card corners (concentric). -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@android:color/transparent" />
-            <corners android:radius="@dimen/vf_radius_image" />
+            <corners android:radius="@dimen/vf_radius" />
             <stroke
                 android:width="3dp"
                 android:color="@color/sv_focus_ring" />
@@ -14,7 +14,7 @@
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@android:color/transparent" />
-            <corners android:radius="@dimen/vf_radius_image" />
+            <corners android:radius="@dimen/vf_radius" />
         </shape>
     </item>
 </selector>

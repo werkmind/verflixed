@@ -25,8 +25,9 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
+            android:paddingStart="8dp"
             android:paddingBottom="8dp"
-            android:text="Suche…"
+            android:text="@string/search_query_placeholder"
             android:textColor="@color/sv_text_primary"
             android:textSize="18sp"
             android:textStyle="bold" />

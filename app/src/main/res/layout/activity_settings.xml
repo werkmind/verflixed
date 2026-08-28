@@ -15,13 +15,12 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
-        <TextView
+        <com.streamvault.tv.ui.brand.VfWordmarkView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:letterSpacing="0.12"
             android:text="@string/app_name"
             android:textAllCaps="true"
-            android:textColor="@color/sv_accent"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -81,12 +80,23 @@
                 android:orientation="horizontal" />
         </HorizontalScrollView>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:letterSpacing="0.08"
+            android:text="@string/settings_group_updates"
+            android:textAllCaps="true"
+            android:textColor="@color/sv_text_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
         <EditText
             android:id="@+id/inputUpdateUrl"
             style="@style/SvEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:hint="Update-Manifest URL (verflixed-update.json)"
             android:inputType="textUri" />
 
@@ -113,7 +123,7 @@
             style="@style/SvButton.Ghost"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
+            android:layout_marginTop="12dp"
             android:minWidth="220dp"
             android:text="@string/settings_change_url" />
 
@@ -126,12 +136,23 @@
             android:minWidth="220dp"
             android:text="@string/settings_clear_cache" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:letterSpacing="0.08"
+            android:text="@string/settings_group_profile"
+            android:textAllCaps="true"
+            android:textColor="@color/sv_text_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
         <Button
             android:id="@+id/btnToggleLanguage"
             style="@style/SvButton.Ghost"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
             android:minWidth="220dp"
             android:text="Profil-Ton: Deutsch" />
 

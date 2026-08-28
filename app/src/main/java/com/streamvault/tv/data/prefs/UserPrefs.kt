@@ -143,7 +143,7 @@ class UserPrefs(context: Context) {
         }
     }
 
-    /** Navigation chrome: sidebar (default) or topbar — per profile. */
+    /** Navigation chrome: topbar (default) or sidebar — per profile. */
     fun navLayout(profileId: String?): String {
         val id = profileId?.trim().orEmpty()
         if (id.isNotBlank()) {
@@ -286,6 +286,8 @@ class UserPrefs(context: Context) {
 
         fun normalizeNavLayout(raw: String?): String {
             val l = raw?.trim()?.lowercase().orEmpty()
+            // Unset = the modern default: top bar (Netflix-style nav).
+            if (l.isEmpty()) return NAV_TOPBAR
             return if (l == NAV_TOPBAR || l == "top" || l == "bar") NAV_TOPBAR else NAV_SIDEBAR
         }
 

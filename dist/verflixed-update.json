@@ -1,8 +1,8 @@
 {
-  "versionCode": 53,
-  "versionName": "1.18.1",
+  "versionCode": 60,
+  "versionName": "1.25.0",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "8a9900ea0675b0cb28196bf246e666c928d94b6ffcb8c082f7f098abb1afb485",
-  "changelog": "1.18.1: Captcha-Fix (Touch-Mode-Bug behoben, D-Pad navigiert jetzt zuverlaessig zum Weiter-Button, Hinweistexte bleiben sichtbar), direktere D-Pad-Navigation (doppeltes Scrollen entfernt), besser lesbare Schrift auf TV-Distanz, deutlicherer Fokus-Ring ueber hellen Postern, Intro per OK/Zurueck ueberspringbar."
+  "sha256": "6b18200b1cf5d308a1ff6a63192ff840e37e118b075d3bf391799f297aef44a7",
+  "changelog": "1.25.0: Immersives Home mit Side-Nav und Glas-Fokus. Fluessigere Fokus-Animation (respektiert Reduce Motion). Shimmer-Skeleton, Wordmark-Intro, bessere Such-Tastatur. Settings klarer gruppiert."
 }

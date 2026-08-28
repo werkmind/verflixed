@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Secondary CTA: flat elevated surface, no sheen layers, no rest border.
+     Focus = lighter surface + 2dp ring; selected keeps the accent treatment. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
@@ -6,53 +8,50 @@
             <corners android:radius="@dimen/vf_radius_pill" />
         </shape>
     </item>
-    <item android:state_focused="true">
+    <item android:state_focused="true" android:state_selected="true">
         <layer-list>
             <item>
                 <shape android:shape="rectangle">
-                    <solid android:color="@color/sv_glass" />
+                    <solid android:color="@color/sv_accent_soft" />
                     <corners android:radius="@dimen/vf_radius_pill" />
+                    <stroke
+                        android:width="1dp"
+                        android:color="@color/sv_accent" />
                 </shape>
             </item>
-            <item
-                android:bottom="22dp"
-                android:left="1dp"
-                android:right="1dp"
-                android:top="1dp">
+            <item>
                 <shape android:shape="rectangle">
-                    <gradient
-                        android:angle="270"
-                        android:endColor="#00FFFFFF"
-                        android:startColor="#33FFFFFF" />
+                    <solid android:color="@android:color/transparent" />
                     <corners android:radius="@dimen/vf_radius_pill" />
+                    <stroke
+                        android:width="2dp"
+                        android:color="@color/sv_focus_ring" />
                 </shape>
             </item>
         </layer-list>
     </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#2A3140" />
+            <corners android:radius="@dimen/vf_radius_pill" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/sv_focus_ring" />
+        </shape>
+    </item>
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/sv_accent_soft" />
+            <corners android:radius="@dimen/vf_radius_pill" />
+            <stroke
+                android:width="1dp"
+                android:color="@color/sv_accent" />
+        </shape>
+    </item>
     <item>
-        <layer-list>
-            <item>
-                <shape android:shape="rectangle">
-                    <solid android:color="@color/sv_glass" />
-                    <corners android:radius="@dimen/vf_radius_pill" />
-                    <stroke
-                        android:width="1dp"
-                        android:color="@color/sv_card_stroke" />
-                </shape>
-            </item>
-            <item
-                android:bottom="24dp"
-                android:left="1dp"
-                android:right="1dp"
-                android:top="1dp">
-                <shape android:shape="rectangle">
-                    <gradient
-                        android:angle="270"
-                        android:endColor="#00FFFFFF"
-                        android:startColor="#22FFFFFF" />
-                    <corners android:radius="@dimen/vf_radius_pill" />
-                </shape>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/sv_surface_elevated" />
+            <corners android:radius="@dimen/vf_radius_pill" />
+        </shape>
     </item>
 </selector>

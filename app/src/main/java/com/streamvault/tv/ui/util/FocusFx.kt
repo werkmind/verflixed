@@ -1,6 +1,8 @@
 package com.streamvault.tv.ui.util
 
 import android.content.Context
+import android.os.SystemClock
+import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.PathInterpolator
@@ -16,6 +18,29 @@ object FocusFx {
     /** tvOS-style standard curve — fast start, long soft landing. */
     private val glide = PathInterpolator(0.23f, 1f, 0.32f, 1f)
     private val easeIn = PathInterpolator(0.4f, 0f, 0.2f, 1f)
+    /** Subtle liquid overshoot for gaining focus (never for losing it). */
+    private val springy = PathInterpolator(0.3f, 1.38f, 0.5f, 1f)
+
+    // TV equivalent of prefers-reduced-motion: Fire OS "Reduce motion" and the
+    // developer animator-scale both drive ANIMATOR_DURATION_SCALE to 0. When it
+    // is 0, decorative motion is skipped and state changes snap instantly —
+    // the static focus cues (ring, fill) always stay.
+    private var motionCacheUntil = 0L
+    private var motionEnabledCache = true
+
+    fun motionEnabled(view: View): Boolean {
+        val now = SystemClock.uptimeMillis()
+        if (now >= motionCacheUntil) {
+            motionEnabledCache = runCatching {
+                Settings.Global.getFloat(
+                    view.context.contentResolver,
+                    Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+                ) > 0f
+            }.getOrDefault(true)
+            motionCacheUntil = now + 5_000L
+        }
+        return motionEnabledCache
+    }
 
     fun bindScale(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
         allowFocusScale(view)
@@ -79,21 +104,44 @@ object FocusFx {
     }
 
     /** Reusable so adapters can drive focus motion without extra listeners. */
-    fun animateFocus(v: View, hasFocus: Boolean, focusedScale: Float = 1.06f) {
+    fun animateFocus(
+        v: View,
+        hasFocus: Boolean,
+        focusedScale: Float = 1.06f,
+        liquid: Boolean = false,
+    ) {
         allowFocusScale(v)
         val scale = if (hasFocus) focusedScale else 1f
         val elevation = if (hasFocus) 22f else 0f
         v.animate().cancel()
+        if (!motionEnabled(v)) {
+            v.scaleX = scale
+            v.scaleY = scale
+            v.translationZ = elevation
+            return
+        }
         // Focus moves are the highest-frequency interaction on TV — anything
         // slower than ~160ms reads as input lag when scrubbing along a row.
+        // `liquid` adds a slight overshoot on focus gain for hero CTAs and nav.
         v.animate()
             .scaleX(scale)
             .scaleY(scale)
             .translationZ(elevation)
-            .setDuration(if (hasFocus) 140 else 160)
-            .setInterpolator(glide)
+            .setDuration(if (hasFocus) 150 else 160)
+            .setInterpolator(if (hasFocus && liquid) springy else glide)
             .withLayer()
             .start()
+    }
+
+    /** Liquid focus for CTAs and navigation chrome. */
+    fun bindLiquid(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
+        allowFocusScale(view)
+        view.setTag(R.id.tag_focus_scale, focusedScale)
+        val previous = view.onFocusChangeListener
+        view.setOnFocusChangeListener { v, hasFocus ->
+            previous?.onFocusChange(v, hasFocus)
+            animateFocus(v, hasFocus, focusedScale, liquid = true)
+        }
     }
 
     /** Press: scale(0.96) in 100ms, then settle. TV OK / click only. */
@@ -129,6 +177,7 @@ object FocusFx {
     }
 
     fun pulse(view: View) {
+        if (!motionEnabled(view)) return
         view.animate().cancel()
         view.animate()
             .scaleX(1.03f)
@@ -150,6 +199,12 @@ object FocusFx {
 
     /** Staggered entrance for freshly bound rows/cards. */
     fun enter(view: View, index: Int, distanceDp: Float = 12f) {
+        if (!motionEnabled(view)) {
+            view.animate().cancel()
+            view.alpha = 1f
+            view.translationY = 0f
+            return
+        }
         val d = view.resources.displayMetrics.density
         view.animate().cancel()
         view.alpha = 0f
@@ -167,6 +222,10 @@ object FocusFx {
     /** Crossfade an image/backdrop swap without a hard cut. */
     fun crossfade(view: View, apply: () -> Unit) {
         view.animate().cancel()
+        if (!motionEnabled(view)) {
+            apply()
+            return
+        }
         view.animate()
             .alpha(0.42f)
             .setDuration(110)

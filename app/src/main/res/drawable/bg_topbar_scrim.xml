@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Top bar legibility scrim: dark at the very top, melts to transparent so the
+     hero stays immersive while nav labels stay readable. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#CC05060A"
+        android:centerColor="#6605060A"
+        android:endColor="#0005060A" />
+</shape>

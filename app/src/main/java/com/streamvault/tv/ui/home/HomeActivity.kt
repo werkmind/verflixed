@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -192,7 +193,11 @@ class HomeActivity : ScaledAppCompatActivity() {
             override fun onChildViewDetachedFromWindow(view: View) = Unit
         })
 
-        searchKeyboard.layoutManager = GridLayoutManager(this, 6)
+        searchKeyboard.layoutManager = GridLayoutManager(this, 6).apply {
+            spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                override fun getSpanSize(position: Int): Int = searchKeyAdapter.spanAt(position)
+            }
+        }
         searchKeyboard.adapter = searchKeyAdapter
         searchKeyboard.itemAnimator = null
         val searchLm = TvLinearLayoutManager(this)
@@ -230,7 +235,7 @@ class HomeActivity : ScaledAppCompatActivity() {
             btn.isClickable = true
             btn.isFocusable = true
             btn.isFocusableInTouchMode = true
-            FocusFx.bindScale(btn, 1.04f, prefs)
+            FocusFx.bindLiquid(btn, 1.05f, prefs)
             btn.setOnKeyListener { v, keyCode, event ->
                 if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
                 when (keyCode) {
@@ -314,18 +319,19 @@ class HomeActivity : ScaledAppCompatActivity() {
         binding.navScroll.visibility = if (sidebar) View.GONE else View.VISIBLE
         val rowsParams = binding.rows.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
             ?: return
-        if (sidebar) {
-            rowsParams.startToEnd = R.id.sideNav
-            rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-            rowsParams.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-            rowsParams.topToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-        } else {
-            rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-            rowsParams.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-            rowsParams.topToBottom = R.id.navScroll
-            rowsParams.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-        }
+        // Immersive feed: rows always fill the screen; hero draws under the
+        // floating top bar. Sidebar mode indents content past the rail.
+        rowsParams.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+        rowsParams.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+        rowsParams.topToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
         binding.rows.layoutParams = rowsParams
+        binding.rows.setPadding(
+            if (sidebar) (88 * resources.displayMetrics.density).toInt() else 0,
+            0,
+            0,
+            (28 * resources.displayMetrics.density).toInt(),
+        )
         // Mirror for search + skeleton + empty
         listOf(binding.skeletonHost, binding.emptyText, binding.progress, searchPanel).forEach { v ->
             val p = v.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
@@ -351,33 +357,17 @@ class HomeActivity : ScaledAppCompatActivity() {
         target.requestFocus()
     }
 
-    private var skeletonPulse: android.animation.ObjectAnimator? = null
-
     private fun showSkeleton(show: Boolean) {
         binding.skeletonHost.visibility = if (show) View.VISIBLE else View.GONE
         binding.progress.visibility = View.GONE
         binding.rows.alpha = if (show) 0.35f else 1f
-        skeletonPulse?.cancel()
-        skeletonPulse = null
-        if (show) {
-            skeletonPulse = android.animation.ObjectAnimator.ofFloat(
-                binding.skeletonHost, View.ALPHA, 1f, 0.45f
-            ).apply {
-                duration = 700
-                repeatMode = android.animation.ValueAnimator.REVERSE
-                repeatCount = android.animation.ValueAnimator.INFINITE
-                start()
-            }
-        } else {
-            binding.skeletonHost.alpha = 1f
-        }
     }
 
     private fun onSearchKey(key: String) {
         UiSound.click(this, prefs)
         when (key) {
-            "␣" -> searchQuery += " "
-            "⌫" -> if (searchQuery.isNotEmpty()) searchQuery = searchQuery.dropLast(1)
+            " " -> searchQuery += " "
+            "\b" -> if (searchQuery.isNotEmpty()) searchQuery = searchQuery.dropLast(1)
             "CLR" -> searchQuery = ""
             else -> searchQuery += key
         }
@@ -386,7 +376,11 @@ class HomeActivity : ScaledAppCompatActivity() {
     }
 
     private fun updateSearchQueryLabel() {
-        searchQueryLabel.text = if (searchQuery.isEmpty()) "Suche…" else searchQuery
+        searchQueryLabel.text = if (searchQuery.isEmpty()) {
+            getString(R.string.search_query_placeholder)
+        } else {
+            searchQuery
+        }
     }
 
     private fun focusFirstSearchKey() {
@@ -440,12 +434,15 @@ class HomeActivity : ScaledAppCompatActivity() {
             runCatching { (application as VerflixedApp).container.profiles.active() }
                 .onSuccess { p ->
                     binding.profileNameLabel.text = p.name
-                    Glide.with(binding.profileAvatar)
-                        .load(p.avatarUrl)
-                        .placeholder(R.drawable.ic_avatar_placeholder)
-                        .error(R.drawable.ic_avatar_placeholder)
-                        .transform(CircleCrop())
-                        .into(binding.profileAvatar)
+                    val url = p.avatarUrl
+                    listOf(binding.profileAvatar, binding.btnProfile).forEach { view ->
+                        Glide.with(view)
+                            .load(url)
+                            .placeholder(R.drawable.ic_avatar_placeholder)
+                            .error(R.drawable.ic_avatar_placeholder)
+                            .transform(CircleCrop())
+                            .into(view)
+                    }
                 }
         }
     }
@@ -621,8 +618,8 @@ class HomeActivity : ScaledAppCompatActivity() {
                 if (rows.all { it.items.isEmpty() }) {
                     binding.emptyText.text = when (requestedMode) {
                         HomeMode.LIBRARY -> getString(R.string.library_empty)
-                        HomeMode.MOVIES -> "Keine Filme gefunden. [VF-102]"
-                        else -> "Keine Serien gefunden. [VF-102]"
+                        HomeMode.MOVIES -> getString(R.string.empty_movies)
+                        else -> getString(R.string.empty_series)
                     }
                     binding.emptyText.visibility = View.VISIBLE
                 }
@@ -643,10 +640,10 @@ class HomeActivity : ScaledAppCompatActivity() {
     /** Warm Glide's disk/memory cache for the first visible cards of each row. */
     private fun prefetchRowImages(rows: List<HomeRow>) {
         val urls = rows.asSequence()
-            .flatMap { it.items.asSequence().take(10) }
+            .flatMap { it.items.asSequence().take(6) }
             .mapNotNull { it.posterUrl ?: it.backdropUrl }
             .distinct()
-            .take(60)
+            .take(24)
             .toList()
         if (urls.isEmpty()) return
         val glide = Glide.with(this)
@@ -827,7 +824,7 @@ class HomeActivity : ScaledAppCompatActivity() {
                 "Details öffnen",
                 "Aus „Weiterschauen“ entfernen",
             )
-            android.app.AlertDialog.Builder(this@HomeActivity)
+            android.app.AlertDialog.Builder(this@HomeActivity, R.style.Theme_Verflixed_Dialog)
                 .setTitle(s.title)
                 .setItems(options.toTypedArray()) { _, which ->
                     when (which) {
@@ -970,13 +967,19 @@ class HomeActivity : ScaledAppCompatActivity() {
 private class SearchKeyAdapter(
     private val onKey: (String) -> Unit
 ) : RecyclerView.Adapter<SearchKeyAdapter.VH>() {
-    private val keys: List<String> = buildList {
-        addAll(('A'..'Z').map { it.toString() })
-        addAll(('0'..'9').map { it.toString() })
-        add("␣")
-        add("⌫")
-        add("CLR")
+    class Key(val label: String, val value: String, val span: Int, val cd: String? = null)
+
+    private val keys: List<Key> = buildList {
+        addAll(('A'..'Z').map { Key(it.toString(), it.toString(), 1) })
+        addAll(('0'..'9').map { Key(it.toString(), it.toString(), 1) })
+        add(Key("Leertaste", " ", 3, "Leertaste"))
+        add(Key("Leeren", "CLR", 2, "Eingabe leeren"))
+        // Fits everywhere, renders in the system font, universally understood.
+        add(Key("⌫", "\b", 1, "Letztes Zeichen löschen"))
     }
+
+    /** Space spans the grid so the label fits; delete and clear stay compact. */
+    fun spanAt(position: Int): Int = keys.getOrNull(position)?.span ?: 1
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_search_key, parent, false)
@@ -987,8 +990,9 @@ private class SearchKeyAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val key = keys[position]
-        holder.btn.text = key
-        holder.btn.setOnClickListener { onKey(key) }
+        holder.btn.text = key.label
+        holder.btn.contentDescription = key.cd
+        holder.btn.setOnClickListener { onKey(key.value) }
     }
 
     class VH(val btn: Button) : RecyclerView.ViewHolder(btn)
@@ -1045,6 +1049,8 @@ private class RowsAdapter(
         setMaxRecycledViews(0, 24)
         setMaxRecycledViews(1, 24)
     }
+    /** True right after submit(): the first shelves enter with a short stagger. */
+    private var enterPending = false
 
     companion object {
         private const val TYPE_HERO = 0
@@ -1057,6 +1063,10 @@ private class RowsAdapter(
         hero = featured
             ?: rows.firstOrNull { it.kind != HomeRow.KIND_CALENDAR }?.items?.firstOrNull()
             ?: rows.firstOrNull()?.items?.firstOrNull()
+        enterPending = true
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+            { enterPending = false }, 600L
+        )
         notifyDataSetChanged()
     }
 
@@ -1093,7 +1103,15 @@ private class RowsAdapter(
             is HeroVH -> hero?.let { holder.bind(it) }
             is RowVH -> {
                 val idx = if (hero != null) position - 1 else position
-                if (idx in rows.indices) holder.bind(rows[idx])
+                if (idx in rows.indices) {
+                    holder.bind(rows[idx])
+                    // Infrequent staged entrance (mode switch / fresh load):
+                    // first shelves rise in with a ~24ms stagger. Scroll-bound
+                    // rebinds and focus-driven hero rebinds never animate.
+                    if (enterPending && position in 1..3) {
+                        FocusFx.enter(holder.itemView, position - 1, 10f)
+                    }
+                }
             }
         }
     }
@@ -1105,11 +1123,14 @@ private class RowsAdapter(
         private val browseModeProvider: () -> Boolean,
     ) : RecyclerView.ViewHolder(itemView) {
         private val backdrop: ImageView = itemView.findViewById(R.id.heroBackdrop)
+        private val textBlock: android.view.ViewGroup =
+            itemView.findViewById(R.id.heroTextBlock)
+        private val kicker: TextView = itemView.findViewById(R.id.heroKicker)
         private val title: TextView = itemView.findViewById(R.id.heroTitle)
         private val meta: TextView = itemView.findViewById(R.id.heroMeta)
         private val overview: TextView = itemView.findViewById(R.id.heroOverview)
         private val play: Button = itemView.findViewById(R.id.btnHeroPlay)
-        private val info: Button = itemView.findViewById(R.id.btnHeroInfo)
+        private val info: ImageButton = itemView.findViewById(R.id.btnHeroInfo)
 
         private var lastHeroId: String? = null
         private var kenBurnsZoomIn = true
@@ -1117,13 +1138,25 @@ private class RowsAdapter(
         init {
             play.setOnClickListener { onPlay() }
             info.setOnClickListener { onInfo() }
-            FocusFx.bindScale(play, 1.05f)
-            FocusFx.bindScale(info, 1.05f)
+            FocusFx.bindLiquid(play, 1.06f)
+            FocusFx.bindLiquid(info, 1.08f)
             FocusFx.bindPress(play)
         }
 
         fun bind(series: Series) {
+            // Immersive banner: ~62% of the feed height, edge to edge. The
+            // bottom gradient melts the backdrop into the app background.
+            itemView.post {
+                val parentHeight = (itemView.parent as? ViewGroup)?.height ?: return@post
+                val h = (parentHeight * 0.62f).toInt()
+                if (h > 0 && itemView.layoutParams.height != h) {
+                    itemView.layoutParams = (itemView.layoutParams.also { it.height = h })
+                }
+            }
             title.text = series.title
+            // Netflix-style kicker: what am I looking at, one glance.
+            kicker.text = if (series.isMovie) "Film" else "Serie"
+            kicker.visibility = View.VISIBLE
             val metaText = buildString {
                 series.year?.let { append(it) }
                 series.rating?.let {
@@ -1148,9 +1181,11 @@ private class RowsAdapter(
             overview.visibility = if (ov.isBlank()) View.GONE else View.VISIBLE
             val art = series.backdropUrl ?: series.posterUrl
             if (lastHeroId != series.id) {
+                val firstBind = lastHeroId == null
                 lastHeroId = series.id
                 // Banner motion: quick dip-crossfade into the new backdrop, then a
                 // slow Ken-Burns drift so the hero feels alive without distracting.
+                // The text block rises in softly so the swap reads as one beat.
                 backdrop.animate().cancel()
                 backdrop.animate()
                     .alpha(0.35f)
@@ -1164,13 +1199,44 @@ private class RowsAdapter(
                             .start()
                     }
                     .start()
+                animateTextBlock(firstBind)
             } else {
                 PosterLoader.loadHero(backdrop, art, browseMode = browseModeProvider())
             }
         }
 
+        /**
+         * Infrequent hero swap (focus settled for 320ms): text fades up 8dp.
+         * First bind never animates (skip animation on page load), and reduced
+         * motion gets a hard cut.
+         */
+        private fun animateTextBlock(firstBind: Boolean) {
+            textBlock.animate().cancel()
+            if (firstBind || !FocusFx.motionEnabled(textBlock)) {
+                textBlock.alpha = 1f
+                textBlock.translationY = 0f
+                return
+            }
+            val d = textBlock.resources.displayMetrics.density
+            textBlock.alpha = 0f
+            textBlock.translationY = 8f * d
+            textBlock.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setStartDelay(60L)
+                .setDuration(200L)
+                .setInterpolator(android.view.animation.PathInterpolator(0.23f, 1f, 0.32f, 1f))
+                .withLayer()
+                .start()
+        }
+
         /** Slow 1.02→1.09 drift (~16s), alternating direction on each new hero. */
         private fun startKenBurns() {
+            if (!FocusFx.motionEnabled(backdrop)) {
+                backdrop.scaleX = 1f
+                backdrop.scaleY = 1f
+                return
+            }
             val from = if (kenBurnsZoomIn) 1.02f else 1.09f
             val to = if (kenBurnsZoomIn) 1.09f else 1.02f
             kenBurnsZoomIn = !kenBurnsZoomIn
@@ -1241,11 +1307,22 @@ private class CalendarDayAdapter(
 ) : RecyclerView.Adapter<CalendarDayAdapter.VH>() {
     private val items = mutableListOf<Series>()
 
+    companion object {
+        /**
+         * Distinct from every PosterAdapter type. Calendar and poster rows share
+         * one RecycledViewPool; a shared type would let a calendar view surface
+         * in a poster row and crash the cast to PosterVH on mode switches.
+         */
+        private const val TYPE_CALENDAR_DAY = 42
+    }
+
     fun submit(data: List<Series>) {
         items.clear()
         items.addAll(data)
         notifyDataSetChanged()
     }
+
+    override fun getItemViewType(position: Int): Int = TYPE_CALENDAR_DAY
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_calendar_day, parent, false)
@@ -1396,7 +1473,7 @@ private class PosterAdapter(
             }
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
-            FocusFx.animateFocus(v, hasFocus, 1.11f)
+            FocusFx.animateFocus(v, hasFocus, 1.08f)
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 val s = itemAt(pos) ?: return@setOnFocusChangeListener

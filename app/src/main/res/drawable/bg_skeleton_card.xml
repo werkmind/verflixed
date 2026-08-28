@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder fill for skeleton blocks; corners match real media tiles (8dp). -->
+<!-- Large card placeholder (detail poster block), brand radius. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#2E1C2436" />
-    <corners android:radius="8dp" />
+    <corners android:radius="@dimen/vf_radius" />
 </shape>

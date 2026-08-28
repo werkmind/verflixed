@@ -87,6 +87,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         ).forEach {
             FocusFx.bindScale(it, 1.06f)
         }
+        FocusFx.bindLiquid(binding.btnPlay, 1.06f)
         FocusFx.bindPress(binding.btnPlay)
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
@@ -309,7 +310,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     private fun showOverviewDialog(title: String, body: String) {
         val view = layoutInflater.inflate(R.layout.dialog_overview, null)
         view.findViewById<TextView>(R.id.overviewBody).text = body
-        val dialog = android.app.AlertDialog.Builder(this)
+        val dialog = android.app.AlertDialog.Builder(this, R.style.Theme_Verflixed_Dialog)
             .setTitle(title)
             .setView(view)
             .setPositiveButton(android.R.string.ok, null)
@@ -359,7 +360,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         love.imageTintList = ink
         listOf(dislike, like, love).forEach { FocusFx.bindScale(it, 1.1f) }
 
-        val builder = android.app.AlertDialog.Builder(this)
+        val builder = android.app.AlertDialog.Builder(this, R.style.Theme_Verflixed_Dialog)
             .setTitle(s.title)
             .setView(view)
             .setNegativeButton("Abbrechen", null)
@@ -775,7 +776,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             }
         }
 
-        android.app.AlertDialog.Builder(this)
+        android.app.AlertDialog.Builder(this, R.style.Theme_Verflixed_Dialog)
             .setTitle(s.title)
             .setItems(options.toTypedArray()) { _, which ->
                 actions.getOrNull(which)?.invoke()
@@ -790,7 +791,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         val pos = progress?.takeIf { !it.completed }?.positionMs ?: 0L
         if (pos > 5_000L) {
             val label = formatResumeTime(pos)
-            android.app.AlertDialog.Builder(this)
+            android.app.AlertDialog.Builder(this, R.style.Theme_Verflixed_Dialog)
                 .setTitle(R.string.resume_title)
                 .setMessage(getString(R.string.resume_message, label))
                 .setPositiveButton(R.string.resume_continue) { _, _ ->
@@ -933,7 +934,8 @@ private class EpisodeAdapter(
         val v = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_episode_tile, parent, false)
         val holder = VH(v)
-        v.findViewById<View>(R.id.episodeStillWrap)?.let { FocusFx.clipStillTop(it, 8f) }
+        // Concentric radii: 14dp card radius − 8dp card padding = 6dp inner radius.
+        v.findViewById<View>(R.id.episodeStillWrap)?.let { FocusFx.clipStillTop(it, 6f) }
         v.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) focused = holder.bound
         }

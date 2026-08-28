@@ -32,6 +32,21 @@
         <item name="android:activityCloseExitAnimation">@anim/vf_slide_out</item>
     </style>
 
+    <!-- Brand-styled TV dialogs: dark elevated card, 14dp corners, no white
+         AppCompat chrome. Used for context menus, pickers and confirmations. -->
+    <style name="Theme.Verflixed.Dialog" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:colorBackground">@color/sv_surface_elevated</item>
+        <item name="android:windowMinWidthMinor">70%</item>
+        <item name="colorAccent">@color/sv_accent</item>
+        <item name="android:textColorPrimary">@color/sv_text_primary</item>
+        <item name="android:textColorSecondary">@color/sv_text_secondary</item>
+        <item name="android:listDivider">@color/sv_card_stroke</item>
+        <item name="colorControlActivated">@color/sv_accent</item>
+        <item name="colorControlHighlight">@color/sv_accent_soft</item>
+        <item name="android:backgroundDimAmount">0.6</item>
+    </style>
+
     <style name="SvButton" parent="Widget.AppCompat.Button.Borderless">
         <item name="android:background">@drawable/bg_button</item>
         <item name="backgroundTint">@null</item>
@@ -74,10 +89,22 @@
     <style name="SvButton.Nav" parent="SvButton.Ghost">
         <item name="android:background">@drawable/bg_button_nav</item>
         <item name="android:textColor">@color/sv_nav_btn_text</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:paddingLeft">13dp</item>
-        <item name="android:paddingRight">13dp</item>
-        <item name="android:minHeight">34dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+        <item name="android:minHeight">38dp</item>
+    </style>
+
+    <!-- Circular icon action in the top bar (Netflix right cluster). -->
+    <style name="SvTopbarIcon" parent="Widget.AppCompat.ImageButton">
+        <item name="android:background">@drawable/bg_icon_button</item>
+        <item name="android:padding">9dp</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:focusable">true</item>
+        <item name="android:focusableInTouchMode">true</item>
+        <item name="android:tint">@color/sv_side_nav_icon</item>
+        <item name="android:nextFocusDown">@id/rows</item>
     </style>
 
     <style name="SvSideNavBtn" parent="Widget.AppCompat.ImageButton">
@@ -90,7 +117,7 @@
         <item name="android:scaleType">centerInside</item>
         <item name="android:focusable">true</item>
         <item name="android:focusableInTouchMode">true</item>
-        <item name="android:tint">@color/sv_text_secondary</item>
+        <item name="android:tint">@color/sv_side_nav_icon</item>
         <item name="android:nextFocusRight">@id/rows</item>
     </style>
 
@@ -104,10 +131,11 @@
     </style>
 
     <style name="SvRowTitle">
+        <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:textColor">@color/sv_text_primary</item>
-        <item name="android:textSize">18sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">0.04</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:letterSpacing">0.01</item>
     </style>
 
     <style name="SvHeroTitle">

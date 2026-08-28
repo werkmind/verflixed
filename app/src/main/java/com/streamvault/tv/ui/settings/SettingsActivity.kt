@@ -135,7 +135,7 @@ class SettingsActivity : ScaledAppCompatActivity() {
                     prefs.streamLanguage(prefs.activeProfileId)
                 )
             ).coerceAtLeast(0)
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            androidx.appcompat.app.AlertDialog.Builder(this, R.style.Theme_Verflixed_Dialog)
                 .setTitle("Bevorzugter Ton für dieses Profil")
                 .setSingleChoiceItems(labels, current) { dialog, which ->
                     val next = codes[which]
@@ -289,7 +289,7 @@ class SettingsActivity : ScaledAppCompatActivity() {
             setPadding(0, pad / 2, 0, 0)
         })
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        androidx.appcompat.app.AlertDialog.Builder(this, R.style.Theme_Verflixed_Dialog)
             .setTitle(getString(R.string.settings_profile_sync))
             .setView(layout)
             .setPositiveButton("Fertig", null)

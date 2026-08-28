@@ -38,6 +38,9 @@ class VerflixedIntroView @JvmOverloads constructor(
 
     private val faceFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val sideFill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val groundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val nebulaPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val sweepPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bloomPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val wordPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -116,12 +119,14 @@ class VerflixedIntroView @JvmOverloads constructor(
         val flyIn = easeOut.getInterpolation(seg(0f, 0.42f))
         val settle = easeOut.getInterpolation(seg(0.78f, 1f))
         val depth = 1f - flyIn
-        // Overshoot then settle for a springy, premium landing.
-        val scale = (0.62f + 0.44f * flyIn) - 0.06f * settle * sin(settle * Math.PI.toFloat())
+        // Deep dive in, springy premium landing.
+        val scale = (0.52f + 0.54f * flyIn) - 0.06f * settle * sin(settle * Math.PI.toFloat())
         val rotY = -26f * depth
         val markAlpha = min(1f, seg(0.02f, 0.30f) * 1.2f)
 
-        drawBackglow(canvas, cx, cy, markSize, flyIn)
+        drawNebula(canvas, cx, cy, w)
+        drawBackglow(canvas, cx, cy, markSize, flyIn, settle)
+        drawGroundReflection(canvas, cx, cy, markSize, flyIn)
 
         canvas.withSave {
             translate(cx, cy)
@@ -153,14 +158,66 @@ class VerflixedIntroView @JvmOverloads constructor(
             faceFill.alpha = (markAlpha * 255).toInt().coerceIn(0, 255)
             drawPath(vPath, faceFill)
 
+            // Glass rim: icy inner highlight tracing the edges.
+            rimPaint.strokeWidth = markSize * 0.022f
+            rimPaint.color = RIM
+            rimPaint.alpha = (markAlpha * 150).toInt().coerceIn(0, 255)
+            drawPath(vPath, rimPaint)
+
             drawSpecularSweep(this, markSize)
         }
 
         drawWordmark(canvas, cx, cy, markSize, h)
     }
 
-    private fun drawBackglow(canvas: Canvas, cx: Float, cy: Float, markSize: Float, flyIn: Float) {
-        val glowAlpha = (110 * flyIn * (0.55f + 0.45f * easeInOut.getInterpolation(seg(0.30f, 0.7f)))).toInt()
+    /** Deep-water nebula behind the mark — depth instead of flat black. */
+    private fun drawNebula(canvas: Canvas, cx: Float, cy: Float, w: Float) {
+        nebulaPaint.shader = RadialGradient(
+            cx, cy, w * 0.55f,
+            intArrayOf(NEBULA_INNER, Color.TRANSPARENT),
+            floatArrayOf(0f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(0f, 0f, w, height.toFloat(), nebulaPaint)
+    }
+
+    /** Caustic pool under the mark — grounds the glass in space. */
+    private fun drawGroundReflection(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        markSize: Float,
+        flyIn: Float,
+    ) {
+        val a = (70 * flyIn).toInt()
+        if (a <= 0) return
+        val rx = markSize * 1.05f
+        val ry = markSize * 0.30f
+        val y = cy + markSize * 1.02f
+        groundPaint.shader = RadialGradient(
+            cx, y, rx,
+            intArrayOf(GLOW_INNER, Color.TRANSPARENT),
+            floatArrayOf(0f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        groundPaint.alpha = a.coerceIn(0, 255)
+        canvas.withSave {
+            scale(1f, ry / rx, cx, y)
+            drawCircle(cx, y, rx, groundPaint)
+        }
+    }
+
+    private fun drawBackglow(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        markSize: Float,
+        flyIn: Float,
+        settle: Float = 0f,
+    ) {
+        // Breathing halo while the mark holds — alive, not static.
+        val pulse = 1f + 0.22f * sin(settle * Math.PI.toFloat())
+        val glowAlpha = (110 * flyIn * (0.55f + 0.45f * easeInOut.getInterpolation(seg(0.30f, 0.7f))) * pulse).toInt()
         if (glowAlpha <= 0) return
         val r = markSize * (2.5f + 0.5f * flyIn)
         bloomPaint.shader = RadialGradient(
@@ -223,11 +280,18 @@ class VerflixedIntroView @JvmOverloads constructor(
         var x = cx - total / 2f
         val baseline = cy + markSize * 1.16f
 
+        // Glassy wordmark: icy top melting into brand blue.
+        wordPaint.shader = LinearGradient(
+            0f, baseline - textSize, 0f, baseline,
+            intArrayOf(0xFFF2F8FF.toInt(), 0xFFC4DCFF.toInt(), 0xFF6FB0FF.toInt()),
+            floatArrayOf(0f, 0.5f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+
         for (i in letters.indices) {
             val start = 0.44f + (i / letters.length.toFloat()) * 0.30f
             val k = easeOut.getInterpolation(seg(start, start + 0.20f))
             if (k > 0f) {
-                wordPaint.color = Color.WHITE
                 wordPaint.alpha = (255 * min(1f, k * 1.25f)).toInt().coerceIn(0, 255)
                 val rise = (1f - k) * textSize * 0.55f
                 canvas.withSave {
@@ -238,8 +302,30 @@ class VerflixedIntroView @JvmOverloads constructor(
             }
             x += widths[i] + tracking
         }
+        wordPaint.shader = null
 
         if (compact) return
+
+        // Final light sweep across the resolved wordmark — the "shine" beat.
+        val sk = seg(0.74f, 0.96f)
+        if (sk in 0f..1f) {
+            val eased = easeInOut.getInterpolation(sk)
+            val bandW = total * 0.35f
+            val bx = cx - total / 2f - bandW + eased * (total + 2 * bandW)
+            val fade = sin(sk * Math.PI.toFloat())
+            canvas.withSave {
+                clipRect(cx - total / 2f, baseline - textSize * 1.1f, cx + total / 2f, baseline + textSize * 0.25f)
+                sweepPaint.shader = LinearGradient(
+                    bx - bandW, 0f, bx + bandW, 0f,
+                    intArrayOf(Color.TRANSPARENT, 0x59FFFFFF, Color.TRANSPARENT),
+                    floatArrayOf(0f, 0.5f, 1f),
+                    Shader.TileMode.CLAMP,
+                )
+                sweepPaint.alpha = (200 * fade).toInt().coerceIn(0, 255)
+                drawRect(bx - bandW, baseline - textSize * 1.2f, bx + bandW, baseline + textSize * 0.3f, sweepPaint)
+            }
+        }
+
         val tk = easeOut.getInterpolation(seg(0.70f, 0.95f))
         if (tk <= 0f) return
         taglinePaint.textSize = textSize * 0.46f
@@ -267,15 +353,17 @@ class VerflixedIntroView @JvmOverloads constructor(
     companion object {
         const val DEFAULT_DURATION_MS = 2450L
 
-        private const val FACE_TOP = 0xFF8FC4FF.toInt()
-        private const val FACE_MID = 0xFF2F80FF.toInt()
-        private const val FACE_BOTTOM = 0xFF1348A8.toInt()
+        private const val FACE_TOP = 0xFFEFF6FF.toInt()
+        private const val FACE_MID = 0xFF5CA8FF.toInt()
+        private const val FACE_BOTTOM = 0xFF1C4FB8.toInt()
         private const val SIDE_DARK = 0xFF0A1E44.toInt()
         private const val SIDE_LIGHT = 0xFF1B5FC4.toInt()
         private const val SWEEP_HOT = 0xFFE8F3FF.toInt()
         private const val GLOW_INNER = 0x662F80FF
         private const val GLOW_MID = 0x222F80FF
         private const val ACCENT_SOFT = 0xFF8FB6E8.toInt()
+        private const val RIM = 0xFFEAF4FF.toInt()
+        private const val NEBULA_INNER = 0x2E1E56C8.toInt()
 
         /** Keep the mark visible a beat after the sting resolves. */
         const val HOLD_AFTER_MS = 260L

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Immersive side rail: fades from near-opaque at the bottom to a whisper of
+     dark at the top, so content glides underneath it. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="90"
+        android:startColor="#EE05060A"
+        android:centerColor="#B607080D"
+        android:endColor="#5907080D" />
+</shape>

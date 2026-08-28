@@ -15,20 +15,18 @@
         style="@style/SvRowTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:textSize="18sp" />
+        android:layout_marginBottom="2dp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rowList"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
         android:nestedScrollingEnabled="false"
         android:orientation="horizontal"
-        android:paddingStart="8dp"
         android:paddingTop="20dp"
         android:paddingEnd="24dp"
         android:paddingBottom="20dp" />
