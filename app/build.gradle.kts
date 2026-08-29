@@ -12,8 +12,8 @@ android {
         applicationId = "com.verflixed.tv"
         minSdk = 25
         targetSdk = 34
-        versionCode = 60
-        versionName = "1.25.0"
+        versionCode = 61
+        versionName = "1.26.0"
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
@@ -51,6 +51,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time on minSdk 25 (Fire TV sticks): API-level errors are real
+        // crashes on those devices without this.
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -99,6 +102,13 @@ dependencies {
 
     // QR code rendering for local profile sync (pure Java, tiny).
     implementation("com.google.zxing:core:3.5.3")
+
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    testImplementation("junit:junit:4.13.2")
+    // org.json is android-provided; JVM unit tests need the stub on the classpath.
+    testImplementation("org.json:json:20240303")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     // Cloudflare IUAM / challenge auto-click WebViewClient (darkryh, MIT)
     implementation("com.github.darkryh:Cloudflare-Bypass:0.0.5")

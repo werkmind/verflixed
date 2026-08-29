@@ -1,16 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Focus ring for 14dp-corner cards (episode tiles, calendar day tiles).
-     Radius matches vf_radius so the ring hugs the card corners (concentric). -->
+     Midnight Cinema Glow: weißer Kern + Eis-Halo, konzentrisch zur Kachel. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_focused="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@android:color/transparent" />
-            <corners android:radius="@dimen/vf_radius" />
-            <stroke
-                android:width="3dp"
-                android:color="@color/sv_focus_ring" />
-        </shape>
-    </item>
+    <item android:state_focused="true" android:drawable="@drawable/bg_glow_focus_card" />
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@android:color/transparent" />

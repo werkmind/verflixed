@@ -7,6 +7,7 @@
         <item name="colorPrimaryDark">@color/sv_bg_deep</item>
         <item name="colorAccent">@color/sv_accent</item>
         <item name="android:colorAccent">@color/sv_accent</item>
+        <item name="android:fontFamily">@font/outfit</item>
         <item name="android:textColorPrimary">@color/sv_text_primary</item>
         <item name="android:textColorSecondary">@color/sv_text_secondary</item>
         <item name="android:windowFullscreen">true</item>
@@ -131,21 +132,22 @@
     </style>
 
     <style name="SvRowTitle">
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:fontFamily">@font/outfit_semibold</item>
         <item name="android:textColor">@color/sv_text_primary</item>
-        <item name="android:textSize">16sp</item>
+        <item name="android:textSize">18sp</item>
         <item name="android:textStyle">normal</item>
-        <item name="android:letterSpacing">0.01</item>
+        <item name="android:letterSpacing">-0.01</item>
     </style>
 
     <style name="SvHeroTitle">
+        <item name="android:fontFamily">@font/outfit_semibold</item>
         <item name="android:textColor">@color/sv_text_primary</item>
-        <item name="android:textSize">20sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">-0.025</item>
+        <item name="android:textSize">40sp</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:letterSpacing">-0.028</item>
         <item name="android:shadowColor">#B3000000</item>
         <item name="android:shadowDx">0</item>
         <item name="android:shadowDy">2</item>
-        <item name="android:shadowRadius">12</item>
+        <item name="android:shadowRadius">18</item>
     </style>
 </resources>

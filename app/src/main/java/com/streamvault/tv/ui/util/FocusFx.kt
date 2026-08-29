@@ -49,7 +49,37 @@ object FocusFx {
         view.setOnFocusChangeListener { v, hasFocus ->
             previous?.onFocusChange(v, hasFocus)
             animateFocus(v, hasFocus, focusedScale)
+            dimSiblings(v, hasFocus)
         }
+    }
+
+    /**
+     * Midnight Cinema sibling dim: when a card gains focus, its neighbours in
+     * the row recede to 0.62 alpha so the focused card becomes the single
+     * bright anchor. On focus loss the whole row returns to full opacity.
+     * Fire-and-forget per view; RecyclerView rebinds reset alpha anyway.
+     */
+    fun dimSiblings(view: View, hasFocus: Boolean, dimAlpha: Float = 0.62f) {
+        val parent = view.parent as? ViewGroup ?: return
+        for (i in 0 until parent.childCount) {
+            val child = parent.getChildAt(i)
+            if (child === view) continue
+            animateAlpha(child, if (hasFocus) dimAlpha else 1f)
+        }
+    }
+
+    private fun animateAlpha(view: View, target: Float) {
+        view.animate().cancel()
+        if (!motionEnabled(view)) {
+            view.alpha = target
+            return
+        }
+        view.animate()
+            .alpha(target)
+            .setDuration(200L)
+            .setInterpolator(glide)
+            .withLayer()
+            .start()
     }
 
     /**

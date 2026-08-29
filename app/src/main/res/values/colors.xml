@@ -7,22 +7,29 @@
     <color name="sv_accent">#FF2F80FF</color>
     <color name="sv_accent_soft">#662F80FF</color>
     <color name="sv_accent_pressed">#FF1A66E8</color>
-    <color name="sv_text_primary">#FFFFFFFF</color>
-    <color name="sv_text_secondary">#FFC5CDD8</color>
-    <color name="sv_text_muted">#FF8B95A6</color>
+    <!-- Midnight Cinema: Eis-Hell für Glow/Kicker (Brand-Gradient-Spitze) -->
+    <color name="sv_ice_bright">#FF5CA8FF</color>
+    <!-- Midnight Cinema: funktionale Warm-Farbe für Progress/Restzeit -->
+    <color name="sv_amber">#FFFFB454</color>
+    <color name="sv_amber_soft">#4DFFB454</color>
+    <color name="sv_text_primary">#FFF2F5FA</color>
+    <color name="sv_text_secondary">#FFA7B0BF</color>
+    <color name="sv_text_muted">#FF6B7686</color>
     <color name="sv_focus">#FFFFFFFF</color>
     <color name="sv_focus_ring">#E6FFFFFF</color>
+    <color name="sv_focus_glow">#615CA8FF</color>
     <color name="sv_accent_badge">#E612141C</color>
     <color name="sv_focus_fill">#402F80FF</color>
-    <color name="sv_progress">#FF2F80FF</color>
+    <color name="sv_progress">#FFFFB454</color>
+    <color name="sv_progress_track">#33FFFFFF</color>
     <color name="sv_watched">#FF46D369</color>
     <color name="sv_card_stroke">#26FFFFFF</color>
     <color name="sv_card_fill">#1AFFFFFF</color>
     <color name="sv_poster_bg">#FF10131A</color>
     <color name="sv_scrim_strong">#F207080D</color>
-    <color name="sv_hero_scrim_start">#0007080D</color>
-    <color name="sv_hero_scrim_mid">#9907080D</color>
-    <color name="sv_hero_scrim_end">#FF07080D</color>
+    <color name="sv_hero_scrim_start">#0005060A</color>
+    <color name="sv_hero_scrim_mid">#B805060A</color>
+    <color name="sv_hero_scrim_end">#FF05060A</color>
     <color name="sv_button_primary_text">#FF0B0E14</color>
     <color name="sv_btn_primary">#FFFFFFFF</color>
     <color name="sv_btn_primary_pressed">#FFE2E6EC</color>

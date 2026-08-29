@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Midnight Cinema Glow-Fokus: weißer Kern-Ring (innen, exakt auf der Kante)
+     + Eis-Halo (außen, weich). Beide Ebenen in einem LayerDrawable, damit der
+     Ring konzentrisch bleibt, wenn die Karte skaliert. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Halo: außenliegend, durch padding divergiert sie vom Kern -->
+    <item
+        android:bottom="-6dp"
+        android:left="-6dp"
+        android:right="-6dp"
+        android:top="-6dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/vf_radius_focus_outer" />
+            <stroke
+                android:width="7dp"
+                android:color="@color/sv_focus_glow" />
+        </shape>
+    </item>
+    <!-- Kern: weißer Ring auf der Karten-Kante -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/vf_radius_image" />
+            <stroke
+                android:width="3dp"
+                android:color="@color/sv_focus_ring" />
+        </shape>
+    </item>
+</layer-list>

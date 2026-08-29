@@ -30,11 +30,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.media3.common.util.UnstableApi
 
 private object StreamLanguageLabel {
     fun fromPrefs(prefs: UserPrefs): String =
         StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))
 }
+
+@UnstableApi
 class SeriesDetailActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityDetailBinding
     private var series: Series? = null

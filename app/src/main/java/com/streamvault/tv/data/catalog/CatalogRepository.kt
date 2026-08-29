@@ -577,25 +577,19 @@ class CatalogRepository(
     }
 
     /**
-     * Global search across library + series catalog + movie catalog.
-     * [priorityKind] ("series"|"movie"|null) rows are listed first.
-     * Does NOT mutate prefs.mediaKind (avoids races with Home browse loads).
+     * Instant in-memory search (catalog + favorites). No network.
+     * Used to paint suggestions on every keystroke before live results arrive.
      */
-    suspend fun searchGlobal(query: String, priorityKind: String? = null): List<HomeRow> =
+    suspend fun searchLocal(query: String, priorityKind: String? = null): List<HomeRow> =
         withContext(Dispatchers.IO) {
             val raw = query.trim()
             val q = raw.lowercase()
+            val qFold = SiteSearch.foldUmlauts(q)
             val catalogSeries = applyContentFilters(
-                runCatching {
-                    loadCatalog(forceRefresh = false, kindOverride = "series")
-                        .series.filter { it.mediaKind != "movie" }
-                }.getOrDefault(emptyList())
+                memoryCatalog?.series?.filter { it.mediaKind != "movie" }.orEmpty()
             )
             val catalogMovies = applyContentFilters(
-                runCatching {
-                    loadCatalog(forceRefresh = false, kindOverride = "movie")
-                        .series.filter { it.mediaKind == "movie" }
-                }.getOrDefault(emptyList())
+                memoryMoviesCatalog?.series.orEmpty()
             )
             val favs = applyContentFilters(
                 runCatching {
@@ -604,74 +598,133 @@ class CatalogRepository(
                     }
                 }.getOrDefault(emptyList())
             )
-            fun match(list: List<Series>): List<Series> {
-                if (q.isEmpty()) return list.take(24)
-                return list.filter {
-                    it.title.lowercase().contains(q) ||
-                        it.overview?.lowercase()?.contains(q) == true ||
-                        it.genres.any { g -> g.lowercase().contains(q) } ||
-                        it.id.contains(q)
-                }
-            }
-            val libHits = match(favs)
-            val seriesHits = match(catalogSeries)
-            val movieHits = match(catalogMovies)
-
-            // Live site searches (best-effort)
-            val liveSeries = if (raw.length >= 2) {
-                runCatching {
-                    SiteSearch.search(http, prefs.seriesBaseUrl, raw, USER_AGENT, mediaKind = "series")
-                }.getOrDefault(emptyList())
-            } else emptyList()
-            val liveMovies = if (raw.length >= 2) {
-                runCatching {
-                    SiteSearch.search(http, prefs.moviesBaseUrl, raw, USER_AGENT, mediaKind = "movie")
-                }.getOrDefault(emptyList())
-            } else emptyList()
-
-            fun merge(a: List<Series>, b: List<Series>): List<Series> {
-                val map = LinkedHashMap<String, Series>()
-                a.forEach { map[it.id] = it }
-                b.forEach { s ->
-                    val ex = map[s.id]
-                    map[s.id] = ex?.copy(
-                        title = ex.title.ifBlank { s.title },
-                        overview = ex.overview ?: s.overview,
-                        detailPath = ex.detailPath ?: s.detailPath,
-                        posterUrl = ex.posterUrl ?: s.posterUrl,
-                    ) ?: s
-                }
-                return map.values.toList()
-            }
-
-            val seriesRow = applyContentFilters(merge(seriesHits, liveSeries)).take(36)
-            val movieRow = applyContentFilters(merge(movieHits, liveMovies)).take(36)
-            val libRow = libHits.take(24)
+            val libRow = matchTitles(favs, q, qFold).take(24)
+            val seriesRow = matchTitles(catalogSeries, q, qFold).take(36)
+            val movieRow = matchTitles(catalogMovies, q, qFold).take(36)
             rememberSeriesHits(seriesRow + movieRow + libRow)
-
-            val rows = mutableListOf<HomeRow>()
-            fun addRow(title: String, items: List<Series>) {
-                if (items.isNotEmpty()) rows += HomeRow(title, items)
-            }
-            when (priorityKind) {
-                "movie" -> {
-                    addRow("Filme", movieRow)
-                    addRow("Serien", seriesRow)
-                    addRow("Meine Bibliothek", libRow)
-                }
-                "series" -> {
-                    addRow("Serien", seriesRow)
-                    addRow("Filme", movieRow)
-                    addRow("Meine Bibliothek", libRow)
-                }
-                else -> {
-                    addRow("Meine Bibliothek", libRow)
-                    addRow("Serien", seriesRow)
-                    addRow("Filme", movieRow)
-                }
-            }
-            rows
+            assembleSearchRows(priorityKind, libRow, seriesRow, movieRow)
         }
+
+    /**
+     * Live site suggestions only (parallel series + movies, short timeouts).
+     * Merge on top of [local] so catalog art wins on ID collision.
+     */
+    suspend fun searchLive(
+        query: String,
+        priorityKind: String? = null,
+        local: List<HomeRow> = emptyList(),
+    ): List<HomeRow> = withContext(Dispatchers.IO) {
+        val raw = query.trim()
+        if (raw.length < 2) return@withContext local
+
+        val q = raw.lowercase()
+        val liveSeriesDef = async {
+            runCatching {
+                SiteSearch.search(
+                    http, prefs.seriesBaseUrl, raw, USER_AGENT,
+                    mediaKind = "series", fast = true,
+                )
+            }.getOrDefault(emptyList())
+        }
+        val liveMoviesDef = async {
+            runCatching {
+                SiteSearch.search(
+                    http, prefs.moviesBaseUrl, raw, USER_AGENT,
+                    mediaKind = "movie", fast = true,
+                )
+            }.getOrDefault(emptyList())
+        }
+        val liveSeries = liveSeriesDef.await()
+        val liveMovies = liveMoviesDef.await()
+
+        val localSeries = local.firstOrNull { it.title == "Serien" }?.items.orEmpty()
+        val localMovies = local.firstOrNull { it.title == "Filme" }?.items.orEmpty()
+        val localLib = local.firstOrNull { it.title == "Meine Bibliothek" }?.items.orEmpty()
+
+        val seriesRow = applyContentFilters(mergeSearchHits(localSeries, liveSeries))
+            .sortedByDescending { it.title.lowercase().startsWith(q) }
+            .take(36)
+        val movieRow = applyContentFilters(mergeSearchHits(localMovies, liveMovies))
+            .sortedByDescending { it.title.lowercase().startsWith(q) }
+            .take(36)
+        rememberSeriesHits(seriesRow + movieRow + localLib)
+        assembleSearchRows(priorityKind, localLib, seriesRow, movieRow)
+    }
+
+    /**
+     * Global search across library + series catalog + movie catalog.
+     * [priorityKind] ("series"|"movie"|null) rows are listed first.
+     * Does NOT mutate prefs.mediaKind (avoids races with Home browse loads).
+     *
+     * Prefer [searchLocal] + [searchLive] for progressive UI; this keeps the
+     * one-shot path for callers that still need a single result list.
+     */
+    suspend fun searchGlobal(query: String, priorityKind: String? = null): List<HomeRow> {
+        val local = searchLocal(query, priorityKind)
+        return searchLive(query, priorityKind, local)
+    }
+
+    private fun matchTitles(list: List<Series>, q: String, qFold: String): List<Series> {
+        if (q.isEmpty()) return list.take(24)
+        // Title-prefix first, then substring. Fold umlauts so "ueber" hits "Über".
+        // Genres/IDs are NOT matched - they flooded results with unrelated titles.
+        val starts = mutableListOf<Series>()
+        val contains = mutableListOf<Series>()
+        for (s in list) {
+            val t = s.title.lowercase()
+            val tf = SiteSearch.foldUmlauts(t)
+            when {
+                t.startsWith(q) || tf.startsWith(qFold) -> starts += s
+                q in t || qFold in tf -> contains += s
+            }
+        }
+        return starts + contains
+    }
+
+    private fun mergeSearchHits(a: List<Series>, b: List<Series>): List<Series> {
+        val map = LinkedHashMap<String, Series>()
+        a.forEach { map[it.id] = it }
+        b.forEach { s ->
+            val ex = map[s.id]
+            map[s.id] = ex?.copy(
+                title = ex.title.ifBlank { s.title },
+                overview = ex.overview ?: s.overview,
+                detailPath = ex.detailPath ?: s.detailPath,
+                posterUrl = ex.posterUrl ?: s.posterUrl,
+            ) ?: s
+        }
+        return map.values.toList()
+    }
+
+    private fun assembleSearchRows(
+        priorityKind: String?,
+        libRow: List<Series>,
+        seriesRow: List<Series>,
+        movieRow: List<Series>,
+    ): List<HomeRow> {
+        val rows = mutableListOf<HomeRow>()
+        fun addRow(title: String, items: List<Series>) {
+            if (items.isNotEmpty()) rows += HomeRow(title, items)
+        }
+        when (priorityKind) {
+            "movie" -> {
+                addRow("Filme", movieRow)
+                addRow("Serien", seriesRow)
+                addRow("Meine Bibliothek", libRow)
+            }
+            "series" -> {
+                addRow("Serien", seriesRow)
+                addRow("Filme", movieRow)
+                addRow("Meine Bibliothek", libRow)
+            }
+            else -> {
+                addRow("Meine Bibliothek", libRow)
+                addRow("Serien", seriesRow)
+                addRow("Filme", movieRow)
+            }
+        }
+        return rows
+    }
 
 
     private fun blockedGenreIds(): Set<String> = prefs.blockedGenres(prefs.activeProfileId)

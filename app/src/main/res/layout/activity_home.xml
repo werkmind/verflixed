@@ -191,7 +191,7 @@
                 android:layout_height="40dp"
                 android:contentDescription="@string/mode_search"
                 android:src="@drawable/ic_nav_search"
-                android:tint="@color/sv_side_nav_icon" />
+                app:tint="@color/sv_side_nav_icon" />
 
             <ImageButton
                 android:id="@+id/btnUpdate"
@@ -315,12 +315,14 @@
         app:layout_constraintStart_toEndOf="@id/sideNav"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Immersive feed: full-bleed behind the top bar (hero fades into the app
-         background; the nav floats on top, Netflix-style). -->
+    <!-- Immersive feed over the ambient stage: inset stage edges let the
+         blurred room light ring the content - depth without hard layout lines. -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="8dp"
         android:clipChildren="true"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
@@ -328,6 +330,23 @@
         android:paddingTop="0dp"
         android:paddingEnd="0dp"
         android:paddingBottom="28dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Midnight Cinema ambient stage: a whisper of the focused artwork as
+         room light OVER the feed (18% alpha) - atmosphere without hurting
+         legibility. Drawn above rows, below topbar chrome. -->
+    <ImageView
+        android:id="@+id/ambientImage"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:alpha="0"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

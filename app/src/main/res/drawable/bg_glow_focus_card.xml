@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glow-Variante für 14dp-Kacheln (Episoden, Kalender, Dialoge):
+     gleiche Sprache wie bg_glow_focus, größerer Innenradius. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:bottom="-6dp"
+        android:left="-6dp"
+        android:right="-6dp"
+        android:top="-6dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="20dp" />
+            <stroke
+                android:width="7dp"
+                android:color="@color/sv_focus_glow" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/vf_radius" />
+            <stroke
+                android:width="3dp"
+                android:color="@color/sv_focus_ring" />
+        </shape>
+    </item>
+</layer-list>

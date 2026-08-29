@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
  * jumping to a sibling above (hero, season tabs, sidebar) when the neighbor
  * is off-screen or recycled.
  */
+@Suppress("WrongConstant")
 class TvLinearLayoutManager(
     context: Context,
     orientation: Int = VERTICAL,
@@ -60,12 +61,26 @@ class TvLinearLayoutManager(
             rv.scrollToPosition(along)
             return existing
         }
+        // Off-screen neighbour: scroll, then place focus on the recycled item.
+        // A retry pass guards against slow layouts, so the focus can never
+        // vanish between two RecyclerView positions (TV dead-end).
         pendingFocusPos = along
         rv.scrollToPosition(along)
         rv.post {
             val target = rv.findViewHolderForAdapterPosition(along)?.itemView
-            if (target != null) target.requestFocus()
-            pendingFocusPos = RecyclerView.NO_POSITION
+            if (target != null) {
+                target.requestFocus()
+                pendingFocusPos = RecyclerView.NO_POSITION
+            } else {
+                rv.post {
+                    val late = rv.findViewHolderForAdapterPosition(along)?.itemView
+                        ?: rv.getChildAt(0)
+                    if (late != null && rv.getChildAdapterPosition(late) == along) {
+                        late.requestFocus()
+                    }
+                    pendingFocusPos = RecyclerView.NO_POSITION
+                }
+            }
         }
         return focused
     }

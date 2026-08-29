@@ -29,6 +29,7 @@ import com.streamvault.tv.databinding.ActivityHomeBinding
 import com.streamvault.tv.ui.detail.SeriesDetailActivity
 import com.streamvault.tv.ui.profile.ProfilesActivity
 import com.streamvault.tv.ui.settings.SettingsActivity
+import com.streamvault.tv.ui.util.AmbientFx
 import com.streamvault.tv.ui.util.FocusFx
 import com.streamvault.tv.ui.util.PosterLoader
 import com.streamvault.tv.ui.util.TvLinearLayoutManager
@@ -40,6 +41,7 @@ import kotlinx.coroutines.launch
 
 enum class HomeMode { LIBRARY, SERIES, MOVIES, SEARCH }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class HomeActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityHomeBinding
     private var heroSeries: Series? = null
@@ -187,6 +189,19 @@ class HomeActivity : ScaledAppCompatActivity() {
         binding.rows.setItemViewCacheSize(6)
         binding.rows.clipChildren = true
         binding.rows.clipToPadding = false
+        // Focus safety net: if a D-pad move ever lands on the RecyclerView with
+        // no focused child (previous focus died in a rebind), route it into the
+        // first poster of the first row instead of stranding the user.
+        binding.rows.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        binding.rows.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus && binding.rows.findFocus() == null) {
+                binding.rows.post {
+                    val first = binding.rows.findViewHolderForAdapterPosition(0)?.itemView
+                        ?: binding.rows.getChildAt(0)
+                    (first?.findFocusTarget() ?: first)?.requestFocus()
+                }
+            }
+        }
         // Keep focused row visible for D-pad TV navigation
         binding.rows.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
             override fun onChildViewAttachedToWindow(view: View) = Unit
@@ -670,33 +685,64 @@ class HomeActivity : ScaledAppCompatActivity() {
         }
         searchJob?.cancel()
         searchJob = lifecycleScope.launch {
-            delay(180)
-            if (mode != HomeMode.SEARCH) return@launch
-            // Skeleton only overlays browse rows; keep search panel responsive.
+            // Progressive search:
+            // 1) Local catalog hits in ~50ms (instant suggestions while typing)
+            // 2) Live site suggest in parallel shortly after (short timeouts)
+            // Umlaut folding lives inside SiteSearch / searchLocal - no second
+            // full-network retry that used to double the lag.
+            delay(50)
+            if (mode != HomeMode.SEARCH || q != searchQuery) return@launch
             showSkeleton(false)
             binding.emptyText.visibility = View.GONE
-            runCatching { repo.searchGlobal(q, effectivePriority) }
+
+            val local = runCatching { repo.searchLocal(q, effectivePriority) }
+                .getOrDefault(emptyList())
+            if (mode != HomeMode.SEARCH || q != searchQuery) return@launch
+            // Never flash "empty" before live returns - local miss is normal.
+            paintSearchRows(local, allowEmpty = true)
+
+            if (q.trim().length < 2) {
+                if (local.isEmpty() || local.all { it.items.isEmpty() }) {
+                    searchResultsAdapter.submit(emptyList(), null)
+                    binding.emptyText.visibility = View.GONE
+                }
+                return@launch
+            }
+
+            // Extra debounce so mid-word keystrokes cancel before the network hop.
+            delay(90)
+            if (mode != HomeMode.SEARCH || q != searchQuery) return@launch
+
+            runCatching { repo.searchLive(q, effectivePriority, local) }
                 .onSuccess { rows ->
                     if (mode != HomeMode.SEARCH || q != searchQuery) return@onSuccess
-                    if (rows.isEmpty() || rows.all { it.items.isEmpty() }) {
-                        searchResultsAdapter.submit(emptyList(), null)
-                        binding.emptyText.text = getString(R.string.search_empty)
-                        binding.emptyText.visibility = View.VISIBLE
-                    } else {
-                        binding.emptyText.visibility = View.GONE
-                        val featured = rows.firstOrNull()?.items?.firstOrNull()
-                        searchResultsAdapter.submit(rows, featured)
-                        featured?.let { updateHero(it) }
-                    }
+                    paintSearchRows(rows, allowEmpty = false)
                 }
                 .onFailure {
                     if (mode != HomeMode.SEARCH || q != searchQuery) return@onFailure
+                    // Keep local results; only toast hard failures.
                     val msg = it.toVfMessage()
                     if (msg.isNotBlank()) {
                         Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
                     }
                 }
         }
+    }
+
+    private fun paintSearchRows(rows: List<HomeRow>, allowEmpty: Boolean) {
+        val empty = rows.isEmpty() || rows.all { it.items.isEmpty() }
+        if (empty) {
+            if (!allowEmpty) {
+                searchResultsAdapter.submit(emptyList(), null)
+                binding.emptyText.text = getString(R.string.search_empty)
+                binding.emptyText.visibility = View.VISIBLE
+            }
+            return
+        }
+        binding.emptyText.visibility = View.GONE
+        val featured = rows.firstOrNull()?.items?.firstOrNull()
+        searchResultsAdapter.submit(rows, featured)
+        featured?.let { updateHero(it) }
     }
 
     private fun checkUpdate() {
@@ -928,7 +974,11 @@ class HomeActivity : ScaledAppCompatActivity() {
         heroSeries = series
         rowsAdapter.updateHero(series)
         if (mode == HomeMode.SEARCH) searchResultsAdapter.updateHero(series)
-        // Keep stub binding fields in sync (legacy IDs, gone in layout).
+        // Midnight Cinema: the room light follows the focused title.
+        AmbientFx.update(
+            binding.ambientImage,
+            series.backdropUrl ?: series.posterUrl,
+        )        // Keep stub binding fields in sync (legacy IDs, gone in layout).
         binding.heroTitle.text = series.title
         val meta = buildString {
             series.year?.let { append(it) }
@@ -1058,16 +1108,53 @@ private class RowsAdapter(
     }
 
     fun submit(data: List<HomeRow>, featured: Series? = null) {
+        val newRows = data.filter { it.items.isNotEmpty() }
+        val newHero = featured
+            ?: newRows.firstOrNull { it.kind != HomeRow.KIND_CALENDAR }?.items?.firstOrNull()
+            ?: newRows.firstOrNull()?.items?.firstOrNull()
+
+        // Diff-based updates keep the focused poster and row positions stable
+        // while typing. notifyDataSetChanged() would rebind everything per
+        // keypress - the flicker/jank the old search had.
+        val result = androidx.recyclerview.widget.DiffUtil.calculateDiff(
+            RowsDiffCallback(rows, hero, newRows, newHero)
+        )
         rows.clear()
-        rows.addAll(data.filter { it.items.isNotEmpty() })
-        hero = featured
-            ?: rows.firstOrNull { it.kind != HomeRow.KIND_CALENDAR }?.items?.firstOrNull()
-            ?: rows.firstOrNull()?.items?.firstOrNull()
+        rows.addAll(newRows)
+        hero = newHero
         enterPending = true
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
             { enterPending = false }, 600L
         )
-        notifyDataSetChanged()
+        result.dispatchUpdatesTo(this)
+    }
+
+    private class RowsDiffCallback(
+        private val oldRows: List<HomeRow>,
+        private val oldHero: Series?,
+        private val newRows: List<HomeRow>,
+        private val newHero: Series?,
+    ) : androidx.recyclerview.widget.DiffUtil.Callback() {
+        override fun getOldListSize(): Int = oldRows.size + if (oldHero != null) 1 else 0
+        override fun getNewListSize(): Int = newRows.size + if (newHero != null) 1 else 0
+        override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean {
+            val oldIsHero = oldHero != null && oldPos == 0
+            val newIsHero = newHero != null && newPos == 0
+            if (oldIsHero || newIsHero) return oldIsHero && newIsHero
+            val o = oldRows.getOrNull(if (oldHero != null) oldPos - 1 else oldPos)
+            val n = newRows.getOrNull(if (newHero != null) newPos - 1 else newPos)
+            return o?.title == n?.title && o?.kind == n?.kind
+        }
+        override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
+            val o = oldRows.getOrNull(if (oldHero != null) oldPos - 1 else oldPos)
+            val n = newRows.getOrNull(if (newHero != null) newPos - 1 else newPos)
+            if (o == null || n == null) return oldHero != null && newHero != null
+            if (o.items.size != n.items.size) return false
+            return o.items.zip(n.items).all { (a, b) ->
+                a.id == b.id && a.title == b.title &&
+                    a.posterUrl == b.posterUrl && a.backdropUrl == b.backdropUrl
+            }
+        }
     }
 
     fun updateHero(series: Series) {
@@ -1141,6 +1228,31 @@ private class RowsAdapter(
             FocusFx.bindLiquid(play, 1.06f)
             FocusFx.bindLiquid(info, 1.08f)
             FocusFx.bindPress(play)
+            // D-pad contract for the hero: UP must reach the nav, DOWN must
+            // enter the first poster row. Without explicit routes the plain
+            // FrameLayout grabbed the focus or swallowed the move entirely.
+            (itemView as? ViewGroup)?.descendantFocusability =
+                ViewGroup.FOCUS_AFTER_DESCENDANTS
+            itemView.isFocusable = false
+            play.nextFocusDownId = View.NO_ID
+            play.nextFocusUpId = R.id.navLibrary
+            info.nextFocusDownId = View.NO_ID
+            info.nextFocusUpId = R.id.navLibrary
+            play.setOnKeyListener { v, keyCode, event ->
+                if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        // Hand the move to the RecyclerView: first poster of row 0.
+                        val rv = itemView.parent as? RecyclerView
+                        val target = rv?.findViewHolderForAdapterPosition(1)?.itemView
+                            ?: rv?.getChildAt(1)
+                        val poster = (target as? ViewGroup)?.let { it.findFocusTarget() }
+                        (poster ?: target)?.requestFocus()
+                        true
+                    }
+                    else -> false
+                }
+            }
         }
 
         fun bind(series: Series) {
@@ -1474,6 +1586,7 @@ private class PosterAdapter(
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
             FocusFx.animateFocus(v, hasFocus, 1.08f)
+            FocusFx.dimSiblings(v, hasFocus)
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 val s = itemAt(pos) ?: return@setOnFocusChangeListener
@@ -1542,12 +1655,42 @@ private fun moveToNeighborRow(list: RecyclerView, focused: View, direction: Int)
     val col = list.getChildAdapterPosition(focused).coerceAtLeast(0)
     val nextRow = if (direction == View.FOCUS_UP) rowPos - 1 else rowPos + 1
     val count = rowsRv.adapter?.itemCount ?: 0
-    if (nextRow !in 0 until count) return null
+    if (nextRow !in 0 until count) {
+        // Top of the feed (no row above): leave the RecyclerView so the system
+        // focus search can reach the nav. Returning `focused` here would keep
+        // the poster focused while the row scrolls - then recycling kills the
+        // focus entirely (the old "focus lost after UP" bug).
+        if (direction == View.FOCUS_UP && rowPos == 0) return null
+        return focused
+    }
     rowsRv.scrollToPosition(nextRow)
     rowsRv.post {
-        val nextRowView = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView ?: return@post
+        val nextRowView = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView ?: run {
+            // Row not laid out yet: retry once after the scroll settles so the
+            // focus can never silently die between two rows.
+            rowsRv.post {
+                val late = rowsRv.findViewHolderForAdapterPosition(nextRow)?.itemView ?: return@post
+                val lateList = late.findViewById<RecyclerView>(R.id.rowList)
+                if (lateList == null) {
+                    late.findViewById<View>(R.id.btnHeroPlay)?.requestFocus()
+                        ?: late.findViewById<View>(R.id.btnHeroInfo)?.requestFocus()
+                } else {
+                    val last = (lateList.adapter?.itemCount ?: 1) - 1
+                    val p = col.coerceIn(0, last.coerceAtLeast(0))
+                    lateList.scrollToPosition(p)
+                    lateList.post {
+                        (
+                            lateList.findViewHolderForAdapterPosition(p)?.itemView
+                                ?: lateList.getChildAt(0)
+                            )?.requestFocus()
+                    }
+                }
+            }
+            return@post
+        }
         val nextList = nextRowView.findViewById<RecyclerView>(R.id.rowList)
         if (nextList == null) {
+            // Hero row: land on its play button, not on the non-focusable banner.
             nextRowView.findViewById<View>(R.id.btnHeroPlay)?.requestFocus()
                 ?: nextRowView.findViewById<View>(R.id.btnHeroInfo)?.requestFocus()
             return@post
@@ -1563,4 +1706,16 @@ private fun moveToNeighborRow(list: RecyclerView, focused: View, direction: Int)
         }
     }
     return focused
+}
+
+/** Deepest focusable descendant, or the view itself when focusable. */
+private fun View.findFocusTarget(): View? {
+    if (isFocusable && visibility == View.VISIBLE) return this
+    if (this is ViewGroup) {
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            child?.findFocusTarget()?.let { return it }
+        }
+    }
+    return null
 }
