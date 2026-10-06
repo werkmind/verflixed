@@ -32,11 +32,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.media3.common.util.UnstableApi
 
-private object StreamLanguageLabel {
-    fun fromPrefs(prefs: UserPrefs): String =
-        StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))
-}
-
 @UnstableApi
 class SeriesDetailActivity : ScaledAppCompatActivity() {
     private lateinit var binding: ActivityDetailBinding
@@ -44,6 +39,8 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
     private var selectedSeason = 1
     private var progressMap: Map<String, WatchProgressEntity> = emptyMap()
     private var isFavorite = false
+    /** Languages the title offers; empty until the source has been asked. */
+    private var availableLangs: List<String> = emptyList()
 
     private val seasonAdapter = SeasonAdapter { season ->
         selectedSeason = season
@@ -77,7 +74,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.episodeList.itemAnimator = null
         binding.episodeList.setHasFixedSize(true)
         binding.episodeList.isFocusable = false
-        binding.episodeList.clipChildren = false
+        binding.episodeList.clipChildren = true
         binding.episodeList.clipToPadding = false
         binding.seasonTabs.clipChildren = true
         binding.seasonTabs.clipToPadding = false
@@ -87,6 +84,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnFavorite,
             binding.btnRate,
             binding.btnMore,
+            binding.btnLanguage,
         ).forEach {
             FocusFx.bindScale(it, 1.06f)
         }
@@ -95,6 +93,8 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
 
         binding.btnFavorite.setOnClickListener { toggleFavorite() }
         binding.btnMore.setOnClickListener { showContextMenu() }
+        binding.btnLanguage.setOnClickListener { switchLanguage() }
+        paintLanguageButton()
         binding.btnRate.setOnClickListener { showRatingDialog() }
         bindActionHints()
         wireActionFocusChain()
@@ -144,6 +144,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 series = s
                 progressMap = p
                 bindSeries(s, fav)
+                loadLanguages(s, fav)
                 paintRatingButton()
                 renderCacheStatus(cache?.cached ?: 0, cache?.total ?: s.flatEpisodes().size, cache?.status)
                 refreshReadyDots(s.id)
@@ -175,6 +176,55 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             .start()
     }
 
+    private fun preferredLanguage(): String {
+        val prefs = (application as VerflixedApp).container.prefs
+        return StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
+    }
+
+    private fun paintLanguageButton() {
+        val wanted = preferredLanguage()
+        // Say so up front when the chosen language is not offered for this title.
+        val missing = availableLangs.isNotEmpty() && wanted !in availableLangs
+        binding.btnLanguage.text = getString(
+            if (missing) R.string.detail_language_unavailable else R.string.detail_language,
+            StreamLanguage.label(wanted),
+        )
+    }
+
+    /** Asks the source which languages the first episode of the open season carries. */
+    private fun loadLanguages(s: Series, favorite: Boolean) {
+        lifecycleScope.launch {
+            val probe = s.seasons.firstOrNull { it.number == selectedSeason }?.episodes?.firstOrNull()
+                ?: s.flatEpisodes().firstOrNull()
+            val found = runCatching {
+                (application as VerflixedApp).container.catalog.titleLanguages(s, probe)
+            }.getOrDefault(emptyList())
+            if (found == availableLangs) return@launch
+            availableLangs = found
+            bindSeries(s, favorite)
+            paintLanguageButton()
+        }
+    }
+
+    /** Sets the profile's language to the next one this title offers. Playback picks it up. */
+    private fun switchLanguage() {
+        val current = preferredLanguage()
+        val next = StreamLanguage.next(current, availableLangs)
+        if (next == current) {
+            val message = if (availableLangs.isEmpty() || current in availableLangs) {
+                getString(R.string.player_language_none)
+            } else {
+                getString(R.string.detail_language_missing, StreamLanguage.label(current))
+            }
+            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        lifecycleScope.launch {
+            (application as VerflixedApp).container.catalog.setPreferredStreamLanguage(next)
+            paintLanguageButton()
+        }
+    }
+
     private fun bindSeries(s: Series, favorite: Boolean) {
         binding.title.text = s.title
         binding.meta.text = buildString {
@@ -187,18 +237,18 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
                 if (isNotEmpty()) append("  •  ")
                 append("$it Min.")
             }
-            val langChip = s.genres.firstOrNull {
-                it.equals("Deutsch", true) || it.equals("Englisch", true)
-            } ?: run {
-                val app = application as VerflixedApp
-                StreamLanguageLabel.fromPrefs(app.container.prefs)
-            }
+            // Only what the source actually offers; the chosen one is on the button.
+            val offered = availableLangs.joinToString(", ") { StreamLanguage.label(it) }
             if (s.isMovie) {
-                if (isNotEmpty()) append("  •  ")
-                append(langChip)
+                if (offered.isNotBlank()) {
+                    if (isNotEmpty()) append("  •  ")
+                    append(offered)
+                }
             } else {
-                if (isNotEmpty()) append("  •  ")
-                append("Ton: $langChip")
+                if (offered.isNotBlank()) {
+                    if (isNotEmpty()) append("  •  ")
+                    append(offered)
+                }
                 if (s.seasons.isNotEmpty()) {
                     append("  •  ")
                     append("${s.seasons.size} Staffeln")
@@ -266,6 +316,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
             binding.btnFavorite,
             binding.btnRate,
             binding.btnMore,
+            binding.btnLanguage,
         ).forEach {
             it.nextFocusDownId = down
             it.nextFocusUpId = R.id.overviewMore
@@ -332,9 +383,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         binding.btnFavorite.setImageResource(
             if (isFavorite) R.drawable.ic_star_filled else R.drawable.ic_star
         )
-        binding.btnFavorite.imageTintList = android.content.res.ColorStateList.valueOf(
-            getColor(R.color.sv_text_primary)
-        )
+        binding.btnFavorite.imageTintList = getColorStateList(R.color.sv_icon_tint)
         binding.btnFavorite.contentDescription = if (isFavorite) {
             getString(R.string.detail_favorite_remove)
         } else getString(R.string.detail_my_list)
@@ -348,7 +397,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         val dislike = view.findViewById<android.widget.ImageButton>(R.id.rateDislike)
         val like = view.findViewById<android.widget.ImageButton>(R.id.rateLike)
         val love = view.findViewById<android.widget.ImageButton>(R.id.rateLove)
-        val ink = android.content.res.ColorStateList.valueOf(getColor(R.color.sv_text_primary))
+        val ink = getColorStateList(R.color.sv_icon_tint)
         dislike.setImageResource(
             if (currentRating == -1) R.drawable.ic_thumb_down_filled else R.drawable.ic_thumb_down
         )
@@ -420,8 +469,7 @@ class SeriesDetailActivity : ScaledAppCompatActivity() {
         }
         binding.btnRate.isSelected = currentRating != 0
         binding.btnRate.setImageResource(icon)
-        binding.btnRate.imageTintList =
-            android.content.res.ColorStateList.valueOf(getColor(R.color.sv_text_primary))
+        binding.btnRate.imageTintList = getColorStateList(R.color.sv_icon_tint)
         refreshActionHint()
     }
 
@@ -937,8 +985,7 @@ private class EpisodeAdapter(
         val v = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_episode_tile, parent, false)
         val holder = VH(v)
-        // Concentric radii: 14dp card radius − 8dp card padding = 6dp inner radius.
-        v.findViewById<View>(R.id.episodeStillWrap)?.let { FocusFx.clipStillTop(it, 6f) }
+        v.findViewById<View>(R.id.episodeStillWrap)?.let(FocusFx::clipMediaTile)
         v.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) focused = holder.bound
         }
@@ -989,8 +1036,19 @@ private class EpisodeAdapter(
                 bar.visibility = View.GONE
             }
         }
-        PosterLoader.loadEpisodeStill(holder.still, ep.stillUrl, seriesArtProvider())
-        holder.itemView.alpha = if (ep.upcoming) 0.6f else 1f
+        // The series art already fills the backdrop; repeating it on every tile
+        // reads as a loading fault. Without its own still a tile shows its number.
+        val numeral = holder.itemView.findViewById<TextView>(R.id.episodeNumeral)
+        if (ep.stillUrl.isNullOrBlank()) {
+            com.bumptech.glide.Glide.with(holder.still).clear(holder.still)
+            holder.still.setImageDrawable(null)
+            numeral.text = if (isMovie) "" else ep.number.toString()
+            numeral.visibility = View.VISIBLE
+        } else {
+            numeral.visibility = View.GONE
+            PosterLoader.loadEpisodeStill(holder.still, ep.stillUrl, null)
+        }
+        holder.itemView.alpha = 1f
         holder.itemView.isEnabled = true
         holder.itemView.isClickable = true
         holder.itemView.isFocusable = true

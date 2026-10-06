@@ -1,45 +1,91 @@
 package com.streamvault.tv.data.catalog
 
 /**
- * Stream audio language preference helpers (Deutsch / Englisch).
- * Default is always German ("de").
+ * Stream audio languages. A profile prefers one of them (default German);
+ * a hoster link either carries one or is [UNKNOWN].
  */
 object StreamLanguage {
     const val DE = "de"
     const val EN = "en"
+    /** Original audio with German subtitles. */
+    const val DE_SUB = "desub"
+    /** Original audio with English subtitles. */
+    const val EN_SUB = "ensub"
+    const val UNKNOWN = ""
 
-    fun normalize(raw: String?): String {
+    /** Order shown to the user and cycled by the quick switch. */
+    val ALL = listOf(DE, EN, DE_SUB, EN_SUB)
+
+    private val SUB_MARKER = Regex("""sub|untertitel|\bomu\b|\but\b""")
+    // Whole words only: "Deutschland" or "Engel" in a heading is not a language.
+    private val ENGLISH = Regex("""\bengl?isch(e[nrs]?)?\b|\benglish\b|\beng\b|\ben\b""")
+    private val GERMAN = Regex("""\bdeutsch(e[nrs]?)?\b|\bgerman\b|\bger\b|\bdeu\b|\bde\b""")
+
+    /**
+     * What a site label, id or flag name says about a link. Returns [UNKNOWN]
+     * when it says nothing we recognise, so a missing label is never reported
+     * as German.
+     */
+    fun classify(raw: String?): String {
         val l = raw?.trim()?.lowercase().orEmpty()
-        if (l.isBlank()) return DE
+        if (l.isBlank()) return UNKNOWN
+        when (l) {
+            DE, EN, DE_SUB, EN_SUB -> return l
+            // SerienStream / AniWorld language ids.
+            "1" -> return DE
+            "2" -> return EN
+            "3" -> return DE_SUB
+        }
+        val english = ENGLISH.containsMatchIn(l)
+        val german = GERMAN.containsMatchIn(l)
+        if (SUB_MARKER.containsMatchIn(l)) {
+            // "Englisch mit deutschen Untertiteln", "ger-sub", "japanese-german".
+            return when {
+                german -> DE_SUB
+                english -> EN_SUB
+                else -> UNKNOWN
+            }
+        }
         return when {
-            l == DE || l == "ger" || l == "deu" || l == "german" || l == "deutsch" ||
-                l.startsWith("de") && !l.contains("desub") -> DE
-            l == EN || l == "eng" || l == "english" || l == "englisch" ||
-                l.startsWith("en") -> EN
-            l.contains("deutsch") || l.contains("german") || l.contains("ger dub") ||
-                l.contains("german.dubbed") || Regex("""\bgerman\b""").containsMatchIn(l) -> DE
-            l.contains("englisch") || l.contains("english") || l.contains("eng dub") -> EN
-            // SerienStream language ids: 1 = Deutsch, 2 = Englisch
-            l == "1" -> DE
-            l == "2" -> EN
-            else -> DE
+            // Two languages in one flag name means audio + subtitle language.
+            german && english -> DE_SUB
+            l.contains("japan") && german -> DE_SUB
+            l.contains("japan") && english -> EN_SUB
+            german -> DE
+            english -> EN
+            else -> UNKNOWN
         }
     }
 
-    fun isGerman(raw: String?): Boolean = normalize(raw) == DE
-    fun isEnglish(raw: String?): Boolean = normalize(raw) == EN
+    /** A stored preference: always one of [ALL], German when missing or unreadable. */
+    fun normalize(raw: String?): String = classify(raw).ifBlank { DE }
 
-    fun label(code: String?): String = when (normalize(code)) {
+    fun isGerman(raw: String?): Boolean = classify(raw) == DE
+    fun isEnglish(raw: String?): Boolean = classify(raw) == EN
+
+    fun label(code: String?): String = when (classify(code)) {
         EN -> "Englisch"
-        else -> "Deutsch"
+        DE_SUB -> "Original mit deutschen Untertiteln"
+        EN_SUB -> "Original mit englischen Untertiteln"
+        DE -> "Deutsch"
+        else -> "Unbekannt"
     }
 
-    fun shortLabel(code: String?): String = when (normalize(code)) {
+    fun shortLabel(code: String?): String = when (classify(code)) {
         EN -> "EN"
-        else -> "DE"
+        DE_SUB -> "OmU DE"
+        EN_SUB -> "OmU EN"
+        DE -> "DE"
+        else -> "?"
     }
 
-    fun toggle(code: String?): String = if (normalize(code) == DE) EN else DE
+    /** Next language after [current] among [available]; [current] when there is no other. */
+    fun next(current: String?, available: List<String>): String {
+        val options = ALL.filter { it in available }
+        if (options.isEmpty()) return normalize(current)
+        val at = options.indexOf(classify(current))
+        return options[(at + 1) % options.size]
+    }
 
     /** Detect movie/page language from Filmpalast release titles, slug, ENGLISH badges, etc. */
     fun detectFromText(vararg texts: String?): String? {
@@ -72,10 +118,8 @@ object StreamLanguage {
     }
 
     fun matchesPreferred(candidateLang: String?, preferred: String): Boolean {
-        val pref = normalize(preferred)
-        val cand = candidateLang?.trim().orEmpty()
-        if (cand.isBlank()) return false
-        return normalize(cand) == pref
+        val cand = classify(candidateLang)
+        return cand != UNKNOWN && cand == normalize(preferred)
     }
 
     /** Strip language markers from a movie title for sibling search. */

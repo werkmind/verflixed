@@ -59,7 +59,7 @@ object PosterLoader {
             .transition(crossFade)
             .placeholder(R.drawable.poster_placeholder)
             .error(R.drawable.poster_placeholder)
-            .centerCrop()
+            .transform(TopCrop())
             .into(view)
     }
 

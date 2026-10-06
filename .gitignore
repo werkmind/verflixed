@@ -31,3 +31,6 @@ dist/release/
 Thumbs.db
 __pycache__/
 *.pyc
+
+# Impeccable review captures (large, regenerated per review)
+.impeccable/review/

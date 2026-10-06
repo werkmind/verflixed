@@ -9,7 +9,7 @@ on:
       version:
         description: "Version name (e.g. 1.6.9)"
         required: true
-        default: "1.6.9"
+        default: "1.27.0"
 
 permissions:
   contents: write
@@ -42,13 +42,7 @@ jobs:
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           # Prefer versionCode from app/build.gradle.kts (keeps in-app update checks consistent).
-          CODE="$(python3 - <<'PY'
-import re, pathlib
-text = pathlib.Path("app/build.gradle.kts").read_text()
-m = re.search(r"versionCode\s*=\s*(\d+)", text)
-print(m.group(1) if m else "0")
-PY
-)"
+          CODE="$(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
           if [ -z "$CODE" ] || [ "$CODE" = "0" ]; then
             IFS=. read -r A B C <<< "$V"
             CODE=$((10#$A * 10000 + 10#$B * 100 + 10#$C))
@@ -59,7 +53,7 @@ PY
       - name: Build Android APK
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleRelease
+          ./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
           mkdir -p dist/release
           cp app/build/outputs/apk/release/app-release.apk dist/release/Verflixed-FireTV.apk
           # Fail the release if the APK is unsigned, a downgrade, or the wrong version.

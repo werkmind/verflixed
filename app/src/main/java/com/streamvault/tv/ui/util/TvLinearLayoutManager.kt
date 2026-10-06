@@ -22,6 +22,40 @@ class TvLinearLayoutManager(
 
     private var pendingFocusPos = RecyclerView.NO_POSITION
 
+    /**
+     * Vertical lists only: where the top of the focused row comes to rest, so
+     * its heading always sits at the same height under the nav. 0 = default
+     * scrolling. The first item (the hero) always rests at the very top.
+     */
+    var snapTopPx = 0
+
+    override fun requestChildRectangleOnScreen(
+        parent: RecyclerView,
+        child: View,
+        rect: android.graphics.Rect,
+        immediate: Boolean,
+        focusedChildVisible: Boolean,
+    ): Boolean {
+        if (orientation != VERTICAL || snapTopPx <= 0) {
+            return super.requestChildRectangleOnScreen(parent, child, rect, immediate, focusedChildVisible)
+        }
+        val restAt = if (getPosition(child) == 0) 0 else snapTopPx
+        val dy = getDecoratedTop(child) - restAt
+        if (dy == 0) return false
+        // Jump, do not animate: an animated scroll racing the row-to-row focus
+        // hand-off lets the system focus search fall through to the nav.
+        // Focus can also be restored in the middle of a layout pass, where
+        // scrolling is not allowed; defer that case by one frame.
+        if (parent.isComputingLayout) {
+            parent.post {
+                if (child.parent === parent) parent.scrollBy(0, getDecoratedTop(child) - restAt)
+            }
+        } else {
+            parent.scrollBy(0, dy)
+        }
+        return true
+    }
+
     override fun calculateExtraLayoutSpace(state: RecyclerView.State, extraLayoutSpace: IntArray) {
         val extra = if (orientation == HORIZONTAL) {
             width.coerceAtLeast(160)

@@ -1,37 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="sv_bg">#FF07080D</color>
-    <color name="sv_bg_deep">#FF05060A</color>
-    <color name="sv_surface">#FF141820</color>
-    <color name="sv_surface_elevated">#FF1C222E</color>
+    <!-- Ground and surfaces: near-black with a cool cast. Controls are solid fills. -->
+    <color name="sv_bg">#FF07080B</color>
+    <color name="sv_bg_deep">#FF050608</color>
+    <color name="sv_surface">#FF16181D</color>
+    <color name="sv_surface_elevated">#FF24272E</color>
+    <color name="sv_card_stroke">#FF2E323A</color>
+    <color name="sv_card_fill">#FF16181D</color>
+    <color name="sv_poster_bg">#FF111318</color>
+    <color name="sv_skeleton">#FF14161B</color>
+
+    <!-- The one accent: wordmark, active tab and selection, progress, today, links. -->
     <color name="sv_accent">#FF2F80FF</color>
-    <color name="sv_accent_soft">#662F80FF</color>
+    <color name="sv_accent_soft">#332F80FF</color>
     <color name="sv_accent_pressed">#FF1A66E8</color>
-    <!-- Midnight Cinema: Eis-Hell für Glow/Kicker (Brand-Gradient-Spitze) -->
-    <color name="sv_ice_bright">#FF5CA8FF</color>
-    <!-- Midnight Cinema: funktionale Warm-Farbe für Progress/Restzeit -->
-    <color name="sv_amber">#FFFFB454</color>
-    <color name="sv_amber_soft">#4DFFB454</color>
-    <color name="sv_text_primary">#FFF2F5FA</color>
-    <color name="sv_text_secondary">#FFA7B0BF</color>
-    <color name="sv_text_muted">#FF6B7686</color>
-    <color name="sv_focus">#FFFFFFFF</color>
-    <color name="sv_focus_ring">#E6FFFFFF</color>
-    <color name="sv_focus_glow">#615CA8FF</color>
-    <color name="sv_accent_badge">#E612141C</color>
-    <color name="sv_focus_fill">#402F80FF</color>
-    <color name="sv_progress">#FFFFB454</color>
-    <color name="sv_progress_track">#33FFFFFF</color>
-    <color name="sv_watched">#FF46D369</color>
-    <color name="sv_card_stroke">#26FFFFFF</color>
-    <color name="sv_card_fill">#1AFFFFFF</color>
-    <color name="sv_poster_bg">#FF10131A</color>
-    <color name="sv_scrim_strong">#F207080D</color>
-    <color name="sv_hero_scrim_start">#0005060A</color>
-    <color name="sv_hero_scrim_mid">#B805060A</color>
-    <color name="sv_hero_scrim_end">#FF05060A</color>
-    <color name="sv_button_primary_text">#FF0B0E14</color>
-    <color name="sv_btn_primary">#FFFFFFFF</color>
-    <color name="sv_btn_primary_pressed">#FFE2E6EC</color>
+    <color name="sv_progress">#FF2F80FF</color>
+    <!-- Light thrown by the focused element. -->
+    <color name="sv_glow">#FF4D95FF</color>
+    <!-- Glass: controls at rest let the room light through. -->
     <color name="sv_glass">#2EFFFFFF</color>
+    <color name="sv_glass_strong">#47FFFFFF</color>
+    <color name="sv_glass_edge">#3DFFFFFF</color>
+    <color name="sv_progress_track">#66FFFFFF</color>
+
+    <!-- Focus is white, and only focus is white. sv_ink is text on a focused control. -->
+    <color name="sv_focus">#FFFFFFFF</color>
+    <color name="sv_focus_ring">#FFFFFFFF</color>
+    <color name="sv_focus_fill">#FFFFFFFF</color>
+    <color name="sv_focus_pressed">#FFC9CDD4</color>
+    <color name="sv_ink">#FF0A0B0E</color>
+
+    <color name="sv_text_primary">#FFF4F5F7</color>
+    <color name="sv_text_secondary">#FFB4B9C3</color>
+    <color name="sv_text_muted">#FF8D939E</color>
+    <color name="sv_watched">#FFF4F5F7</color>
+
+
+    <!-- Scrims fade artwork into the ground colour. -->
+    <color name="sv_accent_badge">#E6050608</color>
+    <color name="sv_scrim_strong">#F2050608</color>
+    <color name="sv_backdrop_dim">#59050608</color>
+    <color name="sv_hero_scrim_start">#00050608</color>
+    <color name="sv_hero_scrim_mid">#B8050608</color>
+    <color name="sv_hero_scrim_end">#FF050608</color>
 </resources>

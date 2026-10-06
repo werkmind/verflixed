@@ -1,57 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- One day of the week strip: date above the still, no box around it.
+     calDay is selected for today, which turns the numeral accent. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="156dp"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="208dp"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="12dp"
-    android:background="@drawable/bg_episode_card"
+    android:layout_marginEnd="14dp"
     android:clickable="true"
+    android:clipChildren="false"
     android:clipToPadding="false"
+    android:defaultFocusHighlightEnabled="false"
     android:descendantFocusability="blocksDescendants"
     android:focusable="true"
     android:focusableInTouchMode="true"
-    android:foreground="@drawable/bg_card_focus"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/calWeekday"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:letterSpacing="0.12"
-        android:textAllCaps="true"
-        android:textColor="@color/sv_text_muted"
-        android:textSize="11sp"
-        android:textStyle="bold" />
+        android:baselineAligned="true"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/calDay"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:includeFontPadding="false"
-        android:textColor="@color/sv_text_primary"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        <TextView
+            android:id="@+id/calDay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/archivo_display"
+            android:includeFontPadding="false"
+            android:textColor="@color/sv_cal_day"
+            android:textSize="26sp" />
 
-    <ImageView
-        android:id="@+id/calPoster"
-        android:layout_width="match_parent"
-        android:layout_height="72dp"
+        <TextView
+            android:id="@+id/calWeekday"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/archivo_medium"
+            android:maxLines="1"
+            android:textColor="@color/sv_text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/posterFrame"
+        android:layout_width="208dp"
+        android:layout_height="117dp"
         android:layout_marginTop="8dp"
-        android:background="@drawable/bg_poster_surface"
-        android:contentDescription="@null"
-        android:scaleType="centerCrop"
-        android:src="@drawable/poster_placeholder" />
+        android:background="@drawable/bg_poster_card"
+        android:duplicateParentState="true"
+        android:foreground="@drawable/bg_poster_focus">
+
+        <ImageView
+            android:id="@+id/calPoster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:src="@drawable/poster_placeholder" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/calTitle"
+        style="@style/SvTileTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:textColor="@color/sv_text_primary"
-        android:textSize="13sp"
-        android:textStyle="bold" />
+        android:layout_marginTop="8dp"
+        android:fontFamily="@font/archivo_semibold"
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/calEpisode"
@@ -60,20 +77,17 @@
         android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textColor="@color/sv_text_secondary"
+        android:textColor="@color/sv_text_muted"
         android:textSize="12sp" />
 
     <TextView
         android:id="@+id/calBadge"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/bg_poster_badge"
-        android:paddingStart="8dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="3dp"
-        android:textColor="@color/sv_text_primary"
-        android:textSize="10sp"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/sv_text_muted"
+        android:textSize="12sp"
         android:visibility="gone" />
 </LinearLayout>

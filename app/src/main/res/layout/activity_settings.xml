@@ -2,11 +2,15 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_app"
+    android:layout_marginTop="@dimen/vf_edge_vertical"
+    android:layout_marginBottom="@dimen/vf_edge_vertical"
     android:clipChildren="false"
     android:clipToPadding="false"
     android:fillViewport="true"
-    android:padding="48dp">
+    android:paddingStart="@dimen/vf_edge"
+    android:paddingTop="12dp"
+    android:paddingEnd="@dimen/vf_edge"
+    android:paddingBottom="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,45 +19,33 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
-        <com.streamvault.tv.ui.brand.VfWordmarkView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:letterSpacing="0.12"
-            android:text="@string/app_name"
-            android:textAllCaps="true"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            style="@style/SvHeroTitle"
             android:text="@string/settings_title"
-            android:textColor="@color/sv_text_primary"
-            android:textSize="26sp"
-            android:textStyle="bold" />
+            android:textSize="32sp" />
 
         <TextView
             android:id="@+id/currentUrl"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
+            android:minWidth="520dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:background="@drawable/bg_episode_card"
-            android:lineSpacingExtra="3dp"
-            android:padding="18dp"
-            android:textColor="@color/sv_text_secondary"
-            android:textSize="14sp" />
+            android:background="@drawable/bg_panel"
+            android:lineSpacingExtra="10dp"
+            android:padding="20dp"
+            android:textColor="@color/sv_text_muted"
+            android:textSize="15sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="28dp"
-            android:letterSpacing="0.08"
             android:text="@string/settings_scale_title"
-            android:textAllCaps="true"
-            android:textColor="@color/sv_text_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:fontFamily="@font/archivo_bold"
+            android:textColor="@color/sv_text_primary"
+            android:textSize="18sp" />
 
         <TextView
             android:layout_width="match_parent"
@@ -84,12 +76,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
-            android:letterSpacing="0.08"
             android:text="@string/settings_group_updates"
-            android:textAllCaps="true"
-            android:textColor="@color/sv_text_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:fontFamily="@font/archivo_bold"
+            android:textColor="@color/sv_text_primary"
+            android:textSize="18sp" />
 
         <EditText
             android:id="@+id/inputUpdateUrl"
@@ -140,12 +130,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
-            android:letterSpacing="0.08"
             android:text="@string/settings_group_profile"
-            android:textAllCaps="true"
-            android:textColor="@color/sv_text_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:fontFamily="@font/archivo_bold"
+            android:textColor="@color/sv_text_primary"
+            android:textSize="18sp" />
 
         <Button
             android:id="@+id/btnToggleLanguage"

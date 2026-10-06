@@ -73,6 +73,8 @@ class PlayerActivity : ScaledAppCompatActivity() {
     private var lastBackExitAt = 0L
     private var lastBackHandledAt = 0L
     private var exoControllerVisible = false
+    private var availableLangs: List<String> = emptyList()
+    private var playingLang: String = StreamLanguage.UNKNOWN
     /** First Back while in WebView dismisses overlays once; next Back uses double-back-to-exit. */
     private var webChromeDismissed = false
     private var nextPromptVisible = false
@@ -249,8 +251,8 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.playerError.visibility = View.GONE
         binding.playerErrorPanel.visibility = View.GONE
         showModeBar(false)
-        // Language switching is detail/settings only — never in the player.
         binding.btnLangToggle.visibility = View.GONE
+        binding.langBadge.visibility = View.GONE
 
         lifecycleScope.launch {
             val repo = (application as VerflixedApp).container.catalog
@@ -280,6 +282,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
                 episode = ep
                 resumeMs = pair.second
                 startPlayback(normalizePlaybackUrl(pair.first, ep), resumeMs)
+                loadLanguages(announceFallback = true)
             }.onFailure {
                 showPlayerError(it.toVfMessage())
             }
@@ -297,6 +300,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
         binding.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
                 exoControllerVisible = visibility == View.VISIBLE
+                refreshLanguageBadge()
             }
         )
         // Mode-Bar nur als stiller Fallback – kein manuelles „VOE erneut / Web-Player“ im Normalfall.
@@ -1050,6 +1054,64 @@ class PlayerActivity : ScaledAppCompatActivity() {
             ) View.VISIBLE else View.GONE
     }
 
+    /** Reads what this episode offers and what is playing, then updates the badge. */
+    private fun loadLanguages(announceFallback: Boolean) {
+        val s = series ?: return
+        val ep = episode ?: return
+        lifecycleScope.launch {
+            val repo = (application as VerflixedApp).container.catalog
+            val wanted = currentPreferredLang()
+            availableLangs = runCatching { repo.titleLanguages(s, ep) }.getOrDefault(emptyList())
+            playingLang = runCatching { repo.resolvedLanguage(ep.id) }.getOrNull() ?: wanted
+            refreshLanguageBadge()
+            if (announceFallback && playingLang != wanted) {
+                Toast.makeText(
+                    this@PlayerActivity,
+                    "${StreamLanguage.label(wanted)} gibt es hier nicht. Es läuft ${StreamLanguage.label(playingLang)}.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    /** Shown with the transport controls: what is playing and what the menu key switches to. */
+    private fun refreshLanguageBadge() {
+        val badge = binding.langBadge
+        if (!exoControllerVisible || usingWebPlayer || playingLang.isBlank()) {
+            badge.visibility = View.GONE
+            return
+        }
+        val next = StreamLanguage.next(playingLang, availableLangs)
+        badge.text = if (next != playingLang) {
+            getString(R.string.player_language_switch, StreamLanguage.label(playingLang), StreamLanguage.label(next))
+        } else {
+            getString(R.string.player_language_only, StreamLanguage.label(playingLang))
+        }
+        badge.visibility = View.VISIBLE
+    }
+
+    /** Menu key: restart this episode at the same position in the next available language. */
+    private fun switchLanguage() {
+        val ep = episode ?: return
+        if (usingWebPlayer) return
+        val next = StreamLanguage.next(playingLang, availableLangs)
+        if (next == playingLang || playingLang.isBlank()) {
+            Toast.makeText(this, getString(R.string.player_language_none), Toast.LENGTH_SHORT).show()
+            return
+        }
+        resumeMs = player?.currentPosition ?: resumeMs
+        Toast.makeText(this, getString(R.string.player_language_changing, StreamLanguage.label(next)), Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val repo = (application as VerflixedApp).container.catalog
+            repo.setPreferredStreamLanguage(next)
+            repo.clearCachedStream(ep.id)
+            // Drop the old-language link held in memory, or it would be replayed.
+            episode = ep.copy(streamUrl = null)
+            reResolveNative()
+            loadLanguages(announceFallback = true)
+        }
+    }
+
     private fun currentPreferredLang(): String {
         val prefs = (application as VerflixedApp).container.prefs
         return StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
@@ -1210,7 +1272,7 @@ class PlayerActivity : ScaledAppCompatActivity() {
 
     private fun playerBootstrapJs(): String {
         val pref = currentPreferredLang()
-        val preferDe = pref == StreamLanguage.DE
+        val preferDe = pref != StreamLanguage.EN && pref != StreamLanguage.EN_SUB
         return """
 (function(){
   try {
@@ -1238,9 +1300,9 @@ class PlayerActivity : ScaledAppCompatActivity() {
     var preferDe = ${if (preferDe) "true" else "false"};
 
     function langScore(l){
-      l = (l||'').toLowerCase();
-      var isDe = l.indexOf('deutsch')>=0 || l.indexOf('german')>=0 || l==='de' || l==='1';
-      var isEn = l.indexOf('englisch')>=0 || l.indexOf('english')>=0 || l==='en' || l==='2';
+      l = ' ' + (l||'').toLowerCase().replace(/\s+/g,' ').trim() + ' ';
+      var isDe = l.indexOf('deutsch')>=0 || l.indexOf('german')>=0 || l.indexOf(' de ')>=0 || l.indexOf(' 1 ')>=0;
+      var isEn = l.indexOf('englisch')>=0 || l.indexOf('english')>=0 || l.indexOf(' en ')>=0 || l.indexOf(' 2 ')>=0;
       if (preferDe) {
         if (isDe) return 100;
         if (isEn) return 5;
@@ -1793,6 +1855,10 @@ class PlayerActivity : ScaledAppCompatActivity() {
             }
             KeyEvent.KEYCODE_MEDIA_NEXT -> {
                 playNext(auto = false)
+                return true
+            }
+            KeyEvent.KEYCODE_MENU -> {
+                switchLanguage()
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY -> {

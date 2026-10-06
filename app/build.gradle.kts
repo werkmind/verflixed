@@ -12,8 +12,9 @@ android {
         applicationId = "com.verflixed.tv"
         minSdk = 25
         targetSdk = 34
-        versionCode = 61
-        versionName = "1.26.0"
+        versionCode = 62
+        versionName = "1.27.0"
+        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
         buildConfigField(
             "String",
             "UPDATE_MANIFEST_URL",
@@ -47,6 +48,10 @@ android {
             signingConfig = signingConfigs.getByName("stable")
         }
     }
+
+    // InstrumentationTestCase / junit.framework left the default classpath in API 28.
+    useLibrary("android.test.runner")
+    useLibrary("android.test.base")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

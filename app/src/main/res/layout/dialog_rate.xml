@@ -26,7 +26,7 @@
             android:contentDescription="@string/rate_dislike"
             android:padding="15dp"
             android:src="@drawable/ic_thumb_down"
-            app:tint="@color/sv_text_primary" />
+            app:tint="@color/sv_icon_tint" />
 
         <TextView
             android:id="@+id/rateDislikeLabel"
@@ -53,7 +53,7 @@
             android:contentDescription="@string/rate_like"
             android:padding="15dp"
             android:src="@drawable/ic_thumb_up"
-            app:tint="@color/sv_text_primary" />
+            app:tint="@color/sv_icon_tint" />
 
         <TextView
             android:id="@+id/rateLikeLabel"
@@ -79,7 +79,7 @@
             android:contentDescription="@string/rate_love"
             android:padding="15dp"
             android:src="@drawable/ic_heart_filled"
-            app:tint="@color/sv_text_primary" />
+            app:tint="@color/sv_icon_tint" />
 
         <TextView
             android:id="@+id/rateLoveLabel"

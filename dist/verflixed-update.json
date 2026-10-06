@@ -1,8 +1,8 @@
 {
-  "versionCode": 60,
-  "versionName": "1.25.0",
+  "versionCode": 62,
+  "versionName": "1.27.0",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "6b18200b1cf5d308a1ff6a63192ff840e37e118b075d3bf391799f297aef44a7",
-  "changelog": "1.25.0: Immersives Home mit Side-Nav und Glas-Fokus. Fluessigere Fokus-Animation (respektiert Reduce Motion). Shimmer-Skeleton, Wordmark-Intro, bessere Such-Tastatur. Settings klarer gruppiert."
+  "sha256": "659625522f6ab62ae3be198710423bca38d8ba4de5c14a7445590b367dcc7572",
+  "changelog": "1.27.0: Neues Design mit Raumlicht aus dem Artwork, Hero-Ueberblendung und leuchtendem Fokus. Wochenleiste als Spielplan. Sprache pro Stream wird erkannt, angezeigt und laesst sich im Player per Menue-Taste wechseln."
 }

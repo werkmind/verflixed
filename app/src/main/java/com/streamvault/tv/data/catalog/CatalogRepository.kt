@@ -102,6 +102,12 @@ class CatalogRepository(
     private fun preferredLang(): String =
         StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
 
+    /** Language of the hoster link currently being tried, per episode id. */
+    private val attemptLang = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Labelled languages per watch page, so the UI does not refetch on every focus. */
+    private val pageLanguages = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
     private fun cacheKind(url: String, language: String? = null): String {
         val base = StreamKind.streamKindLabel(url)
         val lang = StreamLanguage.normalize(language ?: preferredLang())
@@ -1144,6 +1150,7 @@ class CatalogRepository(
 
     suspend fun resolveStream(episode: Episode): String = withContext(Dispatchers.IO) {
         val pref = preferredLang()
+        attemptLang.remove(episode.id)
         // 1) Cached direct media for this profile language only.
         // Hoster HLS links are session-bound and go stale after a few hours —
         // expired rows fall through to a fresh resolve instead of a broken player.
@@ -1474,27 +1481,8 @@ class CatalogRepository(
         // If page is series root, try first episode path later via resolve — still probe page
         val body = runCatching { getText(page) }.getOrNull().orEmpty()
         if (body.isBlank()) return@withContext emptyMap()
-        val langs = parser.extractAvailableLanguages(body, page)
-        if (langs.size >= 2) {
-            return@withContext langs.associateWith { page }
-        }
-        if (langs.size == 1) {
-            // Only one labeled language on hosters — do not invent a second from nav text.
-            return@withContext langs.associateWith { page }
-        }
-        // Strict heading probe (avoid matching site-wide "Deutsch/Englisch" nav chrome)
-        val headingBlob = org.jsoup.Jsoup.parse(body, page)
-            .select("h3, h4, h5, .hosterSiteTitle, .language, [data-language-label]")
-            .joinToString(" ") { it.text() + " " + it.attr("data-language-label") }
-            .lowercase()
-        val hasDe = headingBlob.contains("deutsch") || headingBlob.contains("german") ||
-            Regex("""\bde\b""").containsMatchIn(headingBlob)
-        val hasEn = headingBlob.contains("englisch") || headingBlob.contains("english") ||
-            Regex("""\ben\b""").containsMatchIn(headingBlob)
-        return@withContext buildMap {
-            if (hasDe) put(StreamLanguage.DE, page)
-            if (hasEn) put(StreamLanguage.EN, page)
-        }
+        // Labelled hoster links only. Page headings and nav text are not evidence.
+        parser.extractAvailableLanguages(body, page).associateWith { page }
     }
 
     /** Public helper for PlayerActivity: VOE embed URL → direct HLS playlist. */
@@ -1560,9 +1548,16 @@ class CatalogRepository(
             it.language.isNotBlank() && StreamLanguage.matchesPreferred(it.language, pref)
         }
         val ordered = (preferredBlobs + blobs.filterNot { it in preferredBlobs }).map { it.url }.distinct()
+        val languageOf = blobs.associate { it.url to it.language }
         ordered.take(6).forEach { blob ->
-            if (blob != startUrl) claimHlsDeep(blob, episode, depth + 1)?.let { return it }
+            if (blob == startUrl) return@forEach
+            // Remember which language this link carries so the cache row is
+            // tagged with what actually plays, not with what was asked for.
+            val lang = languageOf[blob].orEmpty()
+            if (lang.isBlank()) attemptLang.remove(episode.id) else attemptLang[episode.id] = lang
+            claimHlsDeep(blob, episode, depth + 1)?.let { return it }
         }
+        attemptLang.remove(episode.id)
 
         // AniWorld /redirect/{id} → follow Location to VOE embed (any proxy host)
         parser.extractRedirectUrls(body, startUrl).take(4).forEach { redirect ->
@@ -2307,7 +2302,7 @@ class CatalogRepository(
                 episodeId = episode.id,
                 seriesId = episode.seriesId,
                 streamUrl = url,
-                kind = cacheKind(url, language),
+                kind = cacheKind(url, language ?: attemptLang[episode.id]),
                 updatedAt = System.currentTimeMillis()
             )
         )
@@ -2324,6 +2319,32 @@ class CatalogRepository(
     }
 
     fun preferredStreamLanguage(): String = preferredLang()
+
+    /**
+     * Languages this title can be played in, in display order. Series: what
+     * the episode's hoster links are labelled with. Films: the language pages
+     * found for the title. Empty when the source does not say.
+     */
+    suspend fun titleLanguages(series: Series, episode: Episode?): List<String> = withContext(Dispatchers.IO) {
+        if (series.isMovie) {
+            val known = series.availableLanguages.ifEmpty {
+                runCatching { discoverTitleLanguages(series).keys.toList() }.getOrDefault(emptyList())
+            }
+            return@withContext StreamLanguage.ALL.filter { it in known.map(StreamLanguage::classify) }
+        }
+        val page = episode?.streamPageUrl?.takeIf { it.isNotBlank() } ?: return@withContext emptyList()
+        pageLanguages[page]?.let { return@withContext it }
+        val body = runCatching { getText(page) }.getOrNull().orEmpty()
+        if (body.isBlank()) return@withContext emptyList()
+        parser.extractAvailableLanguages(body, page).also { pageLanguages[page] = it }
+    }
+
+    /** Language the stored stream of this episode was resolved in, or null when nothing is stored. */
+    suspend fun resolvedLanguage(episodeId: String): String? = withContext(Dispatchers.IO) {
+        val kind = db.streams().get(pid(), episodeId)?.kind ?: return@withContext null
+        val sep = kind.lastIndexOf('|')
+        if (sep < 0) null else StreamLanguage.classify(kind.substring(sep + 1)).ifBlank { null }
+    }
 
     /** Detect / report movie page language for UI badges. */
     suspend fun moviePageLanguage(pageUrl: String?): String? = withContext(Dispatchers.IO) {

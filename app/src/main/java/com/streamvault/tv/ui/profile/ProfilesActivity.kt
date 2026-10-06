@@ -38,7 +38,8 @@ class ProfilesActivity : ScaledAppCompatActivity() {
         binding = ActivityProfilesBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.profileList.layoutManager = TvLinearLayoutManager(this)
+        binding.profileList.layoutManager =
+            TvLinearLayoutManager(this, androidx.recyclerview.widget.RecyclerView.HORIZONTAL, false)
         binding.profileList.adapter = adapter
 
         FocusFx.bindScale(binding.btnAddProfile, 1.04f, prefs)
@@ -119,7 +120,10 @@ private class ProfileAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_profile, parent, false)
-        return VH(v)
+        return VH(v).also { holder ->
+            FocusFx.bindScale(holder.selectArea, 1.06f)
+            FocusFx.bindScale(holder.edit, 1.04f)
+        }
     }
 
     override fun getItemCount(): Int = items.size
@@ -127,8 +131,11 @@ private class ProfileAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val p = items[position]
         holder.name.text = p.name
-        holder.meta.text = if (p.id == activeId) "Aktiv" else "Tippen zum Wechseln"
-        holder.select.text = if (p.id == activeId) "Aktiv" else holder.itemView.context.getString(R.string.profile_switch)
+        // The active profile says so once, on the name row; it needs no switch button.
+        val active = p.id == activeId
+        holder.meta.text = if (active) "Aktiv" else ""
+        // INVISIBLE keeps every tile the same height whether or not it is active.
+        holder.meta.visibility = if (active) View.VISIBLE else View.INVISIBLE
         Glide.with(holder.avatar)
             .load(p.avatarUrl)
             .placeholder(R.drawable.ic_verflixed_mark)
@@ -137,9 +144,6 @@ private class ProfileAdapter(
         holder.select.setOnClickListener { onSelect(p) }
         holder.edit.setOnClickListener { onEdit(p) }
         holder.selectArea.setOnClickListener { onSelect(p) }
-        FocusFx.bindScale(holder.selectArea, 1.03f)
-        FocusFx.bindScale(holder.edit, 1.05f)
-        FocusFx.bindScale(holder.select, 1.05f)
     }
 
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {

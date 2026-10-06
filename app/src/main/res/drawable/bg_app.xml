@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Stage background: subtle top-lit navy wash instead of flat black-blue.
-     Radial keeps the center slightly lifted, like tvOS ambient depth. -->
+<!-- Ground with depth: near-black, lit from the upper right in the brand's deep blue. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
@@ -9,14 +8,8 @@
     </item>
     <item>
         <shape android:shape="rectangle">
-            <gradient
-                android:type="radial"
-                android:centerX="0.5"
-                android:centerY="0.18"
-                android:gradientRadius="130%p"
-                android:startColor="#FF121826"
-                android:centerColor="#FF0A0E16"
-                android:endColor="#FF070A10" />
+            <gradient android:type="radial" android:centerX="0.85" android:centerY="0.0" android:gradientRadius="75%p"
+                android:startColor="#66163A7A" android:centerColor="#260F2247" android:endColor="#00050608" />
         </shape>
     </item>
 </layer-list>

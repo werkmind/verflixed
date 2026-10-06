@@ -314,6 +314,7 @@ private object StreamLanguageCompat {
         val l = raw?.trim()?.lowercase().orEmpty()
         return when {
             l.isBlank() -> "de"
+            l == "desub" || l == "ensub" -> l
             l == "en" || l.startsWith("en") || l.contains("englisch") || l.contains("english") -> "en"
             else -> "de"
         }

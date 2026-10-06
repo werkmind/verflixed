@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-      Covers (detail poster): vf_radius
-      Shelf artwork: vf_radius_image (tighter, photo-like)
-      Focus glow sits outside the tile: vf_radius_focus_outer
-    -->
-    <dimen name="vf_radius">14dp</dimen>
+    <!-- One corner scale: 8dp for controls and artwork, 12dp for panels. -->
+    <dimen name="vf_radius">12dp</dimen>
     <dimen name="vf_radius_image">8dp</dimen>
-    <dimen name="vf_radius_focus_outer">16dp</dimen>
-    <dimen name="vf_radius_focus_inner">10dp</dimen>
-    <dimen name="vf_radius_pill">22dp</dimen>
+    <dimen name="vf_radius_control">8dp</dimen>
+    <dimen name="vf_radius_pill">8dp</dimen>
+    <!-- Content edge shared by nav, hero and shelves: at least 5% of the
+         screen width at the default display size. -->
+    <dimen name="vf_edge">58dp</dimen>
+    <!-- Closest a focused control may come to the top or bottom screen edge. -->
+    <dimen name="vf_edge_vertical">30dp</dimen>
+    <dimen name="vf_focus_stroke">3dp</dimen>
 </resources>

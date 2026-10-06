@@ -1,34 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Selector, not a CTA. Selected = surface. Accent fill is reserved for Play. -->
+<!-- Season and filter tab: same language as the top nav. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_focused="true" android:state_selected="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface_elevated" />
-            <corners android:radius="@dimen/vf_radius" />
-            <stroke
-                android:width="2dp"
-                android:color="@color/sv_focus_ring" />
-        </shape>
-    </item>
-    <item android:state_selected="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/sv_surface_elevated" />
-            <corners android:radius="@dimen/vf_radius" />
-        </shape>
-    </item>
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/sv_focus_fill" />
-            <corners android:radius="@dimen/vf_radius" />
-            <stroke
-                android:width="2dp"
-                android:color="@color/sv_focus_ring" />
+            <corners android:radius="@dimen/vf_radius_control" />
         </shape>
+    </item>
+    <item android:state_selected="true">
+        <layer-list>
+            <item android:gravity="bottom" android:height="2dp" android:left="14dp" android:right="14dp">
+                <shape android:shape="rectangle"><solid android:color="@color/sv_accent" /></shape>
+            </item>
+        </layer-list>
     </item>
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@android:color/transparent" />
-            <corners android:radius="@dimen/vf_radius" />
+            <corners android:radius="@dimen/vf_radius_control" />
         </shape>
     </item>
 </selector>

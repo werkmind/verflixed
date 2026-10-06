@@ -78,6 +78,7 @@ class CatalogParser(private val moshi: Moshi) {
     fun extractPlayBlob(body: String, pageUrl: String, preferredLang: String = StreamLanguage.DE): String? =
         extractPlayBlobs(body, pageUrl, preferredLang).firstOrNull()
 
+    /** [language] is a [StreamLanguage] code, [StreamLanguage.UNKNOWN] when the page does not say. */
     data class PlayBlobCandidate(
         val url: String,
         val provider: String,
@@ -101,30 +102,49 @@ class CatalogParser(private val moshi: Moshi) {
         val pref = StreamLanguage.normalize(preferredLang)
         val candidates = mutableListOf<PlayBlobCandidate>()
 
+        val headings = "h3, h4, h5, .language, .lang-title, .hosterSiteTitle"
+
+        /** Language stated on the element itself: label, id, lang key, or flag icon. */
+        fun ownLanguage(el: org.jsoup.nodes.Element): String {
+            for (attr in listOf("data-language-label", "data-language", "data-language-id", "data-lang-key")) {
+                StreamLanguage.classify(el.attr(attr)).takeIf { it.isNotBlank() }?.let { return it }
+            }
+            el.select("use[href*=flag], use[xlink:href*=flag], img[src*=flag], img[src*=lang]").forEach { flag ->
+                val name = flag.attr("href").ifBlank { flag.attr("xlink:href") }.ifBlank { flag.attr("src") }
+                StreamLanguage.classify(name.substringAfterLast('/').substringBeforeLast('.'))
+                    .takeIf { it.isNotBlank() }?.let { return it }
+            }
+            return StreamLanguage.classify(el.attr("title"))
+        }
+
+        /**
+         * Language of the section the element sits in: the nearest heading that
+         * comes before it. Looking only backwards keeps a link from picking up
+         * the heading of a later or neighbouring language group.
+         */
         fun inheritLanguage(el: org.jsoup.nodes.Element): String {
             var cur: org.jsoup.nodes.Element? = el
             repeat(8) {
-                val node = cur ?: return@repeat
-                val direct = node.attr("data-language-label").ifBlank {
-                    node.attr("data-language")
-                }.ifBlank {
-                    node.attr("data-language-id")
-                }
-                if (direct.isNotBlank()) return direct
-                // Section heading "Deutsch" / "Englisch" above hoster groups
-                val h = node.selectFirst("h4, h5, h3, .language, .lang-title, .hosterSiteTitle")
-                    ?: node.previousElementSibling()?.takeIf {
-                        it.tagName().equals("h4", true) ||
-                            it.tagName().equals("h5", true) ||
-                            it.tagName().equals("h3", true)
+                val node = cur ?: return StreamLanguage.UNKNOWN
+                if (node !== el) ownLanguage(node).takeIf { it.isNotBlank() }?.let { return it }
+                var sibling = node.previousElementSibling()
+                var steps = 0
+                while (sibling != null && steps < 24) {
+                    val heading = if (sibling.`is`(headings)) sibling else sibling.select(headings).last()
+                    if (heading != null) {
+                        // The nearest heading decides, even when it names no language.
+                        return StreamLanguage.classify(heading.text())
                     }
-                val heading = h?.text().orEmpty()
-                if (heading.contains("deutsch", true) || heading.contains("german", true)) return "Deutsch"
-                if (heading.contains("englisch", true) || heading.contains("english", true)) return "Englisch"
+                    sibling = sibling.previousElementSibling()
+                    steps++
+                }
                 cur = node.parent()
             }
-            return ""
+            return StreamLanguage.UNKNOWN
         }
+
+        fun languageOf(el: org.jsoup.nodes.Element): String =
+            ownLanguage(el).ifBlank { inheritLanguage(el) }
 
         fun add(raw: String?, provider: String = "", language: String = "", bonus: Int = 0) {
             val value = raw?.trim().orEmpty()
@@ -132,28 +152,13 @@ class CatalogParser(private val moshi: Moshi) {
             if (!StreamKind.isPlayBlobUrl(value) && !value.contains("/r?t=", true)) return
             val abs = resolveUrl(pageUrl, value)
             var score = bonus
-            val p = provider.lowercase()
-            val l = language.lowercase()
-            if (p.contains("voe")) score += 50
-            val matched = when {
-                l.isBlank() -> false
-                StreamLanguage.matchesPreferred(l, pref) -> {
-                    score += 100
-                    true
-                }
-                StreamLanguage.isGerman(l) || StreamLanguage.isEnglish(l) -> {
-                    // Non-preferred explicit language — keep as fallback only.
-                    score += 5
-                    false
-                }
-                else -> false
-            }
-            // Unknown language: slight penalty so labeled preferred wins.
-            if (l.isBlank()) score -= 15
-            if (p.isNotBlank()) score += 5
-            if (!matched && l.isNotBlank() && !StreamLanguage.matchesPreferred(l, pref)) {
-                // Explicit other language stays below preferred.
-                score -= 20
+            if (provider.contains("voe", ignoreCase = true)) score += 50
+            if (provider.isNotBlank()) score += 5
+            score += when (language) {
+                pref -> 100
+                // No label: below a labelled match, above a labelled mismatch.
+                StreamLanguage.UNKNOWN -> -15
+                else -> -20
             }
             if (candidates.none { it.url == abs }) {
                 candidates += PlayBlobCandidate(abs, provider, language, score)
@@ -164,14 +169,10 @@ class CatalogParser(private val moshi: Moshi) {
             "[data-play-url], [data-link], button.link-box, .link-box, .link-wrapper button, " +
                 ".hosterSiteVideoButton, iframe[src]"
         ).forEach { el ->
-            val lang = el.attr("data-language-label")
-                .ifBlank { el.attr("data-language") }
-                .ifBlank { el.attr("data-language-id") }
-                .ifBlank { inheritLanguage(el) }
             add(
                 raw = el.attr("data-play-url").ifBlank { el.attr("src") }.ifBlank { el.attr("data-link") },
                 provider = el.attr("data-provider-name").ifBlank { el.attr("data-provider") },
-                language = lang,
+                language = languageOf(el),
                 bonus = 10
             )
         }
@@ -179,10 +180,7 @@ class CatalogParser(private val moshi: Moshi) {
             add(
                 raw = a.attr("abs:href").ifBlank { a.attr("href") },
                 provider = a.attr("data-provider-name"),
-                language = a.attr("data-language-label")
-                    .ifBlank { a.attr("data-language") }
-                    .ifBlank { a.attr("data-language-id") }
-                    .ifBlank { inheritLanguage(a) },
+                language = languageOf(a),
                 bonus = 5
             )
         }
@@ -190,12 +188,9 @@ class CatalogParser(private val moshi: Moshi) {
             add(m.value, bonus = 1)
         }
 
-        val ranked = candidates.sortedByDescending { it.score }
-        // Prefer preferred-language candidates first; keep others as fallback.
-        val preferred = ranked.filter {
-            it.language.isNotBlank() && StreamLanguage.matchesPreferred(it.language, pref)
-        }
-        return if (preferred.isNotEmpty()) preferred + ranked.filterNot { it in preferred } else ranked
+        // The language bonus outweighs every other score, so sorting alone puts
+        // preferred-language links first and keeps the rest as fallback.
+        return candidates.sortedByDescending { it.score }
     }
 
     /**
@@ -203,22 +198,8 @@ class CatalogParser(private val moshi: Moshi) {
      * Empty if none labeled.
      */
     fun extractAvailableLanguages(body: String, pageUrl: String): List<String> {
-        val langs = linkedSetOf<String>()
-        extractPlayBlobCandidates(body, pageUrl, preferredLang = StreamLanguage.DE).forEach { c ->
-            if (c.language.isNotBlank()) {
-                langs += StreamLanguage.normalize(c.language)
-            }
-        }
-        // Also scan headings
-        val doc = Jsoup.parse(body, pageUrl)
-        doc.select("h3, h4, h5, .language, .lang-title").forEach { h ->
-            val t = h.text()
-            when {
-                t.contains("deutsch", true) || t.contains("german", true) -> langs += StreamLanguage.DE
-                t.contains("englisch", true) || t.contains("english", true) -> langs += StreamLanguage.EN
-            }
-        }
-        return langs.toList()
+        val found = extractPlayBlobCandidates(body, pageUrl).map { it.language }.toSet()
+        return StreamLanguage.ALL.filter { it in found }
     }
 
     /** AniWorld-style `/redirect/{id}` hoster links. */

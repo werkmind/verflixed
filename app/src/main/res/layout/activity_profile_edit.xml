@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_app"
-    android:clipChildren="false"
+    android:fillViewport="true">
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_app"
+    android:clipChildren="true"
     android:clipToPadding="false"
     android:padding="36dp">
 
@@ -62,7 +68,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:clipChildren="false"
+        android:clipChildren="true"
         android:clipToPadding="false"
         android:padding="4dp"
         android:minHeight="80dp"
@@ -87,10 +93,10 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/avatarGrid"
         android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:layout_marginBottom="12dp"
-        android:clipChildren="false"
+        android:clipChildren="true"
         android:clipToPadding="false"
         android:padding="6dp"
         android:nextFocusUp="@id/categoryGrid"
@@ -145,3 +151,4 @@
             android:text="@string/profile_cancel" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>

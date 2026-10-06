@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder fill for skeleton blocks; corners match real media tiles (8dp). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#2E1C2436" />
-    <corners android:radius="8dp" />
+    <solid android:color="@color/sv_skeleton" />
+    <corners android:radius="@dimen/vf_radius_image" />
 </shape>

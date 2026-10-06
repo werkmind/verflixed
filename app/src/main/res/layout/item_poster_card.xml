@@ -1,92 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Shelf tile: artwork with the title underneath. Focus frames the artwork only. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="310dp"
-    android:layout_height="178dp"
-    android:layout_marginEnd="16dp"
-    android:background="@drawable/bg_poster_card"
+    android:layout_width="256dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="14dp"
     android:clickable="true"
-    android:clipChildren="true"
+    android:clipChildren="false"
     android:clipToPadding="false"
-    android:padding="0dp"
     android:defaultFocusHighlightEnabled="false"
     android:descendantFocusability="blocksDescendants"
     android:focusable="true"
     android:focusableInTouchMode="true"
-    android:foreground="@drawable/bg_poster_focus">
+    android:orientation="vertical">
 
-    <ImageView
-        android:id="@+id/poster"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:adjustViewBounds="false"
-        android:background="@null"
-        android:clickable="false"
-        android:contentDescription="@null"
-        android:cropToPadding="false"
-        android:focusable="false"
-        android:scaleType="centerCrop"
-        android:src="@drawable/poster_placeholder"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/posterFrame"
+        android:layout_width="256dp"
+        android:layout_height="144dp"
+        android:background="@drawable/bg_poster_card"
+        android:duplicateParentState="true"
+        android:foreground="@drawable/bg_poster_focus">
 
-    <TextView
-        android:id="@+id/posterBadge"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/bg_poster_badge"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:paddingStart="8dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="4dp"
-        android:textColor="@color/sv_text_primary"
-        android:textSize="11sp"
-        android:visibility="gone"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        <ImageView
+            android:id="@+id/poster"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:src="@drawable/poster_placeholder"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <View
-        android:layout_width="0dp"
-        android:layout_height="44dp"
-        android:background="@drawable/bg_poster_title_scrim"
-        app:layout_constraintBottom_toBottomOf="@id/poster"
-        app:layout_constraintEnd_toEndOf="@id/poster"
-        app:layout_constraintStart_toStartOf="@id/poster" />
+        <TextView
+            android:id="@+id/posterBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_poster_badge"
+            android:ellipsize="end"
+            android:fontFamily="@font/archivo_semibold"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
+            android:textColor="@color/sv_text_primary"
+            android:textSize="11sp"
+            android:visibility="gone"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <View
+            android:id="@+id/progressBar"
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:background="@color/sv_progress"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintWidth_percent="0.4" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <TextView
         android:id="@+id/title"
-        android:layout_width="0dp"
+        style="@style/SvTileTitle"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:clickable="false"
-        android:ellipsize="end"
-        android:focusable="false"
-        android:lineSpacingExtra="-1dp"
-        android:maxLines="2"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="6dp"
-        android:shadowColor="#CC000000"
-        android:shadowDx="0"
-        android:shadowDy="1"
-        android:shadowRadius="4"
-        android:textColor="@color/sv_text_primary"
-        android:textSize="13sp"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toBottomOf="@id/poster"
-        app:layout_constraintEnd_toEndOf="@id/poster"
-        app:layout_constraintStart_toStartOf="@id/poster" />
-
-    <View
-        android:id="@+id/progressBar"
-        android:layout_width="0dp"
-        android:layout_height="3dp"
-        android:background="@color/sv_progress"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@id/poster"
-        app:layout_constraintStart_toStartOf="@id/poster"
-        app:layout_constraintWidth_percent="0.4" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_marginTop="8dp"
+        android:maxLines="1" />
+</LinearLayout>

@@ -156,6 +156,24 @@
                 android:orientation="horizontal" />
         </LinearLayout>
 
+        <!-- Playing language and what the menu key switches to. Shown with the controls. -->
+        <TextView
+            android:id="@+id/langBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="@dimen/vf_edge"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/bg_status_pill"
+            android:fontFamily="@font/archivo_medium"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:textColor="@color/sv_text_primary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/btnSkipSegment"
             style="@style/SvButton.Primary"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.View
+import androidx.core.content.ContextCompat
 import android.view.ViewGroup
 import android.view.animation.PathInterpolator
 import com.streamvault.tv.R
@@ -42,6 +43,9 @@ object FocusFx {
         return motionEnabledCache
     }
 
+    /** Shelf padding is sized for this much growth; larger requests are capped. */
+    private const val MAX_FOCUS_SCALE = 1.06f
+
     fun bindScale(view: View, focusedScale: Float = 1.06f, prefs: UserPrefs? = null) {
         allowFocusScale(view)
         view.setTag(R.id.tag_focus_scale, focusedScale)
@@ -49,88 +53,42 @@ object FocusFx {
         view.setOnFocusChangeListener { v, hasFocus ->
             previous?.onFocusChange(v, hasFocus)
             animateFocus(v, hasFocus, focusedScale)
-            dimSiblings(v, hasFocus)
         }
     }
 
-    /**
-     * Midnight Cinema sibling dim: when a card gains focus, its neighbours in
-     * the row recede to 0.62 alpha so the focused card becomes the single
-     * bright anchor. On focus loss the whole row returns to full opacity.
-     * Fire-and-forget per view; RecyclerView rebinds reset alpha anyway.
-     */
-    fun dimSiblings(view: View, hasFocus: Boolean, dimAlpha: Float = 0.62f) {
-        val parent = view.parent as? ViewGroup ?: return
-        for (i in 0 until parent.childCount) {
-            val child = parent.getChildAt(i)
-            if (child === view) continue
-            animateAlpha(child, if (hasFocus) dimAlpha else 1f)
-        }
-    }
-
-    private fun animateAlpha(view: View, target: Float) {
-        view.animate().cancel()
-        if (!motionEnabled(view)) {
-            view.alpha = target
-            return
-        }
-        view.animate()
-            .alpha(target)
-            .setDuration(200L)
-            .setInterpolator(glide)
-            .withLayer()
-            .start()
-    }
-
-    /**
-     * Scale may overflow a shelf (Apple TV). Only the vertical home list and
-     * screen roots clip, so a focused card cannot cover the sidebar/hero after
-     * you scroll Favoriten, but it can grow over its neighbours in the row.
-     */
+    /** The shelf's padding reserves room for focus; never unclip screen ancestors. */
     fun allowFocusScale(view: View) {
-        if (view.getTag(R.id.tag_focus_scale_done) == true) return
-        view.setTag(R.id.tag_focus_scale_done, true)
-        var host = view.parent as? ViewGroup ?: return
-        while (true) {
-            host.clipToPadding = false
-            if (isSectionClipHost(host)) {
-                host.clipChildren = true
-                return
-            }
-            host.clipChildren = false
-            host = host.parent as? ViewGroup ?: return
-        }
+        val host = view.parent as? androidx.recyclerview.widget.RecyclerView ?: return
+        // The halo paints outside the tile; the shelf's own row clips it.
+        host.clipChildren = false
+        host.clipToPadding = false
     }
 
-    /** Keep artwork/text inside the rounded tile while the tile itself scales. */
+    /** Rounds the artwork frame of a tile to its background's corners. */
     fun clipMediaTile(view: View) {
-        view.clipToOutline = false
-        (view as? ViewGroup)?.let {
-            it.clipChildren = true
-            it.clipToPadding = false
-        }
-    }
-
-    fun clipStillTop(view: View, radiusDp: Float = 8f) {
-        val r = radiusDp * view.resources.displayMetrics.density
-        view.outlineProvider = object : android.view.ViewOutlineProvider() {
-            override fun getOutline(v: View, outline: android.graphics.Outline) {
-                if (v.width == 0 || v.height == 0) return
-                outline.setRoundRect(0, 0, v.width, (v.height + r).toInt(), r)
-            }
-        }
         view.clipToOutline = true
     }
 
-    private fun isSectionClipHost(host: ViewGroup): Boolean {
-        return when (host.id) {
-            R.id.rows,
-            R.id.homeRoot,
-            R.id.playerRoot,
-            R.id.playerChrome,
-            -> true
-            else -> false
+    /**
+     * Focus casts light: a focused tile gets a soft accent halo around its
+     * artwork frame. Controls do not glow; their lit fill is the signal.
+     */
+    private fun glow(v: View, hasFocus: Boolean) {
+        val frame = v.findViewById<View>(R.id.posterFrame)
+            ?: v.findViewById<View>(R.id.episodeStillWrap)
+            ?: return
+        if (frame === v) return
+        val halo = v.background as? HaloDrawable ?: run {
+            if (!hasFocus) return
+            val density = v.resources.displayMetrics.density
+            HaloDrawable(
+                frame = frame,
+                color = ContextCompat.getColor(v.context, R.color.sv_glow),
+                cornerPx = v.resources.getDimension(R.dimen.vf_radius_image),
+                spreadPx = 14f * density,
+            ).also { v.background = it }
         }
+        halo.setLit(hasFocus, animate = motionEnabled(v))
     }
 
     /** Reusable so adapters can drive focus motion without extra listeners. */
@@ -141,8 +99,10 @@ object FocusFx {
         liquid: Boolean = false,
     ) {
         allowFocusScale(v)
-        val scale = if (hasFocus) focusedScale else 1f
-        val elevation = if (hasFocus) 22f else 0f
+        val scale = if (hasFocus) focusedScale.coerceAtMost(MAX_FOCUS_SCALE) else 1f
+        // Lifts the focused view above its neighbours for draw order only.
+        val elevation = if (hasFocus) 2f * v.resources.displayMetrics.density else 0f
+        glow(v, hasFocus)
         v.animate().cancel()
         if (!motionEnabled(v)) {
             v.scaleX = scale
@@ -154,6 +114,7 @@ object FocusFx {
         // slower than ~160ms reads as input lag when scrubbing along a row.
         // `liquid` adds a slight overshoot on focus gain for hero CTAs and nav.
         v.animate()
+            .setStartDelay(0)
             .scaleX(scale)
             .scaleY(scale)
             .translationZ(elevation)
@@ -181,6 +142,7 @@ object FocusFx {
                 keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
                 keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
             if (!press) return@setOnKeyListener false
+            if (!motionEnabled(v)) return@setOnKeyListener false
             if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 v.animate().cancel()
                 v.animate()
@@ -193,7 +155,7 @@ object FocusFx {
             } else if (event.action == android.view.KeyEvent.ACTION_UP) {
                 v.animate().cancel()
                 val focusedScale = (v.getTag(R.id.tag_focus_scale) as? Float) ?: 1.06f
-                val scale = if (v.isFocused) focusedScale else 1f
+                val scale = if (v.isFocused) focusedScale.coerceAtMost(MAX_FOCUS_SCALE) else 1f
                 v.animate()
                     .scaleX(scale)
                     .scaleY(scale)
@@ -254,6 +216,7 @@ object FocusFx {
         view.animate().cancel()
         if (!motionEnabled(view)) {
             apply()
+            view.alpha = 1f
             return
         }
         view.animate()

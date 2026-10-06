@@ -3,4 +3,5 @@
     <!-- View tag key: parent chain already unclipped for focus scale. -->
     <item name="tag_focus_scale_done" type="id" />
     <item name="tag_focus_scale" type="id" />
+    <item name="tag_ambient_blur" type="id" />
 </resources>

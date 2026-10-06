@@ -1,58 +1,41 @@
 package com.streamvault.tv.ui.util
 
-import android.app.Activity
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.os.Build
 import android.widget.ImageView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import com.bumptech.glide.request.RequestOptions
-import com.streamvault.tv.R
 import com.streamvault.tv.data.catalog.SiteImages
 
 /**
- * Midnight Cinema ambient stage: a tiny, heavily dimmed copy of the focused
- * item's artwork fills the whole screen behind the feed. The 48x27 source is
- * upscaled to 1080p by the GPU - that stretch IS the blur, essentially free,
- * no RenderScript/RenderEffect needed (Fire TV sticks run API 25+).
- * The room light follows what you browse: emotion + depth on every focus move.
+ * The room light behind the feed: the focused title's artwork, shrunk to a
+ * few dozen pixels and stretched across the screen. The stretch is the blur,
+ * so it costs nothing on old Fire TV sticks; newer devices smooth it further.
+ * It sits behind every other layer and only ever supplies colour.
  */
 object AmbientFx {
+    private const val LIGHT = 0.62f
 
-    /** Resolves the home ambient ImageView and updates it. */
-    fun updateForActivity(host: Activity?, url: String?) {
-        if (host == null) return
-        update(host.findViewById(R.id.ambientImage), url)
-    }
-
-    fun update(ambient: ImageView?, url: String?) {
-        if (ambient == null) return
+    fun update(ambient: ImageView, url: String?) {
         if (url.isNullOrBlank()) {
-            fade(ambient, 0f)
+            ambient.animate().alpha(0f).setDuration(300L).start()
             return
         }
-        if (ambient.visibility != ImageView.VISIBLE) {
-            ambient.visibility = ImageView.VISIBLE
-            ambient.alpha = 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ambient.getTag(com.streamvault.tv.R.id.tag_ambient_blur) == null) {
+            ambient.setRenderEffect(RenderEffect.createBlurEffect(48f, 48f, Shader.TileMode.CLAMP))
+            ambient.setTag(com.streamvault.tv.R.id.tag_ambient_blur, true)
         }
-        val src = SiteImages.preferJpeg(url)
-        Glide.with(ambient.context)
-            .load(src)
-            .apply(RequestOptions().override(96, 54).centerCrop())
-            .transition(DrawableTransitionOptions.withCrossFade(350))
+        Glide.with(ambient)
+            .load(SiteImages.preferJpeg(url))
+            .override(40, 22)
+            .centerCrop()
+            .transition(DrawableTransitionOptions.withCrossFade(700))
             .into(ambient)
-        // Ceiling for the room light: never brighter than a whisper so type
-        // stays readable even over bright artwork.
-        fade(ambient, 0.22f)
-    }
-
-    private fun fade(ambient: ImageView, target: Float) {
-        ambient.animate().cancel()
-        if (!FocusFx.motionEnabled(ambient)) {
-            ambient.alpha = target
-            return
+        if (FocusFx.motionEnabled(ambient)) {
+            ambient.animate().alpha(LIGHT).setDuration(500L).start()
+        } else {
+            ambient.alpha = LIGHT
         }
-        ambient.animate()
-            .alpha(target)
-            .setDuration(350L)
-            .start()
     }
 }

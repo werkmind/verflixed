@@ -124,4 +124,12 @@
     <string name="profile_saved">Profil gespeichert</string>
     <string name="profile_deleted">Profil gelöscht</string>
     <string name="profile_switched">Willkommen, %1$s</string>
+    <string name="player_language_switch">Ton: %1$s. Menü-Taste wechselt zu %2$s.</string>
+    <string name="player_language_only">Ton: %1$s</string>
+    <string name="player_language_none">Für diesen Titel gibt es keinen anderen Ton.</string>
+    <string name="player_language_changing">Wechsle zu %1$s</string>
+    <string name="detail_language">Ton: %1$s</string>
+    <string name="detail_language_unavailable">Ton: %1$s fehlt hier</string>
+    <string name="detail_language_cd">Ton wechseln</string>
+    <string name="detail_language_missing">%1$s gibt es für diese Folge nicht</string>
 </resources>

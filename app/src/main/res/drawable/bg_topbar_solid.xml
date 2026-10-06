@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The bar once the feed has scrolled: dense at the top, dissolving at its
+     lower edge so shelves fade out under it instead of being cut. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="270" android:startColor="#FF050608" android:centerColor="#FF050608" android:endColor="#00050608" android:centerY="0.86" />
+</shape>

@@ -8,7 +8,31 @@
     android:clipChildren="true"
     android:clipToPadding="false">
 
-    <!-- ===== SIDEBAR (optional) — immersive scrim rail ===== -->
+    <!-- Room light: the focused title's artwork, blurred, behind everything. -->
+    <ImageView
+        android:id="@+id/ambientImage"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:alpha="0"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_ambient_scrim"
+        android:importantForAccessibility="no"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- ===== SIDEBAR (optional) ===== -->
     <LinearLayout
         android:id="@+id/sideNav"
         android:layout_width="72dp"
@@ -16,8 +40,8 @@
         android:background="@drawable/bg_side_nav_bg"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
         android:elevation="10dp"
         android:gravity="center_horizontal"
         android:orientation="vertical"
@@ -112,8 +136,7 @@
             android:src="@drawable/ic_nav_settings" />
     </LinearLayout>
 
-    <!-- ===== TOPBAR (default, Netflix-style) =====
-         Wordmark left · content tabs · flexible space · icon actions + avatar right. -->
+    <!-- ===== TOPBAR ===== wordmark, content tabs, then actions and profile on the right. -->
     <FrameLayout
         android:id="@+id/navScroll"
         android:layout_width="0dp"
@@ -133,6 +156,17 @@
             android:focusable="false"
             android:importantForAccessibility="no" />
 
+        <!-- Turns the bar solid once the feed has scrolled, so shelves pass
+             under it instead of showing through. -->
+        <View
+            android:id="@+id/navSolid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0"
+            android:background="@drawable/bg_topbar_solid"
+            android:focusable="false"
+            android:importantForAccessibility="no" />
+
         <LinearLayout
             android:id="@+id/navBar"
             android:layout_width="match_parent"
@@ -141,42 +175,42 @@
             android:clipToPadding="false"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="40dp"
-            android:paddingEnd="32dp">
+            android:paddingStart="@dimen/vf_edge"
+            android:paddingEnd="@dimen/vf_edge">
 
             <com.streamvault.tv.ui.brand.VfWordmarkView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:focusable="false"
                 android:importantForAccessibility="no"
-                android:letterSpacing="0.14"
+                android:fontFamily="@font/archivo_display"
+                android:letterSpacing="0.04"
                 android:text="@string/app_name"
                 android:textAllCaps="true"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:textSize="20sp" />
 
             <Button
                 android:id="@+id/tabLibrary"
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="28dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="18dp"
                 android:text="@string/nav_library_short" />
 
             <Button
                 android:id="@+id/tabBrowse"
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="8dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="2dp"
                 android:text="@string/kind_series" />
 
             <Button
                 android:id="@+id/btnKindMovies"
                 style="@style/SvButton.Nav"
                 android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="8dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="2dp"
                 android:text="@string/kind_movies" />
 
             <View
@@ -190,15 +224,14 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:contentDescription="@string/mode_search"
-                android:src="@drawable/ic_nav_search"
-                app:tint="@color/sv_side_nav_icon" />
+                android:src="@drawable/ic_nav_search" />
 
             <ImageButton
                 android:id="@+id/btnUpdate"
                 style="@style/SvTopbarIcon"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="4dp"
                 android:contentDescription="@string/check_update"
                 android:src="@drawable/ic_nav_update" />
 
@@ -207,7 +240,7 @@
                 style="@style/SvTopbarIcon"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="4dp"
                 android:contentDescription="@string/home_settings"
                 android:src="@drawable/ic_nav_settings" />
 
@@ -315,14 +348,11 @@
         app:layout_constraintStart_toEndOf="@id/sideNav"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Immersive feed over the ambient stage: inset stage edges let the
-         blurred room light ring the content - depth without hard layout lines. -->
+    <!-- Feed runs edge to edge; shelves and hero share one 48dp content edge. -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rows"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="8dp"
         android:clipChildren="true"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
@@ -335,23 +365,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Midnight Cinema ambient stage: a whisper of the focused artwork as
-         room light OVER the feed (18% alpha) - atmosphere without hurting
-         legibility. Drawn above rows, below topbar chrome. -->
-    <ImageView
-        android:id="@+id/ambientImage"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:alpha="0"
-        android:contentDescription="@null"
-        android:importantForAccessibility="no"
-        android:scaleType="centerCrop"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
     <!-- Skeleton shimmer row while loading -->
     <com.streamvault.tv.ui.util.ShimmerHostView
         android:id="@+id/skeletonHost"
@@ -359,7 +372,7 @@
         android:layout_height="0dp"
         android:clipChildren="true"
         android:orientation="vertical"
-        android:paddingStart="48dp"
+        android:paddingStart="@dimen/vf_edge"
         android:paddingTop="24dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -384,32 +397,32 @@
                 android:orientation="horizontal">
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
                     android:background="@drawable/bg_skeleton" />
             </LinearLayout>
 
@@ -426,32 +439,32 @@
                 android:orientation="horizontal">
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
-                    android:layout_marginEnd="10dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
+                    android:layout_marginEnd="14dp"
                     android:background="@drawable/bg_skeleton" />
 
                 <View
-                    android:layout_width="156dp"
-                    android:layout_height="216dp"
+                    android:layout_width="140dp"
+                    android:layout_height="210dp"
                     android:background="@drawable/bg_skeleton" />
             </LinearLayout>
         </LinearLayout>

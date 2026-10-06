@@ -1,0 +1,832 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-06T20:19:19Z",
+  "title": "Design System: Verflixed",
+  "extensions": {
+    "platform": {
+      "target": "Android TV / Fire TV, native Views and XML, D-pad only",
+      "units": "dp and sp; component snippets render 1dp as 1px",
+      "colorFormat": "Frontmatter colours are Android #AARRGGBB; colorMeta.canonical holds the CSS equivalent",
+      "sources": [
+        "app/src/main/res/values/colors.xml",
+        "app/src/main/res/values/dimens.xml",
+        "app/src/main/res/values/themes.xml",
+        "app/src/main/res/color/",
+        "app/src/main/res/drawable/bg_*.xml",
+        "app/src/main/java/com/streamvault/tv/ui/util/"
+      ]
+    },
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Brand Blue",
+        "canonical": "rgb(47 128 255)",
+        "androidArgb": "#FF2F80FF",
+        "tonalRamp": [
+          "oklch(15% 0.100 259)",
+          "oklch(27% 0.200 259)",
+          "oklch(38% 0.200 259)",
+          "oklch(50% 0.200 259)",
+          "oklch(61% 0.200 259)",
+          "oklch(73% 0.200 259)",
+          "oklch(84% 0.200 259)",
+          "oklch(95% 0.100 259)"
+        ]
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Soft Blue Wash",
+        "canonical": "rgb(47 128 255 / 0.20)",
+        "androidArgb": "#332F80FF",
+        "tonalRamp": [
+          "oklch(15% 0.100 259)",
+          "oklch(27% 0.200 259)",
+          "oklch(38% 0.200 259)",
+          "oklch(50% 0.200 259)",
+          "oklch(61% 0.200 259)",
+          "oklch(73% 0.200 259)",
+          "oklch(84% 0.200 259)",
+          "oklch(95% 0.100 259)"
+        ]
+      },
+      "glow": {
+        "role": "primary",
+        "displayName": "Halo Blue",
+        "canonical": "rgb(77 149 255)",
+        "androidArgb": "#FF4D95FF",
+        "tonalRamp": [
+          "oklch(15% 0.087 258)",
+          "oklch(27% 0.173 258)",
+          "oklch(38% 0.173 258)",
+          "oklch(50% 0.173 258)",
+          "oklch(61% 0.173 258)",
+          "oklch(73% 0.173 258)",
+          "oklch(84% 0.173 258)",
+          "oklch(95% 0.087 258)"
+        ]
+      },
+      "focus-white": {
+        "role": "neutral",
+        "displayName": "Lit White",
+        "canonical": "rgb(255 255 255)",
+        "androidArgb": "#FFFFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "focus-lit-end": {
+        "role": "neutral",
+        "displayName": "Lit White End",
+        "canonical": "rgb(227 233 245)",
+        "androidArgb": "#FFE3E9F5",
+        "tonalRamp": [
+          "oklch(15% 0.009 264)",
+          "oklch(27% 0.017 264)",
+          "oklch(38% 0.017 264)",
+          "oklch(50% 0.017 264)",
+          "oklch(61% 0.017 264)",
+          "oklch(73% 0.017 264)",
+          "oklch(84% 0.017 264)",
+          "oklch(95% 0.009 264)"
+        ]
+      },
+      "focus-pressed": {
+        "role": "neutral",
+        "displayName": "Pressed",
+        "canonical": "rgb(201 205 212)",
+        "androidArgb": "#FFC9CDD4",
+        "tonalRamp": [
+          "oklch(15% 0.005 262)",
+          "oklch(27% 0.011 262)",
+          "oklch(38% 0.011 262)",
+          "oklch(50% 0.011 262)",
+          "oklch(61% 0.011 262)",
+          "oklch(73% 0.011 262)",
+          "oklch(84% 0.011 262)",
+          "oklch(95% 0.005 262)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "rgb(10 11 14)",
+        "androidArgb": "#FF0A0B0E",
+        "tonalRamp": [
+          "oklch(15% 0.003 271)",
+          "oklch(27% 0.007 271)",
+          "oklch(38% 0.007 271)",
+          "oklch(50% 0.007 271)",
+          "oklch(61% 0.007 271)",
+          "oklch(73% 0.007 271)",
+          "oklch(84% 0.007 271)",
+          "oklch(95% 0.003 271)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "rgb(5 6 8)",
+        "androidArgb": "#FF050608",
+        "tonalRamp": [
+          "oklch(15% 0.003 262)",
+          "oklch(27% 0.006 262)",
+          "oklch(38% 0.006 262)",
+          "oklch(50% 0.006 262)",
+          "oklch(61% 0.006 262)",
+          "oklch(73% 0.006 262)",
+          "oklch(84% 0.006 262)",
+          "oklch(95% 0.003 262)"
+        ]
+      },
+      "ground-light": {
+        "role": "neutral",
+        "displayName": "Deep Blue Room Light",
+        "canonical": "rgb(22 58 122 / 0.40)",
+        "androidArgb": "#66163A7A",
+        "tonalRamp": [
+          "oklch(15% 0.058 261)",
+          "oklch(27% 0.117 261)",
+          "oklch(38% 0.117 261)",
+          "oklch(50% 0.117 261)",
+          "oklch(61% 0.117 261)",
+          "oklch(73% 0.117 261)",
+          "oklch(84% 0.117 261)",
+          "oklch(95% 0.058 261)"
+        ]
+      },
+      "ground-light-far": {
+        "role": "neutral",
+        "displayName": "Deep Blue Room Light, far",
+        "canonical": "rgb(15 34 71 / 0.15)",
+        "androidArgb": "#260F2247",
+        "tonalRamp": [
+          "oklch(15% 0.037 262)",
+          "oklch(27% 0.074 262)",
+          "oklch(38% 0.074 262)",
+          "oklch(50% 0.074 262)",
+          "oklch(61% 0.074 262)",
+          "oklch(73% 0.074 262)",
+          "oklch(84% 0.074 262)",
+          "oklch(95% 0.037 262)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "rgb(22 24 29)",
+        "androidArgb": "#FF16181D",
+        "tonalRamp": [
+          "oklch(15% 0.005 268)",
+          "oklch(27% 0.010 268)",
+          "oklch(38% 0.010 268)",
+          "oklch(50% 0.010 268)",
+          "oklch(61% 0.010 268)",
+          "oklch(73% 0.010 268)",
+          "oklch(84% 0.010 268)",
+          "oklch(95% 0.005 268)"
+        ]
+      },
+      "surface-elevated": {
+        "role": "neutral",
+        "displayName": "Raised Surface",
+        "canonical": "rgb(36 39 46)",
+        "androidArgb": "#FF24272E",
+        "tonalRamp": [
+          "oklch(15% 0.007 267)",
+          "oklch(27% 0.014 267)",
+          "oklch(38% 0.014 267)",
+          "oklch(50% 0.014 267)",
+          "oklch(61% 0.014 267)",
+          "oklch(73% 0.014 267)",
+          "oklch(84% 0.014 267)",
+          "oklch(95% 0.007 267)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgb(46 50 58)",
+        "androidArgb": "#FF2E323A",
+        "tonalRamp": [
+          "oklch(15% 0.008 264)",
+          "oklch(27% 0.015 264)",
+          "oklch(38% 0.015 264)",
+          "oklch(50% 0.015 264)",
+          "oklch(61% 0.015 264)",
+          "oklch(73% 0.015 264)",
+          "oklch(84% 0.015 264)",
+          "oklch(95% 0.008 264)"
+        ]
+      },
+      "artwork-ground": {
+        "role": "neutral",
+        "displayName": "Artwork Ground",
+        "canonical": "rgb(17 19 24)",
+        "androidArgb": "#FF111318",
+        "tonalRamp": [
+          "oklch(15% 0.005 268)",
+          "oklch(27% 0.011 268)",
+          "oklch(38% 0.011 268)",
+          "oklch(50% 0.011 268)",
+          "oklch(61% 0.011 268)",
+          "oklch(73% 0.011 268)",
+          "oklch(84% 0.011 268)",
+          "oklch(95% 0.005 268)"
+        ]
+      },
+      "skeleton": {
+        "role": "neutral",
+        "displayName": "Skeleton",
+        "canonical": "rgb(20 22 27)",
+        "androidArgb": "#FF14161B",
+        "tonalRamp": [
+          "oklch(15% 0.005 268)",
+          "oklch(27% 0.010 268)",
+          "oklch(38% 0.010 268)",
+          "oklch(50% 0.010 268)",
+          "oklch(61% 0.010 268)",
+          "oklch(73% 0.010 268)",
+          "oklch(84% 0.010 268)",
+          "oklch(95% 0.005 268)"
+        ]
+      },
+      "glass": {
+        "role": "neutral",
+        "displayName": "Glass",
+        "canonical": "rgb(255 255 255 / 0.18)",
+        "androidArgb": "#2EFFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "glass-strong": {
+        "role": "neutral",
+        "displayName": "Dense Glass",
+        "canonical": "rgb(255 255 255 / 0.28)",
+        "androidArgb": "#47FFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "glass-edge": {
+        "role": "neutral",
+        "displayName": "Glass Edge",
+        "canonical": "rgb(255 255 255 / 0.24)",
+        "androidArgb": "#3DFFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "panel-glass": {
+        "role": "neutral",
+        "displayName": "Panel Glass",
+        "canonical": "rgb(255 255 255 / 0.12)",
+        "androidArgb": "#1FFFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "panel-edge": {
+        "role": "neutral",
+        "displayName": "Panel Edge",
+        "canonical": "rgb(255 255 255 / 0.14)",
+        "androidArgb": "#24FFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "progress-track": {
+        "role": "neutral",
+        "displayName": "Progress Track",
+        "canonical": "rgb(255 255 255 / 0.40)",
+        "androidArgb": "#66FFFFFF",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Text Primary",
+        "canonical": "rgb(244 245 247)",
+        "androidArgb": "#FFF4F5F7",
+        "tonalRamp": [
+          "oklch(15% 0.001 265)",
+          "oklch(27% 0.003 265)",
+          "oklch(38% 0.003 265)",
+          "oklch(50% 0.003 265)",
+          "oklch(61% 0.003 265)",
+          "oklch(73% 0.003 265)",
+          "oklch(84% 0.003 265)",
+          "oklch(95% 0.001 265)"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Text Secondary",
+        "canonical": "rgb(180 185 195)",
+        "androidArgb": "#FFB4B9C3",
+        "tonalRamp": [
+          "oklch(15% 0.008 264)",
+          "oklch(27% 0.015 264)",
+          "oklch(38% 0.015 264)",
+          "oklch(50% 0.015 264)",
+          "oklch(61% 0.015 264)",
+          "oklch(73% 0.015 264)",
+          "oklch(84% 0.015 264)",
+          "oklch(95% 0.008 264)"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Text Muted",
+        "canonical": "rgb(141 147 158)",
+        "androidArgb": "#FF8D939E",
+        "tonalRamp": [
+          "oklch(15% 0.009 263)",
+          "oklch(27% 0.018 263)",
+          "oklch(38% 0.018 263)",
+          "oklch(50% 0.018 263)",
+          "oklch(61% 0.018 263)",
+          "oklch(73% 0.018 263)",
+          "oklch(84% 0.018 263)",
+          "oklch(95% 0.009 263)"
+        ]
+      },
+      "badge-scrim": {
+        "role": "neutral",
+        "displayName": "Badge Scrim",
+        "canonical": "rgb(5 6 8 / 0.90)",
+        "androidArgb": "#E6050608",
+        "tonalRamp": [
+          "oklch(15% 0.003 262)",
+          "oklch(27% 0.006 262)",
+          "oklch(38% 0.006 262)",
+          "oklch(50% 0.006 262)",
+          "oklch(61% 0.006 262)",
+          "oklch(73% 0.006 262)",
+          "oklch(84% 0.006 262)",
+          "oklch(95% 0.003 262)"
+        ]
+      },
+      "scrim-strong": {
+        "role": "neutral",
+        "displayName": "Strong Scrim",
+        "canonical": "rgb(5 6 8 / 0.95)",
+        "androidArgb": "#F2050608",
+        "tonalRamp": [
+          "oklch(15% 0.003 262)",
+          "oklch(27% 0.006 262)",
+          "oklch(38% 0.006 262)",
+          "oklch(50% 0.006 262)",
+          "oklch(61% 0.006 262)",
+          "oklch(73% 0.006 262)",
+          "oklch(84% 0.006 262)",
+          "oklch(95% 0.003 262)"
+        ]
+      },
+      "scrim-mid": {
+        "role": "neutral",
+        "displayName": "Mid Scrim",
+        "canonical": "rgb(5 6 8 / 0.72)",
+        "androidArgb": "#B8050608",
+        "tonalRamp": [
+          "oklch(15% 0.003 262)",
+          "oklch(27% 0.006 262)",
+          "oklch(38% 0.006 262)",
+          "oklch(50% 0.006 262)",
+          "oklch(61% 0.006 262)",
+          "oklch(73% 0.006 262)",
+          "oklch(84% 0.006 262)",
+          "oklch(95% 0.003 262)"
+        ]
+      },
+      "backdrop-dim": {
+        "role": "neutral",
+        "displayName": "Backdrop Dim",
+        "canonical": "rgb(5 6 8 / 0.35)",
+        "androidArgb": "#59050608",
+        "tonalRamp": [
+          "oklch(15% 0.003 262)",
+          "oklch(27% 0.006 262)",
+          "oklch(38% 0.006 262)",
+          "oklch(50% 0.006 262)",
+          "oklch(61% 0.006 262)",
+          "oklch(73% 0.006 262)",
+          "oklch(84% 0.006 262)",
+          "oklch(95% 0.003 262)"
+        ]
+      },
+      "scrim-clear": {
+        "role": "neutral",
+        "displayName": "Clear Scrim",
+        "canonical": "rgb(5 6 8 / 0.00)",
+        "androidArgb": "#00050608",
+        "tonalRamp": [
+          "oklch(15% 0.003 262)",
+          "oklch(27% 0.006 262)",
+          "oklch(38% 0.006 262)",
+          "oklch(50% 0.006 262)",
+          "oklch(61% 0.006 262)",
+          "oklch(73% 0.006 262)",
+          "oklch(84% 0.006 262)",
+          "oklch(95% 0.003 262)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Hero title, 44sp; 36sp for the detail title. archivo_display, weight 800 at width 87.5."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The one title of a screen without artwork, 32sp."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Date numeral in the week strip, 26sp; 64sp placeholder numeral on an episode without a still."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Shelf headings, settings group headings, profile names, search query."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Plot text, three lines at most."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Fact line under a title, nav tabs, season tabs."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, sentence case."
+      },
+      "tile-title": {
+        "displayName": "Tile title",
+        "purpose": "Under poster tiles; 600 at 14sp under day and episode tiles."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Muted supporting lines under tiles."
+      }
+    },
+    "shadows": [
+      {
+        "name": "halo",
+        "value": "14 stacked outlines of #FF4D95FF around the artwork frame, spread 14dp, peak alpha 150/255, quadratic falloff",
+        "purpose": "Light thrown by a focused artwork tile. HaloDrawable.kt. Tiles only."
+      },
+      {
+        "name": "hero-title-text-shadow",
+        "value": "0 3px 18px #99000000",
+        "purpose": "Legibility of the hero title over live artwork. item_home_hero.xml."
+      },
+      {
+        "name": "surface-elevation",
+        "value": "none",
+        "purpose": "SvButton sets elevation 0 and no outline provider. Elevation is used for draw order only: top bar 12dp, side rail 10dp, focused view 2dp translationZ."
+      }
+    ],
+    "gradients": [
+      {
+        "name": "ground-room-light",
+        "value": "radial at 85% 0%, radius 75% of parent: #66163A7A, #260F2247, #00050608 over #FF050608",
+        "purpose": "Ground of every screen. bg_app.xml."
+      },
+      {
+        "name": "ambient-scrim",
+        "value": "top to bottom: #40050608, #99050608, #E6050608",
+        "purpose": "Over the room light so shelf text stays readable. bg_ambient_scrim.xml."
+      },
+      {
+        "name": "hero-side-shade",
+        "value": "left to right, centre at 45%: #D9050608, #33050608, #00050608",
+        "purpose": "Carries the hero text. bg_hero_side.xml."
+      },
+      {
+        "name": "hero-bottom-fade",
+        "value": "content alpha to 0 over the bottom 120dp",
+        "purpose": "Hero dissolves into the room light. FadeFrameLayout.kt."
+      },
+      {
+        "name": "topbar-scrim",
+        "value": "top to bottom: #D9050608, #73050608, #00050608",
+        "purpose": "Nav labels over artwork. bg_topbar_scrim.xml."
+      },
+      {
+        "name": "topbar-solid",
+        "value": "top to bottom: #FF050608 held to 86%, then to #00050608",
+        "purpose": "Top bar once the feed has scrolled. bg_topbar_solid.xml."
+      },
+      {
+        "name": "focus-lit",
+        "value": "top to bottom: #FFFFFFFF, #FFE3E9F5",
+        "purpose": "Focused fill of buttons, ghost buttons and icon buttons."
+      },
+      {
+        "name": "detail-scrims",
+        "value": "#59050608 even dim; bottom gradient #00050608, #B8050608, #FF050608; left scrim #F2050608, #B8050608, #00050608",
+        "purpose": "Detail screen backdrop. activity_detail.xml, bg_hero_gradient.xml, bg_detail_scrim.xml."
+      }
+    ],
+    "motion": [
+      {
+        "name": "focus-glide",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Curve for focus growth, press and entrances. FocusFx.kt."
+      },
+      {
+        "name": "focus-in",
+        "value": "150ms, scale to at most 1.06",
+        "purpose": "Gaining focus."
+      },
+      {
+        "name": "focus-out",
+        "value": "160ms, scale to 1",
+        "purpose": "Losing focus."
+      },
+      {
+        "name": "press",
+        "value": "100ms to scale 0.96, 160ms back",
+        "purpose": "Select key on Play."
+      },
+      {
+        "name": "halo",
+        "value": "180ms in, 140ms out",
+        "purpose": "Halo fade on artwork tiles."
+      },
+      {
+        "name": "room-light",
+        "value": "700ms cross-fade of the image, 500ms to alpha 0.62, 300ms to alpha 0 when there is no artwork",
+        "purpose": "AmbientFx.kt."
+      },
+      {
+        "name": "hero-drift",
+        "value": "scale 1.02 to 1.09 over 16s, linear, alternating direction",
+        "purpose": "Slow drift on the hero artwork."
+      },
+      {
+        "name": "row-enter",
+        "value": "280ms, 12dp rise with fade, 24ms stagger for the first five",
+        "purpose": "Freshly bound rows and cards."
+      },
+      {
+        "name": "activity-open",
+        "value": "enter: 220ms slide from 3% below with 180ms fade; exit: 220ms fade with scale to 0.985",
+        "purpose": "Vf.WindowAnimation."
+      },
+      {
+        "name": "activity-close",
+        "value": "enter: 260ms fade with scale from 1.03; exit: 240ms slide 2% down with 200ms fade",
+        "purpose": "Vf.WindowAnimation."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "Settings.Global.ANIMATOR_DURATION_SCALE == 0",
+        "purpose": "All of the above snap to their end state; the white fill and frame stay."
+      }
+    ],
+    "breakpoints": [],
+    "displayScale": {
+      "steps": [
+        75,
+        85,
+        100,
+        115,
+        130
+      ],
+      "purpose": "Per-profile display size. Not a breakpoint; every layout must hold at each step."
+    },
+    "knownGaps": [
+      "The search results list still opens with a featured hero. In that narrower column its artwork has hard top and left edges instead of dissolving.",
+      "Down from a top nav tab lands on the hero's details button, not on Play.",
+      "The halo and the blurred room light were verified on an API 31 emulator only. Below API 31 the room light relies on the stretched thumbnail alone. minSdk is 25.",
+      "Player, splash, setup, profile edit and the side-rail nav mode were not visually reviewed. What this file says about them comes from source only.",
+      "Evidence screenshots are 1920 by 1080 emulator captures in `.impeccable/review/`."
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default action. Glass at rest so the room light shows through, lit white with ink text when focused. Source: SvButton, bg_button.xml. 1px stands for 1dp.",
+      "html": "<button class=\"ds-btn\">Ton: Englisch</button>",
+      "css": ".ds-btn { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0; min-height: 48px; padding: 12px 20px; color: #f4f5f7; background: rgb(255 255 255 / 0.18); border: 1px solid rgb(255 255 255 / 0.24); border-radius: 8px; transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn:hover, .ds-btn:focus-visible { background: linear-gradient(180deg, #ffffff, #e3e9f5); color: #0a0b0e; border-color: transparent; outline: none; transform: scale(1.06); } .ds-btn:active { background: #c9cdd4; color: #0a0b0e; transform: scale(0.96); } @media (prefers-reduced-motion: reduce) { .ds-btn { transition: none; } .ds-btn:hover, .ds-btn:focus-visible, .ds-btn:active { transform: none; } }"
+    },
+    {
+      "name": "Primary Button (Play)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action of a screen. Denser glass than other buttons, leading play icon. Source: SvButton.Primary, bg_button_primary.xml.",
+      "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M8 5v14l11-7z\"/></svg>Abspielen</button>",
+      "css": ".ds-btn-primary { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 160px; min-height: 48px; padding: 12px 20px; color: #f4f5f7; background: rgb(255 255 255 / 0.28); border: 1px solid rgb(255 255 255 / 0.24); border-radius: 8px; transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn-primary:hover, .ds-btn-primary:focus-visible { background: linear-gradient(180deg, #ffffff, #e3e9f5); color: #0a0b0e; border-color: transparent; outline: none; transform: scale(1.06); } .ds-btn-primary:active { background: #c9cdd4; color: #0a0b0e; transform: scale(0.96); } @media (prefers-reduced-motion: reduce) { .ds-btn-primary { transition: none; } .ds-btn-primary:hover, .ds-btn-primary:focus-visible, .ds-btn-primary:active { transform: none; } }"
+    },
+    {
+      "name": "Option Button, selected",
+      "kind": "button",
+      "refersTo": "button-ghost-selected",
+      "description": "Ghost button in its selected state: soft blue wash with a 2dp blue frame. Focus overrides it with lit white. Source: SvButton.Ghost, bg_button_ghost.xml.",
+      "html": "<button class=\"ds-btn-option\" aria-pressed=\"true\">85% Standard</button>",
+      "css": ".ds-btn-option { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 600; font-size: 15px; min-width: 148px; min-height: 48px; padding: 12px 20px; color: #f4f5f7; background: rgb(47 128 255 / 0.2); border: 2px solid #2f80ff; border-radius: 8px; } .ds-btn-option:hover, .ds-btn-option:focus-visible { background: linear-gradient(180deg, #ffffff, #e3e9f5); color: #0a0b0e; border-color: transparent; outline: none; } .ds-btn-option:active { background: #c9cdd4; color: #0a0b0e; }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "48dp square action beside a button, same glass. Source: bg_icon_button.xml.",
+      "html": "<button class=\"ds-icon-btn\" aria-label=\"Details\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z\"/></svg></button>",
+      "css": ".ds-icon-btn { width: 48px; height: 48px; padding: 12px; display: inline-flex; align-items: center; justify-content: center; color: #f4f5f7; background: rgb(255 255 255 / 0.18); border: 1px solid rgb(255 255 255 / 0.24); border-radius: 8px; } .ds-icon-btn:hover, .ds-icon-btn:focus-visible { background: linear-gradient(180deg, #ffffff, #e3e9f5); color: #0a0b0e; border-color: transparent; outline: none; } .ds-icon-btn:active { background: #c9cdd4; color: #0a0b0e; }"
+    },
+    {
+      "name": "Top Nav",
+      "kind": "nav",
+      "refersTo": "nav-tab",
+      "description": "Wordmark and content tabs. Text at rest, 2dp blue underline when active, flat white when focused. Source: SvButton.Nav, bg_button_nav.xml, VfWordmarkView.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-nav-mark\">Verflixed</span><button class=\"ds-nav-tab ds-nav-tab-on\">Bibliothek</button><button class=\"ds-nav-tab\">Serien</button><button class=\"ds-nav-tab\">Filme</button></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; height: 64px; padding: 0 58px; background: linear-gradient(180deg, rgb(5 6 8 / 0.85), rgb(5 6 8 / 0.45), rgb(5 6 8 / 0)); } .ds-nav-mark { font-family: Archivo, system-ui, sans-serif; font-weight: 800; font-stretch: 87.5%; font-size: 20px; letter-spacing: 0.04em; text-transform: uppercase; color: #2f80ff; margin-right: 18px; } .ds-nav-tab { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 500; font-size: 15px; height: 40px; padding: 6px 14px; margin-right: 2px; color: #b4b9c3; background: transparent; border: none; border-radius: 8px; position: relative; } .ds-nav-tab-on { color: #f4f5f7; } .ds-nav-tab-on::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: #2f80ff; } .ds-nav-tab:hover, .ds-nav-tab:focus-visible { background: #ffffff; color: #0a0b0e; outline: none; } .ds-nav-tab:hover::after, .ds-nav-tab:focus-visible::after { display: none; }"
+    },
+    {
+      "name": "Season Tab",
+      "kind": "chip",
+      "refersTo": "season-tab",
+      "description": "Season and filter tabs, the same language as the top nav. Source: item_season_tab.xml, bg_season_chip.xml.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab ds-tab-on\">Staffel 1</button><button class=\"ds-tab\">Staffel 2</button></div>",
+      "css": ".ds-tabs { display: flex; gap: 4px; } .ds-tab { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 500; font-size: 15px; min-height: 40px; padding: 8px 14px; color: #b4b9c3; background: transparent; border: none; border-radius: 8px; position: relative; } .ds-tab-on { color: #f4f5f7; } .ds-tab-on::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: #2f80ff; } .ds-tab:hover, .ds-tab:focus-visible { background: #ffffff; color: #0a0b0e; outline: none; } .ds-tab:hover::after, .ds-tab:focus-visible::after { display: none; }"
+    },
+    {
+      "name": "Poster Tile",
+      "kind": "card",
+      "refersTo": "tile-poster",
+      "description": "Shelf tile: artwork with the title underneath, no card. Focus frames the artwork in white, grows it to 1.06 and throws the blue halo. Source: item_poster.xml, bg_poster_focus.xml, HaloDrawable.kt.",
+      "html": "<button class=\"ds-tile\"><span class=\"ds-tile-art\"><span class=\"ds-tile-progress\"></span></span><span class=\"ds-tile-title\">CIA (2026)</span></button>",
+      "css": ".ds-tile { display: inline-flex; flex-direction: column; width: 140px; padding: 0; background: none; border: none; text-align: left; transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-tile-art { position: relative; display: block; width: 140px; height: 210px; border-radius: 8px; overflow: hidden; background: linear-gradient(160deg, #24304a, #111318 60%); transition: box-shadow 180ms linear; } .ds-tile-progress { position: absolute; left: 0; bottom: 0; width: 40%; height: 4px; background: #2f80ff; } .ds-tile-title { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 500; font-size: 13px; margin-top: 8px; color: #b4b9c3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-tile:hover, .ds-tile:focus-visible { outline: none; transform: scale(1.06); } .ds-tile:hover .ds-tile-art, .ds-tile:focus-visible .ds-tile-art { box-shadow: 0 0 0 3px #ffffff, 0 0 6px 4px rgb(77 149 255 / 0.55), 0 0 14px 8px rgb(77 149 255 / 0.22); overflow: visible; } .ds-tile:hover .ds-tile-title, .ds-tile:focus-visible .ds-tile-title { color: #f4f5f7; } @media (prefers-reduced-motion: reduce) { .ds-tile, .ds-tile-art { transition: none; } .ds-tile:hover, .ds-tile:focus-visible { transform: none; } }"
+    },
+    {
+      "name": "Week Strip Day",
+      "kind": "custom",
+      "refersTo": "tile-day",
+      "description": "One day of the Diese Woche shelf: date numeral and weekday above the still, no box. Today's numeral is the only blue numeral. Source: item_calendar_day.xml, sv_cal_day.xml.",
+      "html": "<div class=\"ds-week\"><button class=\"ds-day ds-day-today\"><span class=\"ds-day-head\"><span class=\"ds-day-num\">6</span><span class=\"ds-day-name\">Heute</span></span><span class=\"ds-day-art\"></span><span class=\"ds-day-title\">Fire Country</span><span class=\"ds-day-meta\">S04E15</span></button><button class=\"ds-day\"><span class=\"ds-day-head\"><span class=\"ds-day-num\">7</span><span class=\"ds-day-name\">Morgen</span></span><span class=\"ds-day-art\"></span><span class=\"ds-day-title\">Average Joe (2023)</span><span class=\"ds-day-meta\">S02E09</span></button></div>",
+      "css": ".ds-week { display: flex; gap: 14px; } .ds-day { display: flex; flex-direction: column; width: 208px; padding: 0; background: none; border: none; text-align: left; transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-day-head { display: flex; align-items: baseline; gap: 8px; } .ds-day-num { font-family: Archivo, system-ui, sans-serif; font-weight: 800; font-stretch: 87.5%; font-size: 26px; line-height: 1; color: #f4f5f7; } .ds-day-today .ds-day-num { color: #2f80ff; } .ds-day-name { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 500; font-size: 14px; color: #b4b9c3; } .ds-day-art { display: block; width: 208px; height: 117px; margin-top: 8px; border-radius: 8px; background: linear-gradient(160deg, #3a2a1c, #111318 70%); transition: box-shadow 180ms linear; } .ds-day-title { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 600; font-size: 14px; margin-top: 8px; color: #b4b9c3; } .ds-day-meta { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 400; font-size: 12px; margin-top: 2px; color: #8d939e; } .ds-day:hover, .ds-day:focus-visible { outline: none; transform: scale(1.06); } .ds-day:hover .ds-day-art, .ds-day:focus-visible .ds-day-art { box-shadow: 0 0 0 3px #ffffff, 0 0 6px 4px rgb(77 149 255 / 0.55), 0 0 14px 8px rgb(77 149 255 / 0.22); } .ds-day:hover .ds-day-title, .ds-day:focus-visible .ds-day-title { color: #f4f5f7; } @media (prefers-reduced-motion: reduce) { .ds-day, .ds-day-art { transition: none; } .ds-day:hover, .ds-day:focus-visible { transform: none; } }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Solid surface field; focus raises the surface and adds a 3dp white frame. Source: SvEditText, bg_input.xml.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Update-Manifest URL\">",
+      "css": ".ds-input { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-weight: 400; font-size: 16px; width: 420px; min-height: 56px; padding: 18px; color: #f4f5f7; background: #16181d; border: 1px solid #2e323a; border-radius: 8px; box-sizing: border-box; } .ds-input::placeholder { color: #8d939e; } .ds-input:hover, .ds-input:focus-visible { background: #24272e; border-color: #ffffff; box-shadow: inset 0 0 0 2px #ffffff; outline: none; }"
+    },
+    {
+      "name": "Glass Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Static grouping panel, never focusable. Source: bg_panel.xml.",
+      "html": "<div class=\"ds-panel\"><span class=\"ds-panel-k\">Version</span> <span class=\"ds-panel-v\">1.27.0 (62)</span></div>",
+      "css": ".ds-panel { font-family: Archivo, 'Archivo SemiExpanded', system-ui, sans-serif; font-size: 15px; padding: 20px; background: rgb(255 255 255 / 0.12); border: 1px solid rgb(255 255 255 / 0.14); border-radius: 12px; } .ds-panel-k { color: #8d939e; font-weight: 400; } .ds-panel-v { color: #f4f5f7; font-weight: 700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Lit Room",
+    "overview": "The light in the room comes from the title you are on. Home is built in three layers. At the back, the focused title's artwork is shrunk to 40 by 22 pixels and stretched across the whole screen, so it arrives as soft coloured light on a near-black, cool ground. In the middle, the sharp hero artwork dissolves along its bottom edge into that light. At the front sit glass controls and artwork tiles. Moving the remote changes the colour of the room.\n\nFocus is the second idea. A focused control turns white with dark ink. A focused tile gets a white frame on its artwork, grows a little and throws a blue halo. Nothing else on screen is opaque white, so the position of the remote is never in doubt from three metres away. Blue is kept for what is chosen or current: the wordmark, the active tab, a selected option, progress, today's date, a text link.\n\nDensity is low and the type is large because the viewer is on a sofa in a dark room. Artwork carries the screen; tiles have no card around them and their titles sit underneath in plain text. Screens that have no artwork (profiles, settings) stand on the same ground, lit in deep blue from the upper right.",
+    "keyCharacteristics": [
+      "Three layers on home: blurred room light, sharp hero that fades out at the bottom, glass and artwork in front.",
+      "Focus is lit white; selection is blue; focus wins when both apply.",
+      "One blue accent, one display voice (Archivo at weight 800, width 87.5).",
+      "Artwork tiles without boxes, titles under the artwork.",
+      "One shared content edge of 58dp for nav, hero and shelves.",
+      "Two corner sizes: 8dp for controls and artwork, 12dp for panels.",
+      "Motion is short (150 to 160 ms focus moves) and switches off with the system animation setting."
+    ],
+    "rules": [
+      {
+        "name": "The Lit Focus Rule",
+        "body": "Opaque white fill and the 3dp white frame belong to focus and to nothing else. Text is the softer `text-primary`; glass is translucent. If something is solid white, the remote is on it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Blue Means Chosen Rule",
+        "body": "Blue marks what is selected or current: active tab, selected option, progress, today, a link. It never marks focus. In every state list the focused item comes before the selected item, so a control that is both shows white.",
+        "section": "colors"
+      },
+      {
+        "name": "The Room Light Rule",
+        "body": "On home, colour beyond the accent comes from the artwork itself: the blurred back layer at 62% opacity under a scrim that lets it through at the top (25% ground) and settles to 90% ground at the bottom. Do not paint decorative colour onto the ground; let the title supply it.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Display Voice Rule",
+        "body": "`archivo_display` is for names and numerals only: a title, a screen name, a date, the wordmark. Never for buttons, body or labels.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "`textAllCaps` is off on every button style. Labels are written as German sentences are. The wordmark is the single exception.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sofa Floor Rule",
+        "body": "The reviewed shelves bottom out at 12sp, and only for muted supporting lines. Anything a viewer must read to choose is 13sp or larger.",
+        "section": "typography"
+      },
+      {
+        "name": "The Shared Edge Rule",
+        "body": "Everything that starts a row starts at `vf_edge`. Use the dimension, never a literal.",
+        "section": "layout"
+      },
+      {
+        "name": "The Growing Room Rule",
+        "body": "Shelves reserve their edge and their top and bottom space as padding with clipping off, not as margin, so tiles scroll out under the screen edge and a focused tile and its halo are never cut. Focus growth is capped at 1.06 because the padding is sized for exactly that.",
+        "section": "layout"
+      },
+      {
+        "name": "The No Surface Shadow Rule",
+        "body": "No surface casts an elevation or drop shadow. The only light a surface throws is the halo of a focused tile.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Still When Asked Rule",
+        "body": "Every decorative motion checks the system animator scale. At zero, growth, halo, drift, cross-fades and entrances snap to their end state; the white fill and white frame remain.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No-Box Rule",
+        "body": "An artwork tile has no card, no outline at rest and no background beyond its own image. Its title and supporting lines sit under it as plain text.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do feed the room light from the focused title: one blurred back layer at 62% opacity under the ground scrim.",
+      "Do make focus white: lit fill with ink text on controls, a 3dp white frame on artwork.",
+      "Do list the focused state before the selected state in every state list, so focus wins.",
+      "Do keep blue for chosen and current things: active tab underline, selected frame, progress, today, links.",
+      "Do start every row at `vf_edge` (58dp) and keep focusable controls 30dp clear of the top and bottom.",
+      "Do give shelves their breathing room as padding with clipping off, and cap focus growth at 1.06.",
+      "Do put tile titles under the artwork, secondary at rest and primary on focus.",
+      "Do fade scrims into the ground colour, at the alphas already defined.",
+      "Do check `FocusFx.motionEnabled` before any decorative motion and keep the static focus cue when it is off.",
+      "Do write layouts in dp and sp with minimum sizes and wrap-content heights so all five display sizes hold."
+    ],
+    "donts": [
+      "Don't fill or frame anything in opaque white unless it is focused.",
+      "Don't use blue as a focus signal, and don't use Halo Blue as a fill, stroke or text colour.",
+      "Don't put a card, outline or resting border around an artwork tile.",
+      "Don't add elevation or drop shadows to surfaces.",
+      "Don't set buttons, body or labels in `archivo_display`, and don't uppercase labels.",
+      "Don't end the home hero on a painted scrim; it fades out over its bottom 120dp into the room light.",
+      "Don't replace `vf_edge` with a literal inset.",
+      "Don't raise the system keyboard for search."
+    ]
+  }
+}

@@ -24,12 +24,27 @@ class SettingsActivity : ScaledAppCompatActivity() {
 
         val app = application as VerflixedApp
         val prefs = app.container.prefs
-        binding.currentUrl.text =
-            "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\n" +
-                "Serien-URL:\n${prefs.seriesBaseUrl.ifBlank { "—" }}\n\n" +
-                "Filme-URL:\n${prefs.moviesBaseUrl.ifBlank { "—" }}\n\n" +
-                "Aktiv: ${if (prefs.isMovies) "Filme" else "Serien"}\n\n" +
-                "Profil-Ton: ${com.streamvault.tv.data.catalog.StreamLanguage.label(prefs.streamLanguage(prefs.activeProfileId))}"
+        // Label in the quiet colour, value in the bright one, one fact per line.
+        val facts = listOf(
+            "Version" to "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            "Serien-Quelle" to prefs.seriesBaseUrl.ifBlank { "nicht gesetzt" },
+            "Film-Quelle" to prefs.moviesBaseUrl.ifBlank { "nicht gesetzt" },
+            "Aktiver Bereich" to if (prefs.isMovies) "Filme" else "Serien",
+            "Ton im Profil" to com.streamvault.tv.data.catalog.StreamLanguage.label(
+                prefs.streamLanguage(prefs.activeProfileId)
+            ),
+        )
+        val valueColor = getColor(R.color.sv_text_primary)
+        binding.currentUrl.text = android.text.SpannableStringBuilder().apply {
+            facts.forEachIndexed { index, (label, value) ->
+                if (index > 0) append("\n")
+                append(label).append("   ")
+                val start = length
+                append(value)
+                setSpan(android.text.style.ForegroundColorSpan(valueColor), start, length, 0)
+                setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, length, 0)
+            }
+        }
         binding.inputUpdateUrl.setText(prefs.updateManifestUrl)
 
         binding.btnSaveUpdateUrl.setOnClickListener {

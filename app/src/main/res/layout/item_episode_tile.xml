@@ -1,47 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Episode: still, then number and title, then two lines of plot. No box. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/episodeRow"
-    android:layout_width="252dp"
+    android:layout_width="248dp"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="10dp"
-    android:background="@drawable/bg_episode_card"
+    android:layout_marginEnd="14dp"
     android:clickable="true"
+    android:clipChildren="false"
     android:clipToPadding="false"
+    android:defaultFocusHighlightEnabled="false"
     android:descendantFocusability="blocksDescendants"
     android:focusable="true"
     android:focusableInTouchMode="true"
-    android:foreground="@drawable/bg_card_focus"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:orientation="vertical">
 
     <FrameLayout
         android:id="@+id/episodeStillWrap"
-        android:layout_width="match_parent"
-        android:layout_height="132dp"
-        android:clipChildren="true"
-        android:clipToPadding="true">
+        android:layout_width="248dp"
+        android:layout_height="140dp"
+        android:background="@drawable/bg_poster_card"
+        android:duplicateParentState="true"
+        android:foreground="@drawable/bg_poster_focus">
 
         <ImageView
             android:id="@+id/episodeStill"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@drawable/bg_poster_surface"
             android:contentDescription="@null"
             android:focusable="false"
             android:scaleType="centerCrop"
             android:src="@drawable/poster_placeholder" />
 
+        <TextView
+            android:id="@+id/episodeNumeral"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#1FFFFFFF"
+            android:fontFamily="@font/archivo_display"
+            android:gravity="center"
+            android:textColor="#59FFFFFF"
+            android:textSize="64sp"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/episodeWatchedMark"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:layout_gravity="top|end"
-            android:layout_margin="8dp"
+            android:layout_margin="6dp"
             android:background="@drawable/bg_watched_mark"
             android:contentDescription="@string/watched"
             android:focusable="false"
-            android:padding="4dp"
+            android:padding="5dp"
             android:src="@drawable/ic_check"
             android:visibility="gone"
             app:tint="@color/sv_watched" />
@@ -49,16 +60,16 @@
         <View
             android:id="@+id/episodeProgressTrack"
             android:layout_width="match_parent"
-            android:layout_height="3dp"
+            android:layout_height="4dp"
             android:layout_gravity="bottom"
-            android:background="#66000000"
+            android:background="@color/sv_progress_track"
             android:focusable="false"
             android:visibility="gone" />
 
         <View
             android:id="@+id/episodeProgressBar"
             android:layout_width="40dp"
-            android:layout_height="3dp"
+            android:layout_height="4dp"
             android:layout_gravity="bottom"
             android:background="@color/sv_progress"
             android:focusable="false"
@@ -67,28 +78,22 @@
 
     <TextView
         android:id="@+id/episodeTitle"
+        style="@style/SvTileTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:ellipsize="end"
         android:focusable="false"
-        android:maxLines="1"
-        android:paddingStart="2dp"
-        android:paddingEnd="2dp"
-        android:textColor="@color/sv_text_primary"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+        android:fontFamily="@font/archivo_semibold"
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/episodeMeta"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:focusable="false"
         android:maxLines="1"
-        android:paddingStart="2dp"
-        android:paddingEnd="2dp"
         android:textColor="@color/sv_text_muted"
         android:textSize="12sp"
         android:visibility="gone" />
@@ -100,11 +105,8 @@
         android:layout_marginTop="4dp"
         android:ellipsize="end"
         android:focusable="false"
-        android:lineSpacingMultiplier="1.35"
+        android:lineSpacingMultiplier="1.3"
         android:maxLines="2"
-        android:paddingStart="2dp"
-        android:paddingEnd="2dp"
-        android:paddingBottom="4dp"
-        android:textColor="@color/sv_text_secondary"
-        android:textSize="13sp" />
+        android:textColor="@color/sv_text_muted"
+        android:textSize="12sp" />
 </LinearLayout>

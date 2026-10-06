@@ -176,6 +176,13 @@ class HomeActivity : ScaledAppCompatActivity() {
         binding.rows.layoutManager = rowsLm
         rowsLm.attachPendingFocus(binding.rows)
         binding.rows.adapter = rowsAdapter
+        // Checked on every frame the feed draws: focus moves reposition rows
+        // without always reporting a scroll delta.
+        binding.rows.viewTreeObserver.addOnPreDrawListener {
+            val solid = if (binding.rows.computeVerticalScrollOffset() > 0) 1f else 0f
+            if (binding.navSolid.alpha != solid) binding.navSolid.alpha = solid
+            true
+        }
         binding.rows.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
             addDuration = 180
             removeDuration = 140
@@ -235,6 +242,26 @@ class HomeActivity : ScaledAppCompatActivity() {
             binding.profileAvatar,
         ).forEach { it.nextFocusRightId = R.id.rows }
         binding.rows.nextFocusUpId = R.id.navLibrary
+        // Reaching the top bar brings the feed back to its start, and Down from
+        // a tab lands on Play, the hero's main action, not on whatever control
+        // happens to sit underneath the tab.
+        listOf(binding.tabLibrary, binding.tabBrowse, binding.btnKindMovies).forEach { tab ->
+            val previous = tab.onFocusChangeListener
+            tab.setOnFocusChangeListener { v, hasFocus ->
+                previous?.onFocusChange(v, hasFocus)
+                if (hasFocus && binding.rows.computeVerticalScrollOffset() > 0) {
+                    binding.rows.scrollToPosition(0)
+                }
+            }
+            tab.setOnKeyListener { _, keyCode, event ->
+                if (keyCode != android.view.KeyEvent.KEYCODE_DPAD_DOWN ||
+                    event.action != android.view.KeyEvent.ACTION_DOWN
+                ) return@setOnKeyListener false
+                val play = binding.rows.findViewHolderForAdapterPosition(0)
+                    ?.itemView?.findViewById<View>(R.id.btnHeroPlay)
+                play?.requestFocus() == true
+            }
+        }
         binding.rows.nextFocusLeftId = R.id.navLibrary
 
         binding.navScroll.isFocusable = false
@@ -336,6 +363,9 @@ class HomeActivity : ScaledAppCompatActivity() {
             ?: return
         // Immersive feed: rows always fill the screen; hero draws under the
         // floating top bar. Sidebar mode indents content past the rail.
+        // Focused shelves rest just under the top bar; with the side rail there is no bar.
+        (binding.rows.layoutManager as? TvLinearLayoutManager)?.snapTopPx =
+            ((if (sidebar) 12 else 64) * resources.displayMetrics.density).toInt()
         rowsParams.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
         rowsParams.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
         rowsParams.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
@@ -345,7 +375,8 @@ class HomeActivity : ScaledAppCompatActivity() {
             if (sidebar) (88 * resources.displayMetrics.density).toInt() else 0,
             0,
             0,
-            (28 * resources.displayMetrics.density).toInt(),
+            // Room below the last shelf so it can still rise to the snap line.
+            (resources.displayMetrics.heightPixels * 0.62f).toInt(),
         )
         // Mirror for search + skeleton + empty
         listOf(binding.skeletonHost, binding.emptyText, binding.progress, searchPanel).forEach { v ->
@@ -741,7 +772,7 @@ class HomeActivity : ScaledAppCompatActivity() {
         }
         binding.emptyText.visibility = View.GONE
         val featured = rows.firstOrNull()?.items?.firstOrNull()
-        searchResultsAdapter.submit(rows, featured)
+        searchResultsAdapter.submit(rows, null)
         featured?.let { updateHero(it) }
     }
 
@@ -973,12 +1004,8 @@ class HomeActivity : ScaledAppCompatActivity() {
     private fun applyHero(series: Series) {
         heroSeries = series
         rowsAdapter.updateHero(series)
-        if (mode == HomeMode.SEARCH) searchResultsAdapter.updateHero(series)
-        // Midnight Cinema: the room light follows the focused title.
-        AmbientFx.update(
-            binding.ambientImage,
-            series.backdropUrl ?: series.posterUrl,
-        )        // Keep stub binding fields in sync (legacy IDs, gone in layout).
+        AmbientFx.update(binding.ambientImage, series.backdropUrl ?: series.posterUrl)
+        // Keep stub binding fields in sync (legacy IDs, gone in layout).
         binding.heroTitle.text = series.title
         val meta = buildString {
             series.year?.let { append(it) }
@@ -1040,7 +1067,15 @@ private class SearchKeyAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val key = keys[position]
-        holder.btn.text = key.label
+        val delete = key.value == "\b"
+        holder.btn.text = if (delete) "" else key.label
+        holder.btn.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            if (delete) R.drawable.ic_backspace else 0, 0, 0, 0,
+        )
+        holder.btn.compoundDrawableTintList = holder.btn.textColors
+        // Centre the lone icon: a start drawable otherwise hugs the left edge.
+        val side = if (delete) (holder.btn.resources.displayMetrics.density * 22).toInt() else 0
+        holder.btn.setPaddingRelative(side, 0, 0, 0)
         holder.btn.contentDescription = key.cd
         holder.btn.setOnClickListener { onKey(key.value) }
     }
@@ -1099,8 +1134,6 @@ private class RowsAdapter(
         setMaxRecycledViews(0, 24)
         setMaxRecycledViews(1, 24)
     }
-    /** True right after submit(): the first shelves enter with a short stagger. */
-    private var enterPending = false
 
     companion object {
         private const val TYPE_HERO = 0
@@ -1122,10 +1155,6 @@ private class RowsAdapter(
         rows.clear()
         rows.addAll(newRows)
         hero = newHero
-        enterPending = true
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-            { enterPending = false }, 600L
-        )
         result.dispatchUpdatesTo(this)
     }
 
@@ -1192,12 +1221,9 @@ private class RowsAdapter(
                 val idx = if (hero != null) position - 1 else position
                 if (idx in rows.indices) {
                     holder.bind(rows[idx])
-                    // Infrequent staged entrance (mode switch / fresh load):
-                    // first shelves rise in with a ~24ms stagger. Scroll-bound
-                    // rebinds and focus-driven hero rebinds never animate.
-                    if (enterPending && position in 1..3) {
-                        FocusFx.enter(holder.itemView, position - 1, 10f)
-                    }
+                    holder.itemView.animate().cancel()
+                    holder.itemView.alpha = 1f
+                    holder.itemView.translationY = 0f
                 }
             }
         }
@@ -1212,7 +1238,6 @@ private class RowsAdapter(
         private val backdrop: ImageView = itemView.findViewById(R.id.heroBackdrop)
         private val textBlock: android.view.ViewGroup =
             itemView.findViewById(R.id.heroTextBlock)
-        private val kicker: TextView = itemView.findViewById(R.id.heroKicker)
         private val title: TextView = itemView.findViewById(R.id.heroTitle)
         private val meta: TextView = itemView.findViewById(R.id.heroMeta)
         private val overview: TextView = itemView.findViewById(R.id.heroOverview)
@@ -1256,21 +1281,18 @@ private class RowsAdapter(
         }
 
         fun bind(series: Series) {
-            // Immersive banner: ~62% of the feed height, edge to edge. The
-            // bottom gradient melts the backdrop into the app background.
+            // Banner floor is a little under half the feed so the first shelf stays in
+            // view; long copy or a larger display zoom grows it instead of
+            // clipping the buttons.
             itemView.post {
                 val parentHeight = (itemView.parent as? ViewGroup)?.height ?: return@post
-                val h = (parentHeight * 0.62f).toInt()
-                if (h > 0 && itemView.layoutParams.height != h) {
-                    itemView.layoutParams = (itemView.layoutParams.also { it.height = h })
-                }
+                val h = (parentHeight * 0.45f).toInt()
+                if (h > 0 && itemView.minimumHeight != h) itemView.minimumHeight = h
             }
             title.text = series.title
-            // Netflix-style kicker: what am I looking at, one glance.
-            kicker.text = if (series.isMovie) "Film" else "Serie"
-            kicker.visibility = View.VISIBLE
             val metaText = buildString {
-                series.year?.let { append(it) }
+                append(if (series.isMovie) "Film" else "Serie")
+                series.year?.let { append("  ·  ").append(it) }
                 series.rating?.let {
                     if (isNotEmpty()) append("  ·  ")
                     append("★ ${String.format(java.util.Locale.GERMAN, "%.1f", it)}")
@@ -1286,11 +1308,15 @@ private class RowsAdapter(
                     append(badges.joinToString(" · "))
                 }
             }
-            meta.text = metaText
-            meta.visibility = if (metaText.isBlank()) View.GONE else View.VISIBLE
             val ov = series.overview?.trim().orEmpty()
-            overview.text = ov
-            overview.visibility = if (ov.isBlank()) View.GONE else View.VISIBLE
+            // A short note ("S04E15", "Brandneue Episode") belongs on the meta
+            // line; only real plot text gets the paragraph below.
+            val note = ov.length in 1..40
+            val metaLine = if (note) "$metaText  ·  $ov" else metaText
+            meta.text = metaLine
+            meta.visibility = if (metaLine.isBlank()) View.GONE else View.VISIBLE
+            overview.text = if (note) "" else ov
+            overview.visibility = if (note || ov.isBlank()) View.GONE else View.VISIBLE
             val art = series.backdropUrl ?: series.posterUrl
             if (lastHeroId != series.id) {
                 val firstBind = lastHeroId == null
@@ -1390,7 +1416,7 @@ private class RowsAdapter(
             lm.initialPrefetchItemCount = 8
             list.adapter = posterAdapter
             list.itemAnimator = null
-            list.clipChildren = false
+            list.clipChildren = true
             list.clipToPadding = false
             list.isNestedScrollingEnabled = false
             list.overScrollMode = View.OVER_SCROLL_NEVER
@@ -1438,7 +1464,7 @@ private class CalendarDayAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_calendar_day, parent, false)
-        FocusFx.clipMediaTile(view)
+        (view.findViewById<View>(R.id.calPoster).parent as View).let(FocusFx::clipMediaTile)
         return VH(view)
     }
 
@@ -1484,12 +1510,13 @@ private class CalendarDayAdapter(
                 }
             }
             day.text = parsed?.dayOfMonth?.toString() ?: ""
+            day.isSelected = parsed == today
             title.text = series.title
             episode.text = series.overview.orEmpty()
             val upcoming = series.genres.any { it.contains("DEMNÄCHST", true) }
             val extra = series.genres.firstOrNull { it.startsWith("+") }
             val badgeText = listOfNotNull(
-                if (upcoming) "DEMNÄCHST" else null,
+                if (upcoming) "Demnächst" else null,
                 extra,
             ).joinToString(" · ")
             if (badgeText.isBlank()) {
@@ -1550,7 +1577,7 @@ private class PosterAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PosterVH {
         val layout = if (viewType == 1) R.layout.item_poster_card else R.layout.item_poster
         val view = LayoutInflater.from(parent.context).inflate(layout, parent, false)
-        FocusFx.clipMediaTile(view)
+        FocusFx.clipMediaTile(view.findViewById(R.id.posterFrame))
         return PosterVH(view)
     }
 
@@ -1586,7 +1613,6 @@ private class PosterAdapter(
         }
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
             FocusFx.animateFocus(v, hasFocus, 1.08f)
-            FocusFx.dimSiblings(v, hasFocus)
             if (hasFocus) {
                 val pos = holder.bindingAdapterPosition
                 val s = itemAt(pos) ?: return@setOnFocusChangeListener
@@ -1609,7 +1635,8 @@ private class PosterAdapter(
 
         fun bind(series: Series, browseMode: Boolean) {
             title.text = series.title
-            val landscape = itemView.layoutParams?.width ?: 0 > (itemView.layoutParams?.height ?: 1)
+            val frame = itemView.findViewById<View>(R.id.posterFrame).layoutParams
+            val landscape = frame.width > frame.height
             val art = if (landscape) {
                 series.backdropUrl ?: series.posterUrl
             } else {
