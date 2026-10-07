@@ -9,7 +9,7 @@ on:
       version:
         description: "Version name (e.g. 1.6.9)"
         required: true
-        default: "1.27.0"
+        default: "1.27.1"
 
 permissions:
   contents: write

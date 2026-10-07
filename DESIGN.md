@@ -270,9 +270,9 @@ The screen is one vertical feed that runs edge to edge under a floating top bar.
 
 - **Shared edge.** Nav, hero text, shelf headings and the first tile of every shelf start 58dp from the left (`vf_edge`), which is a little over 5% of the screen width at the default display size. The right edge mirrors it for the nav actions. A focused control never comes closer than 30dp to the top or bottom (`vf_edge_vertical`).
 - **Top bar.** 64dp tall: wordmark, then tabs (40dp tall, 14dp side padding, 2dp apart, 18dp after the wordmark), a spacer, then 40dp icon actions 4dp apart and the 36dp avatar. Over the hero it sits on a scrim that fades down from 85% ground. Once the feed has scrolled it turns solid and dissolves over its lowest 14%, so shelves fade out under it.
-- **Hero.** At least 260dp tall with a floor of 45% of the feed height, growing with long copy or a larger display size. Text block is bottom-left: title, 10dp, fact line, 8dp, plot, 18dp, then Play (160dp minimum width) and a 48dp details button 10dp apart.
+- **Hero.** A fixed billboard behind the feed: the focused title's artwork fills the top 78% of the screen and stays put while shelves move over it. Its lower 48% fades to transparent, baked into the bitmap when it loads (`HeroArt`), so drawing it is one textured quad. The hero item in the feed carries only the title (52sp display), one meta line and the two actions, is at least 300dp tall with a floor of 60% of the feed height, and grows with long copy or a larger display size. The billboard and its shade fade out as the feed scrolls.
 - **Shelves.** Heading at the shared edge, 16dp above it, 14dp between heading and tiles, 12dp under the tiles. Tiles are 14dp apart. Tile sizes: poster 140 by 210dp, landscape 256 by 144dp, day 208 by 117dp, episode 248 by 140dp. Title sits 8dp under the artwork (10dp on episodes), supporting lines 2dp apart.
-- **Shelf snap.** When focus moves to a shelf, the feed jumps (it does not animate) so the shelf's heading rests 64dp from the top, directly under the bar. With the side rail it rests at 12dp. The hero always rests at the very top.
+- **Shelf snap.** When focus moves, the feed glides (220ms, decelerating) so the focused shelf's heading rests directly under the top bar, and inside a shelf the focused tile rests at the shared content edge while the shelf glides under it. A new focus move retargets the glide. If a rebind interrupts a glide, it is finished once the list is idle.
 - **Search.** Two columns from the shared edge: 42% for the query field and a six-column key grid (keys 40dp tall with 3dp margins), 58% for live results.
 - **Detail.** Poster 132 by 198dp at the shared edge, 40dp from the top; text column 24dp to its right; action row of Play, three 48dp icon buttons and the language button, 10dp apart; season tabs; then one shelf of episode tiles.
 - **Screens without artwork.** Left-aligned stack at the shared edge: headline, then content in 12dp steps, groups separated by 28dp to 32dp.
@@ -289,13 +289,13 @@ Depth is built from layers of light, not from shadows. Button styles set elevati
 
 The three layers on home, back to front:
 1. **Room light.** The focused title's backdrop (or poster) loaded at 40 by 22 pixels and stretched to the screen, cross-faded over 700 ms, held at 62% opacity, with an additional 48px blur on API 31 and later. Over it, a vertical scrim of the ground colour at 25%, 60% and 90%.
-2. **Hero.** Sharp artwork cropped to keep the upper part of the image (vertical bias 0.15) so faces survive a wide, short banner. A left shade (85% ground at the edge, 20% at 45% across, clear after) carries the text. Artwork and shade fade to transparent together over the bottom 120dp. A slow drift between 1.02 and 1.09 scale over 16 s runs on the artwork when motion is enabled.
+2. **Hero.** Sharp artwork cropped to keep the upper part of the image (vertical bias 0.12), rendered at two thirds of the view size, with the dissolve of its lower part baked into the bitmap. No per-frame mask and no continuous zoom.
 3. **Front.** Glass controls and artwork tiles.
 
 The detail screen is built differently: its backdrop is sharp and full-screen under an even 35% dim, a bottom gradient to the ground and a left scrim. It has no room-light layer.
 
 ### Light Vocabulary
-- **Halo** (`HaloDrawable`): 14 stacked outlines of Halo Blue around a focused tile's artwork frame, spreading 14dp, peak alpha 150 of 255 with quadratic falloff. Fades in over 180 ms and out over 140 ms. Tiles only; controls do not glow.
+- **Halo** (`HaloDrawable`): 8 stacked outlines of Halo Blue around a focused tile's artwork frame, spreading 14dp, peak alpha 170 of 255 with quadratic falloff. Fades in over 180 ms and out over 140 ms. Tiles only; controls do not glow.
 - **Focus growth** (`FocusFx`): scale to at most 1.06 in 150 ms, back in 160 ms, on the curve (0.23, 1, 0.32, 1). Press dips to 0.96 in 100 ms.
 - **Title legibility shadow**: the hero title carries a soft text shadow (60% black, 3 down, radius 18) because it crosses live artwork. It is a legibility aid, not a style.
 
@@ -376,7 +376,7 @@ Skeleton blocks in the skeleton tone with 8dp corners, in the shape of the conte
 - **Don't** put a card, outline or resting border around an artwork tile.
 - **Don't** add elevation or drop shadows to surfaces.
 - **Don't** set buttons, body or labels in `archivo_display`, and don't uppercase labels.
-- **Don't** end the home hero on a painted scrim; it fades out over its bottom 120dp into the room light.
+- **Don't** end the home hero on a painted scrim; its lower part is transparent in the bitmap itself.
 - **Don't** replace `vf_edge` with a literal inset.
 - **Don't** raise the system keyboard for search.
 
@@ -384,7 +384,7 @@ Skeleton blocks in the skeleton tone with 8dp corners, in the shape of the conte
 
 Open at the time of recording. None of these are rules.
 
-- The search results list still opens with a featured hero. In that narrower column its artwork has hard top and left edges instead of dissolving.
+- Fixed in 1.27.1: the search results list opens directly on its shelves.
 - Down from a top nav tab lands on the hero's details button, not on Play.
 - The halo and the blurred room light were verified on an API 31 emulator only. Below API 31 the room light relies on the stretched thumbnail alone. minSdk is 25.
 - Player, splash, setup, profile edit and the side-rail nav mode were not visually reviewed. What this file says about them comes from source only.

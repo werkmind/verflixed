@@ -24,6 +24,13 @@ object FilmParser {
 
     fun browsePaths(): List<String> = listOf("/movies/new", "/movies/top", "/")
 
+    /** Pages merged into the film catalogue: the first pages of each list, not just page one. */
+    fun catalogPaths(): List<String> = listOf(
+        "/movies/new", "/movies/new/page/2", "/movies/new/page/3", "/movies/new/page/4",
+        "/movies/top", "/movies/top/page/2", "/movies/top/page/3",
+        "/",
+    )
+
     fun isMovieSite(baseUrl: String): Boolean {
         val h = baseUrl.lowercase()
         return h.contains("filmpalast") || h.contains("movie") || h.contains("film")

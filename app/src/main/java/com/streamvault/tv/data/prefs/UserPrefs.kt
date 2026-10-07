@@ -273,7 +273,7 @@ class UserPrefs(context: Context) {
         private const val KEY_UI_SCALE = "ui_scale_percent"
         private const val KEY_BLOCKED = "blocked_genres"
         private const val KEY_BLOCKED_PREFIX = "blocked_genres_"
-        const val BROWSE_PAGE_SIZE = 24
+        const val BROWSE_PAGE_SIZE = 60
 
         fun normalizeUrl(raw: String): String {
             var u = raw.trim().trimEnd('/')

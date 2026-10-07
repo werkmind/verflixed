@@ -102,6 +102,60 @@ class CatalogRepository(
     private fun preferredLang(): String =
         StreamLanguage.normalize(prefs.streamLanguage(prefs.activeProfileId))
 
+    /** The series source's complete title index; null until loaded. */
+    @Volatile private var seriesIndex: List<SeriesIndex.Entry>? = null
+    private val seriesIndexLock = kotlinx.coroutines.sync.Mutex()
+
+    private fun seriesIndexFile() = File(cacheDir, "series-index.tsv")
+
+    /**
+     * Every series title on the source, from memory, then disk, then the
+     * site's `/serien` page. A copy older than a day is refreshed in the
+     * background while the old one keeps answering.
+     */
+    private suspend fun ensureSeriesIndex(): List<SeriesIndex.Entry> {
+        seriesIndex?.let { return it }
+        return seriesIndexLock.withLock {
+            seriesIndex?.let { return@withLock it }
+            val file = seriesIndexFile()
+            val fromDisk = runCatching {
+                if (!file.isFile) emptyList() else file.readLines().mapNotNull { line ->
+                    val p = line.split('\t')
+                    if (p.size == 3) SeriesIndex.Entry(p[0], p[1], p[2]) else null
+                }
+            }.getOrDefault(emptyList())
+            if (fromDisk.isNotEmpty()) {
+                seriesIndex = fromDisk
+                if (System.currentTimeMillis() - file.lastModified() > SERIES_INDEX_TTL_MS) {
+                    bgScope.launch { runCatching { fetchSeriesIndex() } }
+                }
+                return@withLock fromDisk
+            }
+            runCatching { fetchSeriesIndex() }.getOrDefault(emptyList())
+        }
+    }
+
+    private fun fetchSeriesIndex(): List<SeriesIndex.Entry> {
+        val base = prefs.seriesBaseUrl.trim().trimEnd('/')
+        if (base.isBlank()) return emptyList()
+        val entries = SeriesIndex.parse(getText("$base/serien"))
+        if (entries.isEmpty()) return emptyList()
+        seriesIndex = entries
+        runCatching {
+            seriesIndexFile().writeText(entries.joinToString("\n") { "${it.slug}\t${it.title.replace('\t', ' ')}\t${it.key}" })
+        }
+        return entries
+    }
+
+    /** Starts loading the title index so the first search already has it. */
+    fun warmSearchIndex() {
+        if (seriesIndex == null) bgScope.launch { runCatching { ensureSeriesIndex() } }
+    }
+
+    /** Index hits for [query] as catalogue entries, best first. */
+    private fun indexHits(index: List<SeriesIndex.Entry>, query: String): List<Series> =
+        SeriesIndex.search(index, query, 60).map { SeriesIndex.toSeries(it, prefs.seriesBaseUrl) }
+
     /** Language of the hoster link currently being tried, per episode id. */
     private val attemptLang = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -175,7 +229,7 @@ class CatalogRepository(
                 val homeHtml = runCatching { getText(base) }.getOrNull().orEmpty()
                 val neu = applyContentFilters(parser.parseHomeHeroNewReleases(homeHtml, base))
                     .map { hydrateBrowseArt(it) }
-                    .take(16)
+                    .take(SHELF_SIZE)
                 if (neu.isNotEmpty()) rows += HomeRow("Neu", neu)
                 val week = runCatching { calendar.weekAhead() }.getOrDefault(emptyList())
                 calendarWeekRow(week)?.let { rows += it }
@@ -212,7 +266,7 @@ class CatalogRepository(
                 val body = runCatching { getText("$base$path") }.getOrNull() ?: return@forEach
                 val items = applyContentFilters(FilmParser.parseMovieList(body, base, moviesOnly = true))
                     .map { hydrateBrowseArt(it) }
-                    .take(16)
+                    .take(SHELF_SIZE)
                 if (items.isNotEmpty()) {
                     val title = when {
                         path.contains("top") -> "Top Filme"
@@ -226,7 +280,7 @@ class CatalogRepository(
             allowedGenreChips().take(8).forEach { genre ->
                 val genreMovies = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
                 if (genreMovies.isEmpty()) return@forEach
-                val items = genreMovies.map { hydrateBrowseArt(it) }.take(16)
+                val items = genreMovies.map { hydrateBrowseArt(it) }.take(SHELF_SIZE)
                 if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
             }
             return@withContext rows.also { browseRowsMem[memKey] = it }
@@ -235,7 +289,7 @@ class CatalogRepository(
         allowedGenreChips().take(8).forEach { genre ->
             val genreSeries = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
             if (genreSeries.isEmpty()) return@forEach
-            val items = genreSeries.map { hydrateBrowseArt(it) }.take(16)
+            val items = genreSeries.map { hydrateBrowseArt(it) }.take(SHELF_SIZE)
             if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
         }
         rows.also { browseRowsMem[memKey] = it }
@@ -267,7 +321,7 @@ class CatalogRepository(
                     .thenBy { p -> candidatesIn.indexOfFirst { it.id == p.first.id } }
             )
             .map { (movie, year) -> if (movie.year == null) movie.copy(year = year) else movie }
-            .take(16)
+            .take(SHELF_SIZE)
     }
 
     /** In-memory cover hydrate for Browse — never writes Room. */
@@ -605,8 +659,13 @@ class CatalogRepository(
                 }.getOrDefault(emptyList())
             )
             val libRow = matchTitles(favs, q, qFold).take(24)
-            val seriesRow = matchTitles(catalogSeries, q, qFold).take(36)
-            val movieRow = matchTitles(catalogMovies, q, qFold).take(36)
+            // The full index when it is already in memory (never waits for the
+            // network on a keystroke); catalogue matches supply the cover art.
+            val known = matchTitles(catalogSeries, q, qFold)
+            val indexed = seriesIndex?.let { applyContentFilters(indexHits(it, raw)) }.orEmpty()
+            if (seriesIndex == null) warmSearchIndex()
+            val seriesRow = mergeSearchHits(indexed, known).take(SEARCH_ROW_SIZE)
+            val movieRow = matchTitles(catalogMovies, q, qFold).take(SEARCH_ROW_SIZE)
             rememberSeriesHits(seriesRow + movieRow + libRow)
             assembleSearchRows(priorityKind, libRow, seriesRow, movieRow)
         }
@@ -640,19 +699,24 @@ class CatalogRepository(
                 )
             }.getOrDefault(emptyList())
         }
+        // The complete title index, loaded now if this is the first search.
+        val indexDef = async { runCatching { indexHits(ensureSeriesIndex(), raw) }.getOrDefault(emptyList()) }
         val liveSeries = liveSeriesDef.await()
         val liveMovies = liveMoviesDef.await()
+        val indexSeries = indexDef.await()
 
         val localSeries = local.firstOrNull { it.title == "Serien" }?.items.orEmpty()
         val localMovies = local.firstOrNull { it.title == "Filme" }?.items.orEmpty()
         val localLib = local.firstOrNull { it.title == "Meine Bibliothek" }?.items.orEmpty()
 
-        val seriesRow = applyContentFilters(mergeSearchHits(localSeries, liveSeries))
-            .sortedByDescending { it.title.lowercase().startsWith(q) }
-            .take(36)
+        // Index order is the ranking; live and local hits fill in cover art and
+        // add anything the index does not carry.
+        val seriesRow = applyContentFilters(
+            mergeSearchHits(mergeSearchHits(indexSeries, liveSeries), localSeries)
+        ).take(SEARCH_ROW_SIZE)
         val movieRow = applyContentFilters(mergeSearchHits(localMovies, liveMovies))
             .sortedByDescending { it.title.lowercase().startsWith(q) }
-            .take(36)
+            .take(SEARCH_ROW_SIZE)
         rememberSeriesHits(seriesRow + movieRow + localLib)
         assembleSearchRows(priorityKind, localLib, seriesRow, movieRow)
     }
@@ -1843,7 +1907,7 @@ class CatalogRepository(
             .sortedByDescending { it.second }
             .map { it.first }
             .distinctBy { it.id }
-            .take(16)
+            .take(SHELF_SIZE)
             .toList()
     }
 
@@ -2197,7 +2261,7 @@ class CatalogRepository(
         val base = baseUrl.trimEnd('/')
         val seen = LinkedHashMap<String, Series>()
         var lastError: Throwable? = null
-        for (path in FilmParser.browsePaths()) {
+        for (path in FilmParser.catalogPaths()) {
             try {
                 val url = if (path == "/") base else "$base$path"
                 val req = Request.Builder()
@@ -2395,6 +2459,10 @@ class CatalogRepository(
 
         /** Direct HLS/MP4 links from hosters are session-bound; re-resolve after this. */
         private const val DIRECT_MEDIA_TTL_MS = 6L * 60 * 60 * 1000
+        /** Titles per browse shelf. Tiles bind lazily, so a longer shelf costs nothing until scrolled. */
+        private const val SHELF_SIZE = 40
+        private const val SEARCH_ROW_SIZE = 60
+        private const val SERIES_INDEX_TTL_MS = 24L * 60 * 60 * 1000
 
         /** Serve the disk catalog instantly but refresh in the background after this. */
         private const val CATALOG_SOFT_TTL_MS = 30L * 60 * 1000

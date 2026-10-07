@@ -31,6 +31,7 @@ import com.streamvault.tv.ui.profile.ProfilesActivity
 import com.streamvault.tv.ui.settings.SettingsActivity
 import com.streamvault.tv.ui.util.AmbientFx
 import com.streamvault.tv.ui.util.FocusFx
+import com.streamvault.tv.ui.util.HeroArt
 import com.streamvault.tv.ui.util.PosterLoader
 import com.streamvault.tv.ui.util.TvLinearLayoutManager
 import com.streamvault.tv.ui.util.UiSound
@@ -110,6 +111,7 @@ class HomeActivity : ScaledAppCompatActivity() {
         },
         prefsProvider = { prefs },
         browseModeProvider = { true },
+        heroEnabled = false,
         resolveArt = { series, onResolved ->
             if (!series.posterUrl.isNullOrBlank() || !series.backdropUrl.isNullOrBlank()) return@RowsAdapter
             lifecycleScope.launch {
@@ -176,11 +178,25 @@ class HomeActivity : ScaledAppCompatActivity() {
         binding.rows.layoutManager = rowsLm
         rowsLm.attachPendingFocus(binding.rows)
         binding.rows.adapter = rowsAdapter
+        // The full title index takes a moment to download once; start now so
+        // the first search already covers the whole catalogue.
+        (application as VerflixedApp).container.catalog.warmSearchIndex()
         // Checked on every frame the feed draws: focus moves reposition rows
         // without always reporting a scroll delta.
+        // The billboard is a static texture on its own layer, so fading it with
+        // the scroll position costs nothing per frame.
+        binding.heroArt.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         binding.rows.viewTreeObserver.addOnPreDrawListener {
-            val solid = if (binding.rows.computeVerticalScrollOffset() > 0) 1f else 0f
+            val offset = binding.rows.computeVerticalScrollOffset()
+            val solid = if (offset > 0) 1f else 0f
             if (binding.navSolid.alpha != solid) binding.navSolid.alpha = solid
+            // The billboard and its shade leave as the hero scrolls away.
+            val span = (binding.rows.height * 0.3f).coerceAtLeast(1f)
+            val art = if (mode == HomeMode.SEARCH) 0f else (1f - offset / span).coerceIn(0f, 1f)
+            if (binding.heroArt.alpha != art) {
+                binding.heroArt.alpha = art
+                binding.heroShade.alpha = art
+            }
             true
         }
         binding.rows.itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
@@ -1004,7 +1020,9 @@ class HomeActivity : ScaledAppCompatActivity() {
     private fun applyHero(series: Series) {
         heroSeries = series
         rowsAdapter.updateHero(series)
-        AmbientFx.update(binding.ambientImage, series.backdropUrl ?: series.posterUrl)
+        val art = series.backdropUrl ?: series.posterUrl
+        HeroArt.show(binding.heroArt, art)
+        AmbientFx.update(binding.ambientImage, art)
         // Keep stub binding fields in sync (legacy IDs, gone in layout).
         binding.heroTitle.text = series.title
         val meta = buildString {
@@ -1125,7 +1143,9 @@ private class RowsAdapter(
     private val onHeroInfo: () -> Unit,
     private val prefsProvider: () -> com.streamvault.tv.data.prefs.UserPrefs,
     private val browseModeProvider: () -> Boolean,
-    private val resolveArt: (Series, (Series) -> Unit) -> Unit
+    private val resolveArt: (Series, (Series) -> Unit) -> Unit,
+    /** False for the search results list, which opens straight on its shelves. */
+    private val heroEnabled: Boolean = true,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private val rows = mutableListOf<HomeRow>()
     private var hero: Series? = null
@@ -1142,7 +1162,7 @@ private class RowsAdapter(
 
     fun submit(data: List<HomeRow>, featured: Series? = null) {
         val newRows = data.filter { it.items.isNotEmpty() }
-        val newHero = featured
+        val newHero = if (!heroEnabled) null else featured
             ?: newRows.firstOrNull { it.kind != HomeRow.KIND_CALENDAR }?.items?.firstOrNull()
             ?: newRows.firstOrNull()?.items?.firstOrNull()
 
@@ -1186,7 +1206,11 @@ private class RowsAdapter(
         }
     }
 
+    /** The hero holder currently on screen, if any. */
+    private var heroHolder: HeroVH? = null
+
     fun updateHero(series: Series) {
+        if (!heroEnabled) return
         if (hero?.id == series.id &&
             hero?.posterUrl == series.posterUrl &&
             hero?.title == series.title &&
@@ -1195,8 +1219,12 @@ private class RowsAdapter(
             hero = series
             return
         }
+        val hadHero = hero != null
         hero = series
-        if (itemCount > 0) notifyItemChanged(0)
+        // Rewrite the visible hero in place. notifyItemChanged would relayout
+        // the whole feed on every focus move, which is what made browsing stutter.
+        val live = heroHolder?.takeIf { hadHero && it.bindingAdapterPosition == 0 }
+        if (live != null) live.bind(series) else if (itemCount > 0) notifyItemChanged(0)
     }
 
     override fun getItemViewType(position: Int): Int =
@@ -1216,7 +1244,10 @@ private class RowsAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (holder) {
-            is HeroVH -> hero?.let { holder.bind(it) }
+            is HeroVH -> {
+                heroHolder = holder
+                hero?.let { holder.bind(it) }
+            }
             is RowVH -> {
                 val idx = if (hero != null) position - 1 else position
                 if (idx in rows.indices) {
@@ -1245,7 +1276,6 @@ private class RowsAdapter(
         private val info: ImageButton = itemView.findViewById(R.id.btnHeroInfo)
 
         private var lastHeroId: String? = null
-        private var kenBurnsZoomIn = true
 
         init {
             play.setOnClickListener { onPlay() }
@@ -1281,12 +1311,12 @@ private class RowsAdapter(
         }
 
         fun bind(series: Series) {
-            // Banner floor is a little under half the feed so the first shelf stays in
-            // view; long copy or a larger display zoom grows it instead of
-            // clipping the buttons.
+            // The hero takes most of the first screen and lets the first shelf
+            // show beneath it; long copy or a larger display zoom grows it
+            // instead of clipping the buttons.
             itemView.post {
                 val parentHeight = (itemView.parent as? ViewGroup)?.height ?: return@post
-                val h = (parentHeight * 0.45f).toInt()
+                val h = (parentHeight * 0.6f).toInt()
                 if (h > 0 && itemView.minimumHeight != h) itemView.minimumHeight = h
             }
             title.text = series.title
@@ -1317,29 +1347,10 @@ private class RowsAdapter(
             meta.visibility = if (metaLine.isBlank()) View.GONE else View.VISIBLE
             overview.text = if (note) "" else ov
             overview.visibility = if (note || ov.isBlank()) View.GONE else View.VISIBLE
-            val art = series.backdropUrl ?: series.posterUrl
             if (lastHeroId != series.id) {
                 val firstBind = lastHeroId == null
                 lastHeroId = series.id
-                // Banner motion: quick dip-crossfade into the new backdrop, then a
-                // slow Ken-Burns drift so the hero feels alive without distracting.
-                // The text block rises in softly so the swap reads as one beat.
-                backdrop.animate().cancel()
-                backdrop.animate()
-                    .alpha(0.35f)
-                    .setDuration(140L)
-                    .withEndAction {
-                        PosterLoader.loadHero(backdrop, art, browseMode = browseModeProvider())
-                        backdrop.animate()
-                            .alpha(1f)
-                            .setDuration(320L)
-                            .withEndAction { startKenBurns() }
-                            .start()
-                    }
-                    .start()
                 animateTextBlock(firstBind)
-            } else {
-                PosterLoader.loadHero(backdrop, art, browseMode = browseModeProvider())
             }
         }
 
@@ -1365,26 +1376,6 @@ private class RowsAdapter(
                 .setDuration(200L)
                 .setInterpolator(android.view.animation.PathInterpolator(0.23f, 1f, 0.32f, 1f))
                 .withLayer()
-                .start()
-        }
-
-        /** Slow 1.02→1.09 drift (~16s), alternating direction on each new hero. */
-        private fun startKenBurns() {
-            if (!FocusFx.motionEnabled(backdrop)) {
-                backdrop.scaleX = 1f
-                backdrop.scaleY = 1f
-                return
-            }
-            val from = if (kenBurnsZoomIn) 1.02f else 1.09f
-            val to = if (kenBurnsZoomIn) 1.09f else 1.02f
-            kenBurnsZoomIn = !kenBurnsZoomIn
-            backdrop.scaleX = from
-            backdrop.scaleY = from
-            backdrop.animate()
-                .scaleX(to)
-                .scaleY(to)
-                .setDuration(16_000L)
-                .setInterpolator(android.view.animation.LinearInterpolator())
                 .start()
         }
     }

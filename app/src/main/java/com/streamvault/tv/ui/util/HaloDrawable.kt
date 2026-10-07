@@ -73,7 +73,7 @@ class HaloDrawable(
     override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 
     private companion object {
-        const val RINGS = 14
-        const val PEAK_ALPHA = 150
+        const val RINGS = 8
+        const val PEAK_ALPHA = 170
     }
 }

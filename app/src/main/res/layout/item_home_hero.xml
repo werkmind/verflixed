@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Billboard for the focused title: artwork right, facts bottom left. -->
+<!-- Facts and actions of the focused title, over the fixed billboard. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/heroContainer"
     android:layout_width="match_parent"
@@ -7,26 +7,16 @@
     android:clipChildren="true"
     android:clipToPadding="true"
     android:focusable="false"
-    android:minHeight="260dp">
+    android:minHeight="300dp">
 
-    <!-- Artwork and its shade fade out together along the bottom, into the
-         blurred light of the same artwork behind the feed. -->
-    <com.streamvault.tv.ui.util.FadeFrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <ImageView
-            android:id="@+id/heroBackdrop"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:contentDescription="@null"
-            android:scaleType="centerCrop" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_hero_side" />
-    </com.streamvault.tv.ui.util.FadeFrameLayout>
+    <!-- The artwork is the fixed billboard behind the feed; this item only
+         carries the title's facts and actions. Kept for the view holder. -->
+    <ImageView
+        android:id="@+id/heroBackdrop"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:contentDescription="@null"
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/heroTextBlock"
@@ -39,7 +29,7 @@
         android:paddingStart="@dimen/vf_edge"
         android:paddingTop="76dp"
         android:paddingEnd="@dimen/vf_edge"
-        android:paddingBottom="12dp">
+        android:paddingBottom="20dp">
 
         <TextView
             android:id="@+id/heroKicker"
@@ -55,6 +45,7 @@
             android:ellipsize="end"
             android:maxWidth="560dp"
             android:maxLines="2"
+            android:textSize="52sp"
             android:shadowColor="#99000000"
             android:shadowDy="3"
             android:shadowRadius="18"

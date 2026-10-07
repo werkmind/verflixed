@@ -110,6 +110,9 @@ object FocusFx {
             v.translationZ = elevation
             return
         }
+        // Scale and translationZ are render-node properties: animating them
+        // redraws nothing, so no offscreen layer is requested (a layer would
+        // cost a texture per move and clip the halo to the tile's bounds).
         // Focus moves are the highest-frequency interaction on TV — anything
         // slower than ~160ms reads as input lag when scrubbing along a row.
         // `liquid` adds a slight overshoot on focus gain for hero CTAs and nav.
@@ -120,7 +123,6 @@ object FocusFx {
             .translationZ(elevation)
             .setDuration(if (hasFocus) 150 else 160)
             .setInterpolator(if (hasFocus && liquid) springy else glide)
-            .withLayer()
             .start()
     }
 

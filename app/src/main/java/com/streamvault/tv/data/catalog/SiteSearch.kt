@@ -33,10 +33,12 @@ object SiteSearch {
         val cached = fastHttp
         if (cached != null && fastHttpParent === http) return cached
         val built = http.newBuilder()
-            .connectTimeout(1_200, TimeUnit.MILLISECONDS)
-            .readTimeout(2_200, TimeUnit.MILLISECONDS)
-            .writeTimeout(2_200, TimeUnit.MILLISECONDS)
-            .callTimeout(2_800, TimeUnit.MILLISECONDS)
+            // Long enough for a result page on a slow line; a failed search is
+            // indistinguishable from "nothing found", so do not cut it early.
+            .connectTimeout(3_000, TimeUnit.MILLISECONDS)
+            .readTimeout(5_000, TimeUnit.MILLISECONDS)
+            .writeTimeout(5_000, TimeUnit.MILLISECONDS)
+            .callTimeout(7_000, TimeUnit.MILLISECONDS)
             .build()
         fastHttp = built
         fastHttpParent = http
@@ -92,14 +94,15 @@ object SiteSearch {
         if (mediaKind == "movie") {
             return searchMovies(http, base, q, userAgent, fast)
         }
-        // Prefer suggest (JSON, ~100ms). Ajax is the AniWorld fallback.
-        // HTML scrape only in slow mode - it is multi-second and blocks typing.
-        searchSuggest(http, base, q, userAgent)?.takeIf { it.isNotEmpty() }?.let { return it }
-        searchAjax(http, base, q, userAgent)?.takeIf { it.isNotEmpty() }?.let { return it }
-        if (!fast) {
-            searchHtml(http, base, q, userAgent)?.takeIf { it.isNotEmpty() }?.let { return it }
-        }
-        return emptyList()
+        // The site's own result page is the complete answer and carries cover
+        // art. Suggest only ever returns five titles, so it is merged in as a
+        // quick extra, not used on its own. Ajax is the AniWorld fallback.
+        val page = searchHtml(http, base, q, userAgent).orEmpty()
+        val suggest = searchSuggest(http, base, q, userAgent).orEmpty()
+        val merged = LinkedHashMap<String, Series>()
+        (page + suggest).forEach { hit -> merged.getOrPut(hit.id) { hit } }
+        if (merged.isNotEmpty()) return merged.values.toList()
+        return searchAjax(http, base, q, userAgent).orEmpty()
     }
 
     private fun searchMovies(
@@ -109,19 +112,10 @@ object SiteSearch {
         userAgent: String,
         fast: Boolean,
     ): List<Series> {
-        val enc = java.net.URLEncoder.encode(q, "UTF-8")
-        val plus = java.net.URLEncoder.encode(q.replace(Regex("""\s+"""), "+"), "UTF-8")
-        val paths = if (fast) {
-            // One path while typing - Filmpalast's canonical title search.
-            listOf("/search/title/$enc")
-        } else {
-            listOf(
-                "/search/title/$enc",
-                "/search/title/$plus",
-                "/suche?q=$enc",
-                "/search?q=$enc",
-            )
-        }
+        // The query sits in the URL path, where a space must be %20. Form
+        // encoding ("+") makes the site return nothing for any two-word title.
+        val enc = pathSegment(q)
+        val paths = listOf("/search/title/$enc")
         for (path in paths) {
             if (Thread.interrupted()) return emptyList()
             val html = get(http, "$base$path", userAgent, base, acceptJson = false) ?: continue
@@ -169,29 +163,49 @@ object SiteSearch {
         userAgent: String,
     ): List<Series>? {
         val enc = java.net.URLEncoder.encode(q, "UTF-8")
-        for (path in listOf("/suche?q=$enc", "/search?q=$enc")) {
+        // "term" is the parameter the site's search form sends; "q" is ignored
+        // by it and returns the default page.
+        for (path in listOf("/suche?term=$enc")) {
             if (Thread.interrupted()) return null
             val html = get(http, "$base$path", userAgent, base, acceptJson = false) ?: continue
             val pageUrl = "$base$path"
-            val doc = Jsoup.parse(html, pageUrl)
-            val seen = linkedSetOf<String>()
-            val out = mutableListOf<Series>()
-            doc.select("a[href]").forEach { a ->
-                val href = a.attr("abs:href").ifBlank { resolve(base, a.attr("href")) }
-                if (!SERIES_HREF.containsMatchIn(href)) return@forEach
-                val root = seriesRoot(href) ?: return@forEach
-                if (!seen.add(root)) return@forEach
-                val title = cleanTitle(
-                    a.selectFirst("strong, .title, h3, h2")?.text()
-                        ?: a.attr("title").ifBlank { a.text() }
-                )
-                if (title.isBlank()) return@forEach
-                out += seriesOf(root, title, null)
-            }
+            val out = parseResultPage(html, base, pageUrl)
             if (out.isNotEmpty()) return out
         }
         return null
     }
+
+    /** Cover cards of the series result page: link, title and cover per hit. */
+    internal fun parseResultPage(html: String, base: String, pageUrl: String = base): List<Series> {
+            val doc = Jsoup.parse(html, pageUrl)
+            val seen = linkedSetOf<String>()
+            val out = mutableListOf<Series>()
+            // Only cover cards are results; nav, footer and "popular" lists also link to series.
+            doc.select(".cover-card").mapNotNull { it.selectFirst("a[href]") ?: it.parent()?.takeIf { p -> p.tagName() == "a" } }.forEach { a ->
+                val href = a.attr("abs:href").ifBlank { resolve(base, a.attr("href")) }
+                if (!SERIES_HREF.containsMatchIn(href)) return@forEach
+                // The page also lists matching episodes; those are not title hits.
+                if (href.contains("/staffel-") || href.contains("/episode-")) return@forEach
+                val root = seriesRoot(href) ?: return@forEach
+                if (!seen.add(root)) return@forEach
+                val card = a.closest(".cover-card") ?: a
+                val title = cleanTitle(
+                    card.selectFirst("h6, h5, strong, .title, h3, h2")?.text()
+                        ?: card.selectFirst("img[alt]")?.attr("alt")
+                        ?: a.attr("title").ifBlank { a.text() }
+                )
+                if (title.isBlank()) return@forEach
+                val cover = card.selectFirst("img[src], img[data-src]")?.let { img ->
+                    img.attr("data-src").ifBlank { img.attr("src") }
+                }?.takeIf { it.isNotBlank() && !it.startsWith("data:") }?.let { resolve(base, it) }
+                out += seriesOf(root, title, null).copy(posterUrl = cover)
+            }
+            return out
+    }
+
+    /** Percent-encodes a value for use inside a URL path. */
+    internal fun pathSegment(raw: String): String =
+        java.net.URLEncoder.encode(raw.trim(), "UTF-8").replace("+", "%20")
 
     private fun parseSuggestBody(body: String, base: String): List<Series> {
         val trimmed = body.trim()

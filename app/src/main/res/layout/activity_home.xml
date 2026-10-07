@@ -32,6 +32,32 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Billboard: the focused title's artwork, fixed behind the feed. Its
+         lower part is already transparent in the bitmap (see HeroArt). -->
+    <ImageView
+        android:id="@+id/heroArt"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHeight_percent="0.78"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Shade for the hero text on the left and the nav at the top. -->
+    <View
+        android:id="@+id/heroShade"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_hero_side"
+        android:importantForAccessibility="no"
+        app:layout_constraintBottom_toBottomOf="@id/heroArt"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- ===== SIDEBAR (optional) ===== -->
     <LinearLayout
         android:id="@+id/sideNav"

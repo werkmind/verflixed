@@ -22,12 +22,65 @@ class TvLinearLayoutManager(
 
     private var pendingFocusPos = RecyclerView.NO_POSITION
 
+    private companion object {
+        const val GLIDE_MS = 220
+    }
+
     /**
-     * Vertical lists only: where the top of the focused row comes to rest, so
-     * its heading always sits at the same height under the nav. 0 = default
-     * scrolling. The first item (the hero) always rests at the very top.
+     * Where the leading edge of the focused child comes to rest. Vertical:
+     * the row's top, so its heading always sits at the same height under the
+     * nav (the first item, the hero, rests at the very top). Horizontal: the
+     * tile's start, so focus stays in one place and the shelf glides under it.
+     * 0 on a vertical list = default scrolling.
      */
     var snapTopPx = 0
+
+    private val glide = android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+
+    private var host: RecyclerView? = null
+
+    /** When a glide ends short (a rebind interrupted it), finish the move. */
+    private val settleWhenIdle = object : RecyclerView.OnScrollListener() {
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            if (newState == RecyclerView.SCROLL_STATE_IDLE) settle(recyclerView)
+        }
+    }
+
+    override fun onAttachedToWindow(view: RecyclerView) {
+        super.onAttachedToWindow(view)
+        host = view
+        view.removeOnScrollListener(settleWhenIdle)
+        view.addOnScrollListener(settleWhenIdle)
+    }
+
+    override fun onDetachedFromWindow(view: RecyclerView, recycler: RecyclerView.Recycler) {
+        super.onDetachedFromWindow(view, recycler)
+        view.removeOnScrollListener(settleWhenIdle)
+        host = null
+    }
+
+    private fun settle(rv: RecyclerView) {
+        rv.post {
+            val child = focusedChild ?: return@post
+            if (rv.isComputingLayout || rv.scrollState != RecyclerView.SCROLL_STATE_IDLE) return@post
+            val delta = restDelta(child) ?: return@post
+            val room = if (orientation == HORIZONTAL) rv.canScrollHorizontally(delta) else rv.canScrollVertically(delta)
+            // A few pixels off is rounding, not a move worth animating.
+            if (kotlin.math.abs(delta) > 2 && room) glideBy(rv, delta)
+        }
+    }
+
+    /** How far [child] is from its resting place; null when this list does not snap. */
+    private fun restDelta(child: View): Int? = when {
+        orientation == HORIZONTAL -> getDecoratedLeft(child) - paddingLeft
+        snapTopPx > 0 -> getDecoratedTop(child) - (if (getPosition(child) == 0) 0 else snapTopPx)
+        else -> null
+    }
+
+    private fun glideBy(parent: RecyclerView, delta: Int) {
+        if (orientation == HORIZONTAL) parent.smoothScrollBy(delta, 0, glide, GLIDE_MS)
+        else parent.smoothScrollBy(0, delta, glide, GLIDE_MS)
+    }
 
     override fun requestChildRectangleOnScreen(
         parent: RecyclerView,
@@ -36,24 +89,30 @@ class TvLinearLayoutManager(
         immediate: Boolean,
         focusedChildVisible: Boolean,
     ): Boolean {
-        if (orientation != VERTICAL || snapTopPx <= 0) {
-            return super.requestChildRectangleOnScreen(parent, child, rect, immediate, focusedChildVisible)
-        }
-        val restAt = if (getPosition(child) == 0) 0 else snapTopPx
-        val dy = getDecoratedTop(child) - restAt
-        if (dy == 0) return false
-        // Jump, do not animate: an animated scroll racing the row-to-row focus
-        // hand-off lets the system focus search fall through to the nav.
-        // Focus can also be restored in the middle of a layout pass, where
-        // scrolling is not allowed; defer that case by one frame.
-        if (parent.isComputingLayout) {
-            parent.post {
-                if (child.parent === parent) parent.scrollBy(0, getDecoratedTop(child) - restAt)
-            }
-        } else {
-            parent.scrollBy(0, dy)
+        val delta = restDelta(child)
+            ?: return super.requestChildRectangleOnScreen(parent, child, rect, immediate, focusedChildVisible)
+        if (delta == 0) return false
+        when {
+            // Focus can be restored in the middle of a layout pass, where
+            // scrolling is not allowed; onLayoutCompleted settles that case.
+            parent.isComputingLayout -> Unit
+            immediate -> if (orientation == HORIZONTAL) parent.scrollBy(delta, 0) else parent.scrollBy(0, delta)
+            // One short decelerating glide. A new focus move simply retargets it,
+            // so holding the D-pad stays fluid instead of queueing jumps.
+            else -> glideBy(parent, delta)
         }
         return true
+    }
+
+    /**
+     * A layout pass (new cover art arriving, a row rebinding) can re-anchor the
+     * list around the focused child and leave it half off the edge. Once the
+     * list is at rest again, glide the focused child back to its place.
+     */
+    override fun onLayoutCompleted(state: RecyclerView.State?) {
+        super.onLayoutCompleted(state)
+        val rv = host ?: return
+        if (focusedChild != null) settle(rv)
     }
 
     override fun calculateExtraLayoutSpace(state: RecyclerView.State, extraLayoutSpace: IntArray) {
@@ -92,7 +151,8 @@ class TvLinearLayoutManager(
 
         val existing = rv.findViewHolderForAdapterPosition(along)?.itemView
         if (existing != null) {
-            rv.scrollToPosition(along)
+            // No scrollToPosition here: it jumps. Focusing the neighbour makes
+            // requestChildRectangleOnScreen glide it into place.
             return existing
         }
         // Off-screen neighbour: scroll, then place focus on the recycled item.
