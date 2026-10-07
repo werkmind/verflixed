@@ -24,6 +24,27 @@ object FilmParser {
 
     fun browsePaths(): List<String> = listOf("/movies/new", "/movies/top", "/")
 
+    /**
+     * The film source's own genre names, by app genre id. Its genre pages are
+     * addressed by these names; the app's display labels ("Comedy", "Doku")
+     * do not exist there and returned empty shelves.
+     */
+    fun siteGenre(genreId: String): String? = when (genreId) {
+        "action" -> "Action"
+        "comedy" -> "Komödie"
+        "drama" -> "Drama"
+        "krimi" -> "Krimi"
+        "thriller" -> "Thriller"
+        "fantasy" -> "Fantasy"
+        "science-fiction" -> "Sci-Fi"
+        "horror" -> "Horror"
+        "animation" -> "Animation"
+        "dokumentation" -> "Dokumentation"
+        "romantik" -> "Romantik"
+        "mystery" -> "Mystery"
+        else -> null
+    }
+
     /** Pages merged into the film catalogue: the first pages of each list, not just page one. */
     fun catalogPaths(): List<String> = listOf(
         "/movies/new", "/movies/new/page/2", "/movies/new/page/3", "/movies/new/page/4",

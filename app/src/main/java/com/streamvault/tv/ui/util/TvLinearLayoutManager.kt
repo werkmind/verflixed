@@ -115,6 +115,47 @@ class TvLinearLayoutManager(
         if (focusedChild != null) settle(rv)
     }
 
+    /**
+     * RecyclerView throws when its child bookkeeping gets out of step (seen in
+     * the field as "Called attach on a child which is not detached" under
+     * fast D-pad input while rows rebind). That is recoverable: drop every
+     * view and lay the list out again, instead of letting it end the app.
+     */
+    private fun recover(recycler: RecyclerView.Recycler, error: RuntimeException) {
+        android.util.Log.w("TvLinearLayoutManager", "list rebuilt after layout fault", error)
+        runCatching { removeAndRecycleAllViews(recycler) }
+        runCatching { recycler.clear() }
+        val rv = host ?: return
+        rv.post {
+            runCatching { rv.adapter?.notifyDataSetChanged() }
+            rv.post { if (rv.focusedChild == null && rv.hasWindowFocus()) rv.requestFocus() }
+        }
+    }
+
+    override fun onLayoutChildren(recycler: RecyclerView.Recycler, state: RecyclerView.State) {
+        try {
+            super.onLayoutChildren(recycler, state)
+        } catch (e: RuntimeException) {
+            recover(recycler, e)
+        }
+    }
+
+    override fun scrollVerticallyBy(dy: Int, recycler: RecyclerView.Recycler, state: RecyclerView.State): Int =
+        try {
+            super.scrollVerticallyBy(dy, recycler, state)
+        } catch (e: RuntimeException) {
+            recover(recycler, e)
+            0
+        }
+
+    override fun scrollHorizontallyBy(dx: Int, recycler: RecyclerView.Recycler, state: RecyclerView.State): Int =
+        try {
+            super.scrollHorizontallyBy(dx, recycler, state)
+        } catch (e: RuntimeException) {
+            recover(recycler, e)
+            0
+        }
+
     override fun calculateExtraLayoutSpace(state: RecyclerView.State, extraLayoutSpace: IntArray) {
         val extra = if (orientation == HORIZONTAL) {
             width.coerceAtLeast(160)

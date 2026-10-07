@@ -1,8 +1,8 @@
 {
-  "versionCode": 63,
-  "versionName": "1.27.1",
+  "versionCode": 64,
+  "versionName": "1.27.2",
   "apkUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-FireTV.apk",
   "webappUrl": "https://github.com/werkmind/verflixed/releases/latest/download/Verflixed-Webapp.zip",
-  "sha256": "27420b515e1f89830aad12c34e1dce9f909eb14dfc1fb706d9b364d37f83b0f0",
-  "changelog": "1.27.1: Fluessige Navigation ohne Absturz, grosser feststehender Hero, Suche ueber den gesamten Serienkatalog, Filmsuche mit mehreren Woertern repariert, groessere Auswahl pro Reihe."
+  "sha256": "c4e715fa84ada2eaaeb0f355b6d964da8d42a2d9e6e37eb161fd8a642acb3623",
+  "changelog": "1.27.2: Alle Genre-Reihen fuer Serien und Filme, groesserer Katalog, Suche unterscheidet 'nichts gefunden' von 'Quelle nicht erreichbar', Absturzschutz in den Reihen."
 }

@@ -781,7 +781,12 @@ class HomeActivity : ScaledAppCompatActivity() {
         if (empty) {
             if (!allowEmpty) {
                 searchResultsAdapter.submit(emptyList(), null)
-                binding.emptyText.text = getString(R.string.search_empty)
+                // "Nothing found" and "could not reach the source" are different
+                // answers; say which one this is.
+                val repo = (application as VerflixedApp).container.catalog
+                binding.emptyText.text = getString(
+                    if (repo.searchUnreachable) R.string.search_unreachable else R.string.search_empty
+                )
                 binding.emptyText.visibility = View.VISIBLE
             }
             return

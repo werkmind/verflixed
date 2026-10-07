@@ -147,9 +147,27 @@ class CatalogRepository(
         return entries
     }
 
-    /** Starts loading the title index so the first search already has it. */
+    /** True when the last live search could not reach any source: not "no hits". */
+    @Volatile var searchUnreachable: Boolean = false
+        private set
+
+    /** True when the last live search reached only some of the sources. */
+    @Volatile var searchPartlyUnreachable: Boolean = false
+        private set
+
+    /**
+     * Starts loading what search needs beyond the open screen: the full series
+     * title index, and the film catalogue, which is otherwise only in memory
+     * after the Filme tab was opened.
+     */
     fun warmSearchIndex() {
         if (seriesIndex == null) bgScope.launch { runCatching { ensureSeriesIndex() } }
+        if (memoryMoviesCatalog == null) bgScope.launch {
+            runCatching {
+                val base = prefs.moviesBaseUrl.trim().trimEnd('/')
+                if (base.isNotBlank() && memoryMoviesCatalog == null) memoryMoviesCatalog = fetchMoviesCatalog(base)
+            }
+        }
     }
 
     /** Index hits for [query] as catalogue entries, best first. */
@@ -214,12 +232,11 @@ class CatalogRepository(
         }
         val catalog = loadCatalog(forceRefresh)
         // Browse: no Room/meta cache. Hydrate cover URLs from genre HTML (in-memory) only.
-        val page = prefs.browsePage
-        val size = UserPrefs.BROWSE_PAGE_SIZE
+        // One screen, no paging: the "Alle" shelf carries the whole loaded set.
+        // (Paging used to hang off a zero-sized button nobody could reach.)
+        val page = 0
         val filtered = applyContentFilters(catalog.series).map { hydrateBrowseArt(it) }
-        val from = (page * size).coerceAtMost(filtered.size)
-        val to = (from + size).coerceAtMost(filtered.size)
-        val slice = filtered.subList(from, to)
+        val slice = filtered
         val rows = mutableListOf<HomeRow>()
 
         // Page 0: put homepage hero / Brandneu first
@@ -244,11 +261,7 @@ class CatalogRepository(
 
         if (slice.isNotEmpty()) {
             val allLabel = if (isMoviesMode()) "Alle Filme" else "Alle Serien"
-            val label = if (filtered.size > size) {
-                "$allLabel (${from + 1}-$to)"
-            } else {
-                allLabel
-            }
+            val label = allLabel
             // Avoid duplicating Neu items in the first alle-slice
             val neuIds = rows
                 .filter { it.title == "Neu" || it.title == "Neu erschienen" }
@@ -277,21 +290,11 @@ class CatalogRepository(
                 }
             }
             // Category shelves scraped from Filmpalast genre search pages
-            allowedGenreChips().take(8).forEach { genre ->
-                val genreMovies = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
-                if (genreMovies.isEmpty()) return@forEach
-                val items = genreMovies.map { hydrateBrowseArt(it) }.take(SHELF_SIZE)
-                if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
-            }
+            rows += genreShelves()
             return@withContext rows.also { browseRowsMem[memKey] = it }
         }
         // Category rows (limited) from genre pages — premium “shelves” with real covers
-        allowedGenreChips().take(8).forEach { genre ->
-            val genreSeries = runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList())
-            if (genreSeries.isEmpty()) return@forEach
-            val items = genreSeries.map { hydrateBrowseArt(it) }.take(SHELF_SIZE)
-            if (items.isNotEmpty()) rows += HomeRow(genre.label, items)
-        }
+        rows += genreShelves()
         rows.also { browseRowsMem[memKey] = it }
     }
 
@@ -354,11 +357,25 @@ class CatalogRepository(
 
     suspend fun resolveBrowseArt(series: Series): Series = artResolver.resolve(series)
 
-    fun canLoadMoreBrowse(totalHint: Int = -1): Boolean {
-        val mem = if (isMoviesMode()) memoryMoviesCatalog else memoryCatalog
-        val total = if (totalHint >= 0) totalHint else mem?.series?.size ?: 0
-        return (prefs.browsePage + 1) * UserPrefs.BROWSE_PAGE_SIZE < total
+    /**
+     * One shelf per allowed genre, in the fixed genre order. The pages are
+     * fetched side by side, a few at a time, so showing every genre does not
+     * make the screen wait for a dozen requests in a row.
+     */
+    private suspend fun genreShelves(): List<HomeRow> = coroutineScope {
+        val gate = Semaphore(4)
+        allowedGenreChips().map { genre ->
+            async {
+                val titles = gate.withPermit { runCatching { seriesForGenre(genre.id) }.getOrDefault(emptyList()) }
+                val items = titles.map { hydrateBrowseArt(it) }.take(SHELF_SIZE)
+                if (items.isEmpty()) null else HomeRow(genre.label, items)
+            }
+        }.awaitAll().filterNotNull()
     }
+
+    /** Browse shows the whole loaded set at once, so there is never a further page. */
+    @Suppress("UNUSED_PARAMETER")
+    fun canLoadMoreBrowse(totalHint: Int = -1): Boolean = false
 
     suspend fun loadMoreBrowse(): List<HomeRow> = withContext(Dispatchers.IO) {
         prefs.browsePage = prefs.browsePage + 1
@@ -683,13 +700,15 @@ class CatalogRepository(
         if (raw.length < 2) return@withContext local
 
         val q = raw.lowercase()
+        var seriesDown = false
+        var moviesDown = false
         val liveSeriesDef = async {
             runCatching {
                 SiteSearch.search(
                     http, prefs.seriesBaseUrl, raw, USER_AGENT,
                     mediaKind = "series", fast = true,
                 )
-            }.getOrDefault(emptyList())
+            }.onFailure { seriesDown = true }.getOrDefault(emptyList())
         }
         val liveMoviesDef = async {
             runCatching {
@@ -697,13 +716,16 @@ class CatalogRepository(
                     http, prefs.moviesBaseUrl, raw, USER_AGENT,
                     mediaKind = "movie", fast = true,
                 )
-            }.getOrDefault(emptyList())
+            }.onFailure { moviesDown = true }.getOrDefault(emptyList())
         }
         // The complete title index, loaded now if this is the first search.
         val indexDef = async { runCatching { indexHits(ensureSeriesIndex(), raw) }.getOrDefault(emptyList()) }
         val liveSeries = liveSeriesDef.await()
         val liveMovies = liveMoviesDef.await()
         val indexSeries = indexDef.await()
+        // The index answers for series even when their site search is down.
+        searchUnreachable = moviesDown && (seriesDown && indexSeries.isEmpty())
+        searchPartlyUnreachable = !searchUnreachable && (moviesDown || (seriesDown && indexSeries.isEmpty()))
 
         val localSeries = local.firstOrNull { it.title == "Serien" }?.items.orEmpty()
         val localMovies = local.firstOrNull { it.title == "Filme" }?.items.orEmpty()
@@ -734,18 +756,23 @@ class CatalogRepository(
         return searchLive(query, priorityKind, local)
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun matchTitles(list: List<Series>, q: String, qFold: String): List<Series> {
         if (q.isEmpty()) return list.take(24)
-        // Title-prefix first, then substring. Fold umlauts so "ueber" hits "Über".
+        // Title-prefix first, then substring, both sides normalised the way the
+        // title index is: the TV keyboard has no punctuation or umlauts, so
+        // "spider man" has to find "Spider-Man" and "uber" has to find "Über".
         // Genres/IDs are NOT matched - they flooded results with unrelated titles.
+        val needle = SeriesIndex.normalize(q)
+        if (needle.isEmpty()) return emptyList()
+        val variants = setOf(needle, needle.replace("ue", "u").replace("oe", "o").replace("ae", "a"))
         val starts = mutableListOf<Series>()
         val contains = mutableListOf<Series>()
         for (s in list) {
-            val t = s.title.lowercase()
-            val tf = SiteSearch.foldUmlauts(t)
+            val t = SeriesIndex.normalize(s.title)
             when {
-                t.startsWith(q) || tf.startsWith(qFold) -> starts += s
-                q in t || qFold in tf -> contains += s
+                variants.any { t.startsWith(it) } -> starts += s
+                variants.any { it in t } -> contains += s
             }
         }
         return starts + contains
@@ -868,19 +895,16 @@ class CatalogRepository(
         if (base.isBlank()) return emptyList()
         val withArt = if (isMoviesMode()) {
             val label = CatalogFilters.GENRES.find { it.id == genreId }?.label ?: genreId
-            val paths = listOf(
-                "/search/genre/$label",
-                "/search/genre/${label.lowercase(Locale.ROOT)}",
-                "/genre/$genreId",
-                "/movies/genre/$genreId",
-            )
-            var parsed = emptyList<Series>()
-            for (path in paths) {
+            // Genre pages are addressed by the film source's own genre name,
+            // percent-encoded as a path segment; a genre it does not have is skipped.
+            val site = FilmParser.siteGenre(genreId) ?: return emptyList()
+            val segment = SiteSearch.pathSegment(site)
+            val merged = LinkedHashMap<String, Series>()
+            for (path in listOf("/search/genre/$segment", "/search/genre/$segment/2")) {
                 val body = runCatching { getText("$base$path") }.getOrNull() ?: continue
-                parsed = FilmParser.parseMovieList(body, base, moviesOnly = true)
-                if (parsed.isNotEmpty()) break
+                FilmParser.parseMovieList(body, base, moviesOnly = true).forEach { merged.getOrPut(it.id) { it } }
             }
-            parsed.map {
+            merged.values.map {
                 it.copy(
                     posterUrl = SiteImages.preferJpeg(it.posterUrl),
                     backdropUrl = SiteImages.preferJpeg(it.backdropUrl ?: it.posterUrl),
@@ -888,10 +912,15 @@ class CatalogRepository(
                 )
             }
         } else {
-            val url = "$base/genre/$genreId"
-            val body = runCatching { getText(url) }.getOrNull() ?: return emptyList()
-            val parsed = runCatching { parser.parseCatalog(body, base, null) }.getOrNull() ?: return emptyList()
-            parsed.series.map {
+            // The series source lists 30 per genre page; two pages fill a shelf.
+            val merged = LinkedHashMap<String, Series>()
+            for (url in listOf("$base/genre/$genreId", "$base/genre/$genreId?page=2")) {
+                val body = runCatching { getText(url) }.getOrNull() ?: continue
+                runCatching { parser.parseCatalog(body, base, null) }.getOrNull()
+                    ?.series?.forEach { merged.getOrPut(it.id) { it } }
+            }
+            if (merged.isEmpty()) return emptyList()
+            merged.values.map {
                 it.copy(
                     posterUrl = SiteImages.preferJpeg(it.posterUrl),
                     backdropUrl = SiteImages.preferJpeg(it.backdropUrl ?: it.posterUrl)
@@ -2250,6 +2279,9 @@ class CatalogRepository(
                     } else {
                         memoryCatalog = fetchCatalog(base)
                     }
+                    // Rows built from the previous catalogue would otherwise be
+                    // served from memory for the rest of the session.
+                    browseRowsMem.clear()
                 }
             } finally {
                 catalogRefreshing = false
@@ -2261,6 +2293,7 @@ class CatalogRepository(
         val base = baseUrl.trimEnd('/')
         val seen = LinkedHashMap<String, Series>()
         var lastError: Throwable? = null
+        val bodies = StringBuilder()
         for (path in FilmParser.catalogPaths()) {
             try {
                 val url = if (path == "/") base else "$base$path"
@@ -2280,15 +2313,7 @@ class CatalogRepository(
                     for (m in movies) {
                         if (!seen.containsKey(m.id)) seen[m.id] = m
                     }
-                    if (movies.isNotEmpty() && path == FilmParser.browsePaths().first()) {
-                        moviesCacheFile().writeText(
-                            JSONObject()
-                                .put("body", body)
-                                .put("base", base)
-                                .put("contentType", resp.header("Content-Type") ?: "")
-                                .toString()
-                        )
-                    }
+                    if (movies.isNotEmpty()) bodies.append(body).append('\n')
                 }
             } catch (t: Throwable) {
                 lastError = t
@@ -2296,6 +2321,12 @@ class CatalogRepository(
         }
         if (seen.isEmpty()) {
             throw lastError ?: IllegalStateException("Filmkatalog konnte nicht geladen werden")
+        }
+        // Cache every merged page, so a cold start shows the same set as a fresh load.
+        runCatching {
+            moviesCacheFile().writeText(
+                JSONObject().put("body", bodies.toString()).put("base", base).put("contentType", "text/html").toString()
+            )
         }
         return Catalog(seen.values.toList())
     }

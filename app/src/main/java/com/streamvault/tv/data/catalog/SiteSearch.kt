@@ -20,6 +20,9 @@ import java.util.concurrent.TimeUnit
  * is still typing - that was the main source of lag.
  */
 object SiteSearch {
+    /** The source did not answer at all (offline, blocked, timed out). */
+    class Unreachable(base: String) : java.io.IOException("Suche nicht erreichbar: $base")
+
     private val SERIES_HREF =
         Regex("""/(?:serie|series|anime/stream)(?:/stream)?/[^/?#]+""", RegexOption.IGNORE_CASE)
     private val MOVIE_HREF = Regex("""/stream/[^/?#]+""", RegexOption.IGNORE_CASE)
@@ -97,12 +100,16 @@ object SiteSearch {
         // The site's own result page is the complete answer and carries cover
         // art. Suggest only ever returns five titles, so it is merged in as a
         // quick extra, not used on its own. Ajax is the AniWorld fallback.
-        val page = searchHtml(http, base, q, userAgent).orEmpty()
-        val suggest = searchSuggest(http, base, q, userAgent).orEmpty()
+        val page = searchHtml(http, base, q, userAgent)
+        val suggest = searchSuggest(http, base, q, userAgent)
         val merged = LinkedHashMap<String, Series>()
-        (page + suggest).forEach { hit -> merged.getOrPut(hit.id) { hit } }
+        (page.orEmpty() + suggest.orEmpty()).forEach { hit -> merged.getOrPut(hit.id) { hit } }
         if (merged.isNotEmpty()) return merged.values.toList()
-        return searchAjax(http, base, q, userAgent).orEmpty()
+        val ajax = searchAjax(http, base, q, userAgent)
+        // Null means the request itself failed. When every route failed the
+        // site was not reached, which is not the same as "no such title".
+        if (page == null && suggest == null && ajax == null) throw Unreachable(base)
+        return ajax.orEmpty()
     }
 
     private fun searchMovies(
@@ -114,15 +121,10 @@ object SiteSearch {
     ): List<Series> {
         // The query sits in the URL path, where a space must be %20. Form
         // encoding ("+") makes the site return nothing for any two-word title.
-        val enc = pathSegment(q)
-        val paths = listOf("/search/title/$enc")
-        for (path in paths) {
-            if (Thread.interrupted()) return emptyList()
-            val html = get(http, "$base$path", userAgent, base, acceptJson = false) ?: continue
-            val hits = FilmParser.parseMovieList(html, base, moviesOnly = true)
-            if (hits.isNotEmpty()) return hits
-        }
-        return emptyList()
+        if (Thread.interrupted()) return emptyList()
+        val html = get(http, "$base/search/title/${pathSegment(q)}", userAgent, base, acceptJson = false)
+            ?: throw Unreachable(base)
+        return FilmParser.parseMovieList(html, base, moviesOnly = true)
     }
 
     private fun searchSuggest(
@@ -169,8 +171,8 @@ object SiteSearch {
             if (Thread.interrupted()) return null
             val html = get(http, "$base$path", userAgent, base, acceptJson = false) ?: continue
             val pageUrl = "$base$path"
-            val out = parseResultPage(html, base, pageUrl)
-            if (out.isNotEmpty()) return out
+            // An answered request with no cover cards is a real "no hits".
+            return parseResultPage(html, base, pageUrl)
         }
         return null
     }

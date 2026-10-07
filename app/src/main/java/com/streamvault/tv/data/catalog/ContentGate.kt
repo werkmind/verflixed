@@ -68,13 +68,13 @@ object ContentGate {
                 append(detailPath.lowercase())
             }
         }
-        val overviewNorm = overview?.lowercase().orEmpty().take(240)
+        // Genres and the title decide. The plot text does not: a drama whose
+        // description happens to mention "anime" or "horror" is not that genre,
+        // and hiding it made titles impossible to find in search.
         for (blockedId in blocked) {
             val keys = keysFor(blockedId)
             if (genreNorm.any { g -> keys.any { k -> g == k || g.contains(k) } }) return true
-            if (keys.any { k -> k.length >= 4 && (blob.contains(k) || overviewNorm.contains(k)) }) {
-                return true
-            }
+            if (keys.any { k -> k.length >= 4 && blob.contains(k) }) return true
         }
         return false
     }
